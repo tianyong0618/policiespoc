@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策咨询智能体POC</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="header-icon">🤖</div>
+                <h1>政策咨询智能体POC</h1>
+                <p>基于Doubao-Seed-1.6的智能政策咨询系统</p>
+            </div>
+        </header>
+
+        <main>
+            <!-- 场景选择 -->
+            <div class="scenario-section">
+                <h2>标准场景</h2>
+                <div class="scenario-buttons">
+                    <button class="scenario-btn" data-scenario="scenario1">
+                        <div class="scenario-icon">🚀</div>
+                        <div class="scenario-content">
+                            <strong>场景一：创业扶持政策精准咨询</strong>
+                            <span>返乡创业补贴、创业贷款申请</span>
+                        </div>
+                    </button>
+                    <button class="scenario-btn" data-scenario="scenario2">
+                        <div class="scenario-icon">💼</div>
+                        <div class="scenario-content">
+                            <strong>场景二：技能培训岗位个性化推荐</strong>
+                            <span>职业匹配、补贴申领、灵活时间</span>
+                        </div>
+                    </button>
+                    <button class="scenario-btn" data-scenario="scenario3">
+                        <div class="scenario-icon">🏢</div>
+                        <div class="scenario-content">
+                            <strong>场景三：多重政策叠加咨询</strong>
+                            <span>税收优惠、场地补贴、政策组合</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 对话区域 -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <h2>对话历史</h2>
+                    <button id="clear-btn">🗑️ 清空历史</button>
+                </div>
+                <div id="chat-history" class="chat-history">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">👋</div>
+                        <div class="welcome-text">
+                            <h3>欢迎使用政策咨询智能体</h3>
+                            <p>选择上方场景或直接输入您的问题，我将为您提供精准的政策咨询建议。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户输入 -->
+                <div class="input-section">
+                    <input type="text" id="user-input" placeholder="请输入您的问题，例如：我想了解创业补贴政策..." autocomplete="off">
+                    <button id="send-btn">发送 📤</button>
+                </div>
+            </div>
+
+            <!-- 结果展示 -->
+            <div class="result-section">
+                <h2>评估结果</h2>
+                <div id="evaluation-result" class="evaluation-result">
+                    <div class="evaluation-placeholder">
+                        <div class="placeholder-icon">📊</div>
+                        <p>请先发送问题以查看评估结果</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2026 政策咨询智能体POC | 基于Doubao-Seed-1.6构建</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

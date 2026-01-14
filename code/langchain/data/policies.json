@@ -1,0 +1,83 @@
+[
+  {
+    "policy_id": "POLICY_A01",
+    "title": "创业担保贷款贴息政策",
+    "category": "创业扶持",
+    "conditions": [
+      {"type": "身份", "value": "返乡农民工"},
+      {"type": "贷款额度", "value": "≤50万"},
+      {"type": "贷款期限", "value": "≤3年"}
+    ],
+    "benefits": [
+      {"type": "贴息", "value": "LPR-150BP以上部分财政贴息"}
+    ],
+    "application_path": "XX人社局官网-创业服务专栏"
+  },
+  {
+    "policy_id": "POLICY_A02",
+    "title": "技能培训补贴政策",
+    "category": "就业服务",
+    "conditions": [
+      {"type": "证书", "value": "中级电工证"},
+      {"type": "身份", "value": "企业在职职工"}
+    ],
+    "benefits": [
+      {"type": "补贴金额", "value": "1500元"}
+    ],
+    "application_path": "XX人社局官网-技能培训专栏"
+  },
+  {
+    "policy_id": "POLICY_A03",
+    "title": "返乡创业扶持补贴政策",
+    "category": "创业扶持",
+    "conditions": [
+      {"type": "身份", "value": "返乡农民工"},
+      {"type": "企业类型", "value": "小微企业"},
+      {"type": "经营时间", "value": "正常经营1年"},
+      {"type": "带动就业", "value": "带动3人以上就业"}
+    ],
+    "benefits": [
+      {"type": "补贴金额", "value": "2万元一次性补贴"}
+    ],
+    "application_path": "XX人社局官网-创业服务专栏"
+  },
+  {
+    "policy_id": "POLICY_A04",
+    "title": "创业场地租金补贴政策",
+    "category": "创业扶持",
+    "conditions": [
+      {"type": "场地", "value": "入驻创业孵化基地"},
+      {"type": "租金", "value": "年租金8000元"}
+    ],
+    "benefits": [
+      {"type": "补贴比例", "value": "租金50%-80%"},
+      {"type": "补贴上限", "value": "1万/年"}
+    ],
+    "application_path": "XX人社局官网-创业服务专栏"
+  },
+  {
+    "policy_id": "POLICY_A05",
+    "title": "退役军人创业项目评估服务",
+    "category": "创业扶持",
+    "conditions": [
+      {"type": "身份", "value": "退役军人"}
+    ],
+    "benefits": [
+      {"type": "服务内容", "value": "项目可行性分析"}
+    ],
+    "application_path": "XX退役军人事务局官网"
+  },
+  {
+    "policy_id": "POLICY_A06",
+    "title": "退役军人创业税收优惠政策",
+    "category": "创业扶持",
+    "conditions": [
+      {"type": "身份", "value": "退役军人"},
+      {"type": "企业类型", "value": "个体经营"}
+    ],
+    "benefits": [
+      {"type": "税收扣减", "value": "3年内按14400元/年扣减税费"}
+    ],
+    "application_path": "XX税务局官网"
+  }
+]
