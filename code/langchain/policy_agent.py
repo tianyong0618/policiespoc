@@ -40,17 +40,19 @@ class PolicyAgent:
         """识别用户意图和实体"""
         logger.info("开始识别意图和实体，调用大模型")
         prompt = f"""
-请分析用户输入，识别核心意图和实体：
+请分析用户输入，识别核心意图和实体，并判断用户是否明确询问或需要岗位/工作推荐：
 用户输入: {user_input}
 
 输出格式：
 {{
   "intent": "意图描述",
+  "needs_job_recommendation": true/false,
   "entities": [
     {{"type": "实体类型", "value": "实体值"}},
     ...
   ]
 }}
+注意：只有当用户明确提到"找工作"、"推荐岗位"、"就业"、"工作机会"等相关内容时，needs_job_recommendation 才为 true。单纯询问补贴政策通常为 false。
 """
         logger.info(f"生成的意图识别提示: {prompt[:100]}...")
         response = self.chatbot.chat_with_memory(prompt)
@@ -74,7 +76,7 @@ class PolicyAgent:
         except Exception as e:
             logger.error(f"解析意图识别结果失败: {str(e)}")
             return {
-                "result": {"intent": "政策咨询", "entities": []},
+                "result": {"intent": "政策咨询", "needs_job_recommendation": False, "entities": []},
                 "time": llm_time
             }
     
@@ -379,37 +381,53 @@ class PolicyAgent:
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策")
 
         # 生成岗位推荐 (提前到回答生成之前，以便作为上下文)
-        logger.info("开始生成岗位推荐")
+        # 决定是否需要岗位推荐
+        should_recommend_jobs = intent_info.get("needs_job_recommendation", False)
+        
+        # 特定场景强制开启或关闭
+        if "技能培训岗位个性化推荐" in scenario_type:
+            should_recommend_jobs = True
+        
         recommended_jobs = []
-        
-        # 为每个相关政策找到关联的岗位
-        for policy in relevant_policies:
-            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
-            recommended_jobs.extend(policy_jobs)
-        
-        # 如果有匹配的用户画像，也尝试基于画像推荐
-        if matched_user:
-            profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
-            recommended_jobs.extend(profile_jobs)
-        
-        # 去重
-        seen_job_ids = set()
-        unique_jobs = []
-        for job in recommended_jobs:
-            job_id = job.get("job_id")
-            if job_id and job_id not in seen_job_ids:
-                seen_job_ids.add(job_id)
-                unique_jobs.append(job)
-        
-        recommended_jobs = unique_jobs[:3]  # 只保留前3个推荐岗位
-        logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
-        
-        # 添加岗位推荐思考过程
-        thinking_process.append({
-            "step": "岗位推荐",
-            "content": f"基于相关政策和用户画像，找到 {len(recommended_jobs)} 个相关岗位推荐：{[j.get('job_id') for j in recommended_jobs]}",
-            "status": "completed"
-        })
+        if should_recommend_jobs:
+            logger.info("开始生成岗位推荐")
+            
+            # 为每个相关政策找到关联的岗位
+            for policy in relevant_policies:
+                policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
+                recommended_jobs.extend(policy_jobs)
+            
+            # 如果有匹配的用户画像，也尝试基于画像推荐
+            if matched_user:
+                profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
+                recommended_jobs.extend(profile_jobs)
+            
+            # 去重
+            seen_job_ids = set()
+            unique_jobs = []
+            for job in recommended_jobs:
+                job_id = job.get("job_id")
+                if job_id and job_id not in seen_job_ids:
+                    seen_job_ids.add(job_id)
+                    unique_jobs.append(job)
+            
+            recommended_jobs = unique_jobs[:3]  # 只保留前3个推荐岗位
+            logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
+            
+            # 添加岗位推荐思考过程
+            thinking_process.append({
+                "step": "岗位推荐",
+                "content": f"基于相关政策和用户画像，找到 {len(recommended_jobs)} 个相关岗位推荐：{[j.get('job_id') for j in recommended_jobs]}",
+                "status": "completed"
+            })
+        else:
+            logger.info("用户意图不涉及岗位推荐，跳过岗位匹配")
+            # 添加跳过岗位推荐的思考过程
+            thinking_process.append({
+                "step": "岗位推荐",
+                "content": "用户意图不涉及岗位推荐，跳过该步骤",
+                "status": "completed"
+            })
         
         # 条件判断与推理
         # 根据场景类型添加特定的思考过程
@@ -508,24 +526,25 @@ class PolicyAgent:
         
         # 生成岗位推荐
         recommended_jobs = []
-        for policy in relevant_policies:
-            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
-            recommended_jobs.extend(policy_jobs)
-        
-        if matched_user:
-            profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
-            recommended_jobs.extend(profile_jobs)
+        if intent_info.get("needs_job_recommendation", False):
+            for policy in relevant_policies:
+                policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
+                recommended_jobs.extend(policy_jobs)
             
-        # 去重
-        seen_job_ids = set()
-        unique_jobs = []
-        for job in recommended_jobs:
-            job_id = job.get("job_id")
-            if job_id and job_id not in seen_job_ids:
-                seen_job_ids.add(job_id)
-                unique_jobs.append(job)
-        
-        recommended_jobs = unique_jobs[:3]
+            if matched_user:
+                profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
+                recommended_jobs.extend(profile_jobs)
+                
+            # 去重
+            seen_job_ids = set()
+            unique_jobs = []
+            for job in recommended_jobs:
+                job_id = job.get("job_id")
+                if job_id and job_id not in seen_job_ids:
+                    seen_job_ids.add(job_id)
+                    unique_jobs.append(job)
+            
+            recommended_jobs = unique_jobs[:3]
 
         # 生成结构化回答
         response_result = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs)

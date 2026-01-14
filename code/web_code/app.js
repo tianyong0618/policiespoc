@@ -125,10 +125,10 @@ async function sendMessage() {
             displayThinkingProcess(data.thinking_process);
         }
 
-        // 显示结构化回答
-        if (data.response) {
-            displayStructuredResponse(data.response);
-        }
+    // 显示结构化回答
+    if (data.response && (data.response.positive || data.response.negative || data.response.suggestions)) {
+        displayStructuredResponse(data.response);
+    }
 
         // 显示推荐岗位
         if (data.recommended_jobs?.length > 0) {
@@ -225,6 +225,10 @@ function displayThinkingProcess(steps) {
 
 // 显示结构化回答
 function displayStructuredResponse(response) {
+    if (!response || (!response.positive && !response.negative && !response.suggestions)) {
+        return;
+    }
+
     const chatHistory = document.getElementById('chat-history');
     const container = document.createElement('div');
     container.className = 'message ai';
