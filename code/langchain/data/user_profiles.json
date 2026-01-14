@@ -1,0 +1,53 @@
+[
+  {
+    "user_id": "USER001",
+    "basic_info": {
+      "age": 32,
+      "gender": "女",
+      "education": "高中",
+      "work_experience": "5年"
+    },
+    "skills": ["中级电工证"],
+    "preferences": {
+      "salary_range": ["5000-8000"],
+      "work_location": ["XX市"],
+      "work_type": ["全职"]
+    },
+    "policy_interest": ["就业服务", "技能培训"],
+    "job_interest": ["电工", "技术工人"]
+  },
+  {
+    "user_id": "USER002",
+    "basic_info": {
+      "age": 28,
+      "gender": "男",
+      "education": "大专",
+      "work_experience": "3年"
+    },
+    "skills": ["汽车维修", "创业经验"],
+    "preferences": {
+      "salary_range": ["4000-7000"],
+      "work_location": ["XX市"],
+      "work_type": ["个体经营"]
+    },
+    "policy_interest": ["创业扶持", "税收优惠"],
+    "job_interest": ["汽车维修", "创业"]
+  },
+  {
+    "user_id": "USER003",
+    "basic_info": {
+      "age": 35,
+      "gender": "男",
+      "education": "本科",
+      "work_experience": "8年"
+    },
+    "skills": ["创业指导", "政策分析"],
+    "preferences": {
+      "salary_range": ["6000-12000"],
+      "work_location": ["XX市"],
+      "work_type": ["全职"]
+    },
+    "policy_interest": ["创业扶持", "就业服务"],
+    "job_interest": ["创业顾问", "政策研究员"]
+  }
+]

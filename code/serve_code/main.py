@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.abspath('/Users/tianyong/Documents/works/workspace/hp
 
 # 直接导入模块
 from langchain.policy_agent import PolicyAgent
+from langchain.job_matcher import JobMatcher
+from langchain.user_profile import UserProfileManager
 
 # 初始化应用
 app = FastAPI(title="政策咨询智能体API", description="政策咨询智能体POC服务")
@@ -33,6 +35,10 @@ app.add_middleware(
 
 # 初始化政策智能体
 agent = PolicyAgent()
+# 初始化岗位匹配器
+job_matcher = JobMatcher()
+# 初始化用户画像管理器
+user_profile_manager = UserProfileManager()
 
 # 请求模型
 class ChatRequest(BaseModel):
@@ -42,6 +48,13 @@ class ChatRequest(BaseModel):
 class EvaluateRequest(BaseModel):
     user_input: str
     response: dict
+
+class UserProfileRequest(BaseModel):
+    basic_info: dict = {}
+    skills: list = []
+    preferences: dict = {}
+    policy_interest: list = []
+    job_interest: list = []
 
 # 响应模型
 class ChatResponse(BaseModel):
@@ -53,6 +66,7 @@ class ChatResponse(BaseModel):
     timing: dict = {}
     llm_calls: list = []
     thinking_process: list = []
+    recommended_jobs: list = []
 
 class PoliciesResponse(BaseModel):
     policies: list
@@ -63,6 +77,21 @@ class EvaluateResponse(BaseModel):
     policy_recall_accuracy: str
     condition_accuracy: str
     user_satisfaction: str
+
+class JobsResponse(BaseModel):
+    jobs: list
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    basic_info: dict
+    skills: list
+    preferences: dict
+    policy_interest: list
+    job_interest: list
+
+class RecommendationsResponse(BaseModel):
+    policies: list
+    jobs: list
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request):
@@ -111,6 +140,75 @@ async def evaluate(request: EvaluateRequest):
 async def health_check():
     """健康检查"""
     return {"status": "healthy"}
+
+@app.get("/api/jobs", response_model=JobsResponse)
+async def get_jobs():
+    """获取岗位列表"""
+    try:
+        jobs = job_matcher.get_all_jobs()
+        return JobsResponse(jobs=jobs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取岗位失败: {str(e)}")
+
+@app.get("/api/jobs/{job_id}", response_model=dict)
+async def get_job(job_id: str):
+    """获取单个岗位详情"""
+    try:
+        job = job_matcher.get_job_by_id(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"岗位不存在: {job_id}")
+        return job
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取岗位失败: {str(e)}")
+
+@app.get("/api/users/{user_id}/profile", response_model=UserProfileResponse)
+async def get_user_profile(user_id: str):
+    """获取用户画像"""
+    try:
+        profile = user_profile_manager.get_user_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail=f"用户画像不存在: {user_id}")
+        return profile
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取用户画像失败: {str(e)}")
+
+@app.post("/api/users/{user_id}/profile", response_model=UserProfileResponse)
+async def create_or_update_user_profile(user_id: str, request: UserProfileRequest):
+    """创建或更新用户画像"""
+    try:
+        profile = user_profile_manager.create_or_update_user_profile(user_id, request.dict())
+        return profile
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"操作用户画像失败: {str(e)}")
+
+@app.get("/api/users/{user_id}/recommendations", response_model=RecommendationsResponse)
+async def get_personalized_recommendations(user_id: str):
+    """获取个性化推荐"""
+    try:
+        recommendations = user_profile_manager.get_personalized_recommendations(user_id)
+        return recommendations
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
+
+@app.get("/api/recommendations", response_model=RecommendationsResponse)
+async def get_general_recommendations():
+    """获取通用推荐"""
+    try:
+        # 获取所有岗位
+        all_jobs = job_matcher.get_all_jobs()
+        # 获取所有政策
+        all_policies = agent.policies
+        
+        return {
+            "policies": all_policies[:3],  # 返回前3个政策
+            "jobs": all_jobs[:3]  # 返回前3个岗位
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

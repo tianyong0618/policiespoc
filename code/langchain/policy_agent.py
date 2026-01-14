@@ -3,6 +3,8 @@ import os
 import time
 import logging
 from .chatbot import ChatBot
+from .job_matcher import JobMatcher
+from .user_profile import UserProfileManager
 from functools import lru_cache
 
 # 配置日志
@@ -19,6 +21,10 @@ class PolicyAgent:
         self.policies = self.load_policies()
         # 缓存LLM响应
         self.llm_cache = {}
+        # 初始化岗位匹配器
+        self.job_matcher = JobMatcher()
+        # 初始化用户画像管理器
+        self.user_profile_manager = UserProfileManager()
     
     def load_policies(self):
         """加载政策数据"""
@@ -367,12 +373,41 @@ class PolicyAgent:
         
         logger.info("回答生成完成")
         
+        # 生成岗位推荐
+        logger.info("开始生成岗位推荐")
+        recommended_jobs = []
+        
+        # 为每个相关政策找到关联的岗位
+        for policy in relevant_policies:
+            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
+            recommended_jobs.extend(policy_jobs)
+        
+        # 去重
+        seen_job_ids = set()
+        unique_jobs = []
+        for job in recommended_jobs:
+            job_id = job.get("job_id")
+            if job_id not in seen_job_ids:
+                seen_job_ids.add(job_id)
+                unique_jobs.append(job)
+        
+        recommended_jobs = unique_jobs[:3]  # 只返回前3个推荐岗位
+        logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
+        
+        # 添加岗位推荐思考过程
+        thinking_process.append({
+            "step": "岗位推荐",
+            "content": f"基于相关政策，找到 {len(recommended_jobs)} 个相关岗位推荐",
+            "status": "completed"
+        })
+        
         result = {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
             "response": response,
             "llm_calls": llm_calls,
-            "thinking_process": thinking_process
+            "thinking_process": thinking_process,
+            "recommended_jobs": recommended_jobs
         }
         
         logger.info(f"合并处理完成，场景类型: {scenario_type}")
@@ -389,11 +424,29 @@ class PolicyAgent:
         # 生成结构化回答
         response = self.generate_response(user_input, relevant_policies)
         
+        # 生成岗位推荐
+        recommended_jobs = []
+        for policy in relevant_policies:
+            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
+            recommended_jobs.extend(policy_jobs)
+        
+        # 去重
+        seen_job_ids = set()
+        unique_jobs = []
+        for job in recommended_jobs:
+            job_id = job.get("job_id")
+            if job_id not in seen_job_ids:
+                seen_job_ids.add(job_id)
+                unique_jobs.append(job)
+        
+        recommended_jobs = unique_jobs[:3]
+        
         return {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
             "response": response,
-            "thinking_process": []
+            "thinking_process": [],
+            "recommended_jobs": recommended_jobs
         }
     
     def clear_memory(self):

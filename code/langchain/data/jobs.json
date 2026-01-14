@@ -1,0 +1,52 @@
+[
+  {
+    "job_id": "JOB001",
+    "title": "电工",
+    "salary": "5000-8000",
+    "location": "XX市",
+    "requirements": ["持有中级电工证", "2年以上工作经验"],
+    "benefits": ["五险一金", "带薪年假"],
+    "policy_relations": ["POLICY_A02"],
+    "source": "XX招聘平台"
+  },
+  {
+    "job_id": "JOB002",
+    "title": "创业顾问",
+    "salary": "6000-10000",
+    "location": "XX市",
+    "requirements": ["3年以上创业指导经验", "熟悉创业扶持政策"],
+    "benefits": ["五险一金", "绩效奖金"],
+    "policy_relations": ["POLICY_A01", "POLICY_A03"],
+    "source": "XX创业服务中心"
+  },
+  {
+    "job_id": "JOB003",
+    "title": "技能培训讲师",
+    "salary": "7000-12000",
+    "location": "XX市",
+    "requirements": ["相关专业本科以上学历", "5年以上培训经验"],
+    "benefits": ["五险一金", "带薪年假", "节日福利"],
+    "policy_relations": ["POLICY_A02"],
+    "source": "XX职业培训学校"
+  },
+  {
+    "job_id": "JOB004",
+    "title": "汽车维修技师",
+    "salary": "4500-8000",
+    "location": "XX市",
+    "requirements": ["2年以上汽车维修经验", "相关职业资格证书"],
+    "benefits": ["五险一金", "包吃住"],
+    "policy_relations": ["POLICY_A06"],
+    "source": "XX汽车服务公司"
+  },
+  {
+    "job_id": "JOB005",
+    "title": "创业孵化基地运营专员",
+    "salary": "5000-8000",
+    "location": "XX市",
+    "requirements": ["熟悉创业孵化基地运营管理", "良好的沟通能力"],
+    "benefits": ["五险一金", "带薪年假", "绩效奖金"],
+    "policy_relations": ["POLICY_A04"],
+    "source": "XX创业孵化基地"
+  }
+]

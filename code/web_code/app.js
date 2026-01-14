@@ -39,6 +39,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 绑定清空历史按钮事件
     document.getElementById('clear-btn').addEventListener('click', clearHistory);
+    
+    // 绑定用户画像管理按钮事件
+    const profileBtn = document.getElementById('profile-btn');
+    if (profileBtn) {
+        profileBtn.addEventListener('click', toggleUserProfile);
+    }
 });
 
 // 使用场景
@@ -248,6 +254,11 @@ async function sendMessage(scenario) {
             }
         }
         
+        // 显示推荐岗位
+        if (data.recommended_jobs && data.recommended_jobs.length > 0) {
+            await displayRecommendedJobs(data.recommended_jobs);
+        }
+        
         // 显示评估结果
         displayEvaluation(data.evaluation, data.execution_time, data.timing, data.llm_calls, data.is_cache_hit || data.cache_hit || false);
         
@@ -259,6 +270,51 @@ async function sendMessage(scenario) {
         
         // 添加错误消息
         addMessageToHistory('ai', `抱歉，处理您的问题时出错：${error.message}`);
+    }
+}
+
+// 显示推荐岗位
+async function displayRecommendedJobs(jobs) {
+    const chatHistory = document.getElementById('chat-history');
+    const jobsDiv = document.createElement('div');
+    jobsDiv.className = 'message ai jobs';
+    jobsDiv.innerHTML = `
+        <div class="message-header">
+            <span class="message-role">智能助手</span>
+            <span class="jobs-badge">岗位推荐</span>
+        </div>
+        <div class="message-content">
+            <h4>相关岗位推荐</h4>
+            <div class="jobs-list">
+            </div>
+        </div>
+    `;
+    chatHistory.appendChild(jobsDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    
+    const jobsList = jobsDiv.querySelector('.jobs-list');
+    
+    for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const jobDiv = document.createElement('div');
+        jobDiv.className = 'job-item';
+        jobDiv.innerHTML = `
+            <div class="job-header">
+                <h5>${job.title}</h5>
+                <span class="job-salary">${job.salary}</span>
+            </div>
+            <div class="job-info">
+                <p><strong>工作地点：</strong>${job.location}</p>
+                <p><strong>岗位要求：</strong>${job.requirements.join('、')}</p>
+                <p><strong>福利待遇：</strong>${job.benefits.join('、')}</p>
+                <p><strong>信息来源：</strong>${job.source}</p>
+            </div>
+        `;
+        jobsList.appendChild(jobDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        
+        // 岗位之间的延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
 }
 
@@ -284,8 +340,6 @@ function addMessageToHistory(role, content, isLoading = false) {
     chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
-
-
 // 移除加载消息
 function removeLoadingMessage() {
     const loadingMessage = document.getElementById('loading-message');
@@ -293,8 +347,6 @@ function removeLoadingMessage() {
         loadingMessage.remove();
     }
 }
-
-
 
 // 清空历史
 function clearHistory() {
@@ -373,6 +425,168 @@ function displayEvaluation(evaluation, executionTime, timing, llmCalls, isCacheH
             <div class="evaluation-item">
                 <span class="label">最终响应时间：</span>
                 <span class="value">${executionTime ? executionTime.toFixed(2) : 'N/A'}秒</span>
+            </div>
+        </div>
+    `;
+}
+
+// 切换用户画像管理界面
+function toggleUserProfile() {
+    const profilePanel = document.getElementById('profile-panel');
+    if (profilePanel) {
+        if (profilePanel.style.display === 'none' || profilePanel.style.display === '') {
+            profilePanel.style.display = 'block';
+            loadUserProfile();
+        } else {
+            profilePanel.style.display = 'none';
+        }
+    }
+}
+
+// 加载用户画像
+async function loadUserProfile() {
+    try {
+        // 这里使用默认用户ID，实际应该从登录状态或本地存储获取
+        const userId = 'USER001';
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`);
+        
+        if (response.ok) {
+            const profile = await response.json();
+            populateUserProfileForm(profile);
+        } else {
+            // 如果用户画像不存在，创建一个默认的
+            const defaultProfile = {
+                user_id: userId,
+                basic_info: {
+                    age: 30,
+                    gender: "未知",
+                    education: "未知",
+                    work_experience: "未知"
+                },
+                skills: [],
+                preferences: {
+                    salary_range: [],
+                    work_location: [],
+                    work_type: []
+                },
+                policy_interest: [],
+                job_interest: []
+            };
+            populateUserProfileForm(defaultProfile);
+        }
+    } catch (error) {
+        console.error('加载用户画像失败:', error);
+    }
+}
+
+// 填充用户画像表单
+function populateUserProfileForm(profile) {
+    // 填充基本信息
+    document.getElementById('age').value = profile.basic_info.age || '';
+    document.getElementById('gender').value = profile.basic_info.gender || '';
+    document.getElementById('education').value = profile.basic_info.education || '';
+    document.getElementById('work_experience').value = profile.basic_info.work_experience || '';
+    
+    // 填充技能
+    document.getElementById('skills').value = profile.skills.join(', ') || '';
+    
+    // 填充偏好
+    document.getElementById('salary_range').value = profile.preferences.salary_range.join(', ') || '';
+    document.getElementById('work_location').value = profile.preferences.work_location.join(', ') || '';
+    document.getElementById('work_type').value = profile.preferences.work_type.join(', ') || '';
+    
+    // 填充兴趣
+    document.getElementById('policy_interest').value = profile.policy_interest.join(', ') || '';
+    document.getElementById('job_interest').value = profile.job_interest.join(', ') || '';
+}
+
+// 保存用户画像
+async function saveUserProfile() {
+    try {
+        const userId = 'USER001'; // 默认用户ID
+        const profileData = {
+            basic_info: {
+                age: parseInt(document.getElementById('age').value) || 0,
+                gender: document.getElementById('gender').value,
+                education: document.getElementById('education').value,
+                work_experience: document.getElementById('work_experience').value
+            },
+            skills: document.getElementById('skills').value.split(',').map(item => item.trim()).filter(item => item),
+            preferences: {
+                salary_range: document.getElementById('salary_range').value.split(',').map(item => item.trim()).filter(item => item),
+                work_location: document.getElementById('work_location').value.split(',').map(item => item.trim()).filter(item => item),
+                work_type: document.getElementById('work_type').value.split(',').map(item => item.trim()).filter(item => item)
+            },
+            policy_interest: document.getElementById('policy_interest').value.split(',').map(item => item.trim()).filter(item => item),
+            job_interest: document.getElementById('job_interest').value.split(',').map(item => item.trim()).filter(item => item)
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(profileData)
+        });
+        
+        if (response.ok) {
+            alert('用户画像保存成功！');
+        } else {
+            const errorText = await response.text();
+            alert(`保存失败：${errorText}`);
+        }
+    } catch (error) {
+        console.error('保存用户画像失败:', error);
+        alert('保存失败，请稍后重试');
+    }
+}
+
+// 获取个性化推荐
+async function getPersonalizedRecommendations() {
+    try {
+        const userId = 'USER001'; // 默认用户ID
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/recommendations`);
+        
+        if (response.ok) {
+            const recommendations = await response.json();
+            displayRecommendations(recommendations);
+        } else {
+            alert('获取推荐失败');
+        }
+    } catch (error) {
+        console.error('获取推荐失败:', error);
+        alert('获取推荐失败，请稍后重试');
+    }
+}
+
+// 显示推荐结果
+function displayRecommendations(recommendations) {
+    const recommendationsDiv = document.getElementById('recommendations-result');
+    recommendationsDiv.innerHTML = `
+        <h4>个性化推荐</h4>
+        <div class="recommendations-content">
+            <div class="recommendations-section">
+                <h5>政策推荐</h5>
+                <div class="recommendations-list">
+                    ${recommendations.policies.length > 0 ? recommendations.policies.map(policy => `
+                        <div class="recommendation-item">
+                            <h6>${policy.title}</h6>
+                            <p>类别：${policy.category}</p>
+                        </div>
+                    `).join('') : '<p>暂无政策推荐</p>'}
+                </div>
+            </div>
+            <div class="recommendations-section">
+                <h5>岗位推荐</h5>
+                <div class="recommendations-list">
+                    ${recommendations.jobs.length > 0 ? recommendations.jobs.map(job => `
+                        <div class="recommendation-item">
+                            <h6>${job.title}</h6>
+                            <p>薪资：${job.salary}</p>
+                            <p>地点：${job.location}</p>
+                        </div>
+                    `).join('') : '<p>暂无岗位推荐</p>'}
+                </div>
             </div>
         </div>
     `;

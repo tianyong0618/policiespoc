@@ -48,6 +48,91 @@
                 </div>
             </div>
 
+            <!-- 用户画像管理按钮 -->
+            <div class="profile-section">
+                <button id="profile-btn" class="profile-btn">
+                    <span>👤 用户画像管理</span>
+                </button>
+            </div>
+
+            <!-- 用户画像管理面板 -->
+            <div id="profile-panel" class="profile-panel">
+                <h3>用户画像管理</h3>
+                <div class="profile-form">
+                    <div class="form-section">
+                        <h4>基本信息</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>年龄</label>
+                                <input type="number" id="age" placeholder="请输入年龄">
+                            </div>
+                            <div class="form-group">
+                                <label>性别</label>
+                                <input type="text" id="gender" placeholder="请输入性别">
+                            </div>
+                            <div class="form-group">
+                                <label>学历</label>
+                                <input type="text" id="education" placeholder="请输入学历">
+                            </div>
+                            <div class="form-group">
+                                <label>工作经验</label>
+                                <input type="text" id="work_experience" placeholder="请输入工作经验">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>技能</h4>
+                        <div class="form-group">
+                            <label>技能列表（用逗号分隔）</label>
+                            <input type="text" id="skills" placeholder="例如：中级电工证, 汽车维修">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>偏好</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>薪资范围（用逗号分隔）</label>
+                                <input type="text" id="salary_range" placeholder="例如：5000-8000, 8000-12000">
+                            </div>
+                            <div class="form-group">
+                                <label>工作地点（用逗号分隔）</label>
+                                <input type="text" id="work_location" placeholder="例如：XX市, YY市">
+                            </div>
+                            <div class="form-group">
+                                <label>工作类型（用逗号分隔）</label>
+                                <input type="text" id="work_type" placeholder="例如：全职, 兼职">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>兴趣</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>政策兴趣（用逗号分隔）</label>
+                                <input type="text" id="policy_interest" placeholder="例如：创业扶持, 就业服务">
+                            </div>
+                            <div class="form-group">
+                                <label>岗位兴趣（用逗号分隔）</label>
+                                <input type="text" id="job_interest" placeholder="例如：电工, 技术工人">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button onclick="saveUserProfile()" class="save-btn">保存用户画像</button>
+                        <button onclick="getPersonalizedRecommendations()" class="recommend-btn">获取个性化推荐</button>
+                    </div>
+                </div>
+
+                <div id="recommendations-result" class="recommendations-result">
+                    <h4>个性化推荐</h4>
+                    <p>请先保存用户画像，然后点击"获取个性化推荐"按钮</p>
+                </div>
+            </div>
+
             <!-- 对话区域 -->
             <div class="chat-section">
                 <div class="chat-header">
