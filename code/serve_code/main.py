@@ -52,6 +52,7 @@ class ChatResponse(BaseModel):
     execution_time: float
     timing: dict = {}
     llm_calls: list = []
+    thinking_process: list = []
 
 class PoliciesResponse(BaseModel):
     policies: list

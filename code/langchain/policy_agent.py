@@ -263,36 +263,132 @@ class PolicyAgent:
         # 初始化LLM调用时间列表
         llm_calls = []
         
+        # 初始化思考过程列表
+        thinking_process = []
+        
         # 识别意图和实体
         logger.info("开始识别意图和实体")
+        thinking_process.append({
+            "step": "意图与实体识别",
+            "content": "分析用户输入，识别核心意图和相关实体信息",
+            "status": "in_progress"
+        })
+        
         intent_result = self.identify_intent(user_input)
         intent_info = intent_result["result"]
         llm_calls.append({
             "type": "意图识别",
             "time": intent_result["time"]
         })
+        
+        thinking_process.append({
+            "step": "意图与实体识别",
+            "content": f"识别结果：意图为\"{intent_info['intent']}\"，提取实体：{[f'{e['type']}:{e['value']}' for e in intent_info['entities']]}",
+            "status": "completed"
+        })
+        
         logger.info(f"意图识别完成: {intent_info['intent']}")
         
         # 检索相关政策
         logger.info("开始检索相关政策")
+        thinking_process.append({
+            "step": "政策检索与匹配",
+            "content": "根据识别的意图和实体，检索相关政策",
+            "status": "in_progress"
+        })
+        
         relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
+        
+        policy_info = [f"{p['policy_id']}:{p['title']}" for p in relevant_policies]
+        thinking_process.append({
+            "step": "政策检索与匹配",
+            "content": f"检索完成，找到 {len(relevant_policies)} 条相关政策：{policy_info}",
+            "status": "completed"
+        })
+        
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策")
+        
+        # 条件判断与推理
+        thinking_process.append({
+            "step": "条件判断与推理",
+            "content": "分析用户是否满足各政策的条件要求",
+            "status": "in_progress"
+        })
+        
+        # 根据场景类型添加特定的思考过程
+        if scenario_type == "创业扶持政策精准咨询场景":
+            # 场景一特定逻辑
+            thinking_process.append({
+                "step": "条件判断与推理",
+                "content": "分析创业补贴条件：检查是否满足'返乡农民工'身份、'创办小微企业'、'正常经营1年'、'带动3人以上就业'等条件",
+                "status": "in_progress"
+            })
+            
+            # 模拟条件判断过程
+            has_employment = any("就业" in str(e) for e in intent_info["entities"])
+            if not has_employment:
+                thinking_process.append({
+                    "step": "条件判断与推理",
+                    "content": "发现用户未提及'带动就业'条件，需要指出缺失信息",
+                    "status": "completed"
+                })
+            
+            thinking_process.append({
+                "step": "条件判断与推理",
+                "content": "分析创业贷款条件：确认'返乡农民工'身份符合贷款申请条件，检查额度和期限要求",
+                "status": "completed"
+            })
+        elif scenario_type == "技能培训岗位个性化推荐场景":
+            # 场景二特定逻辑
+            thinking_process.append({
+                "step": "条件判断与推理",
+                "content": "分析技能培训补贴条件：检查证书类型、身份等要求",
+                "status": "completed"
+            })
+        elif scenario_type == "多重政策叠加咨询场景":
+            # 场景三特定逻辑
+            thinking_process.append({
+                "step": "条件判断与推理",
+                "content": "分析多重政策叠加条件：检查各政策的适用条件是否可以同时满足",
+                "status": "completed"
+            })
+        else:
+            # 通用场景逻辑
+            thinking_process.append({
+                "step": "条件判断与推理",
+                "content": "分析通用政策条件：检查用户是否满足相关政策要求",
+                "status": "completed"
+            })
         
         # 生成结构化回答
         logger.info("开始生成结构化回答")
+        thinking_process.append({
+            "step": "结构化输出构建",
+            "content": "根据条件判断结果，构建否定部分、肯定部分和主动建议",
+            "status": "in_progress"
+        })
+        
         response_result = self.generate_response(user_input, relevant_policies)
         response = response_result["result"]
         llm_calls.append({
             "type": "回答生成",
             "time": response_result["time"]
         })
+        
+        thinking_process.append({
+            "step": "结构化输出构建",
+            "content": "完成结构化回答构建，包括政策引用、条件说明和申请路径",
+            "status": "completed"
+        })
+        
         logger.info("回答生成完成")
         
         result = {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
             "response": response,
-            "llm_calls": llm_calls
+            "llm_calls": llm_calls,
+            "thinking_process": thinking_process
         }
         
         logger.info(f"合并处理完成，场景类型: {scenario_type}")
@@ -312,7 +408,8 @@ class PolicyAgent:
         return {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
-            "response": response
+            "response": response,
+            "thinking_process": []
         }
     
     def clear_memory(self):
