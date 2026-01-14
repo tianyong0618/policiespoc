@@ -1,52 +1,52 @@
 [
   {
-    "job_id": "JOB001",
-    "title": "电工",
+    "job_id": "JOB_A01",
+    "title": "创业孵化基地管理员",
+    "requirements": ["有创业服务经验", "熟悉POLICY_A01/A03/A04", "沟通能力强", "全职"],
+    "features": "服务创业者，对接政策资源，稳定性高",
+    "policy_relations": ["POLICY_A01", "POLICY_A03", "POLICY_A04"],
     "salary": "5000-8000",
     "location": "XX市",
-    "requirements": ["持有中级电工证", "2年以上工作经验"],
-    "benefits": ["五险一金", "带薪年假"],
+    "benefits": ["五险一金"]
+  },
+  {
+    "job_id": "JOB_A02",
+    "title": "职业技能培训讲师",
+    "requirements": ["持有高级职业资格证书（如电工/家政）", "3年以上授课经验", "能结合POLICY_A02讲解考证路径", "兼职/全职均可"],
+    "features": "传授实操技能，助力学员申领补贴，时间灵活",
     "policy_relations": ["POLICY_A02"],
-    "source": "XX招聘平台"
-  },
-  {
-    "job_id": "JOB002",
-    "title": "创业顾问",
-    "salary": "6000-10000",
-    "location": "XX市",
-    "requirements": ["3年以上创业指导经验", "熟悉创业扶持政策"],
-    "benefits": ["五险一金", "绩效奖金"],
-    "policy_relations": ["POLICY_A01", "POLICY_A03"],
-    "source": "XX创业服务中心"
-  },
-  {
-    "job_id": "JOB003",
-    "title": "技能培训讲师",
     "salary": "7000-12000",
     "location": "XX市",
-    "requirements": ["相关专业本科以上学历", "5年以上培训经验"],
-    "benefits": ["五险一金", "带薪年假", "节日福利"],
-    "policy_relations": ["POLICY_A02"],
-    "source": "XX职业培训学校"
+    "benefits": ["时间灵活"]
   },
   {
-    "job_id": "JOB004",
-    "title": "汽车维修技师",
-    "salary": "4500-8000",
-    "location": "XX市",
-    "requirements": ["2年以上汽车维修经验", "相关职业资格证书"],
-    "benefits": ["五险一金", "包吃住"],
-    "policy_relations": ["POLICY_A06"],
-    "source": "XX汽车服务公司"
-  },
-  {
-    "job_id": "JOB005",
-    "title": "创业孵化基地运营专员",
-    "salary": "5000-8000",
-    "location": "XX市",
-    "requirements": ["熟悉创业孵化基地运营管理", "良好的沟通能力"],
-    "benefits": ["五险一金", "带薪年假", "绩效奖金"],
+    "job_id": "JOB_A03",
+    "title": "电商创业辅导专员",
+    "requirements": ["熟悉直播带货、网店运营", "有POLICY_A04（场地补贴）落地经验", "能指导创业者入驻孵化基地", "全职"],
+    "features": "聚焦电商创业，对接场地与流量资源，年轻化团队",
     "policy_relations": ["POLICY_A04"],
-    "source": "XX创业孵化基地"
+    "salary": "6000-10000",
+    "location": "XX市",
+    "benefits": ["五险一金"]
+  },
+  {
+    "job_id": "JOB_A04",
+    "title": "技能培训课程顾问",
+    "requirements": ["了解POLICY_A02/A05", "能为特殊群体（脱贫/残疾）推荐适配课程", "大专以上学历", "沟通亲和力强"],
+    "features": "链接培训需求与政策补贴，促成报名转化",
+    "policy_relations": ["POLICY_A02", "POLICY_A05"],
+    "salary": "4000-8000",
+    "location": "XX市",
+    "benefits": ["提成"]
+  },
+  {
+    "job_id": "JOB_A05",
+    "title": "退役军人创业项目评估师",
+    "requirements": ["熟悉POLICY_A06税收优惠", "能评估创业项目可行性", "5年以上企业管理经验", "退役军人优先"],
+    "features": "专注退役军人创业，提供税务+项目双指导",
+    "policy_relations": ["POLICY_A06"],
+    "salary": "8000-15000",
+    "location": "XX市",
+    "benefits": ["五险一金"]
   }
 ]

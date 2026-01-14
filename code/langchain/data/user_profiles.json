@@ -1,53 +1,80 @@
 [
   {
-    "user_id": "USER001",
-    "basic_info": {
-      "age": 32,
-      "gender": "女",
-      "education": "高中",
-      "work_experience": "5年"
-    },
-    "skills": ["中级电工证"],
-    "preferences": {
-      "salary_range": ["5000-8000"],
-      "work_location": ["XX市"],
-      "work_type": ["全职"]
-    },
-    "policy_interest": ["就业服务", "技能培训"],
-    "job_interest": ["电工", "技术工人"]
-  },
-  {
-    "user_id": "USER002",
+    "user_id": "USER_A01",
     "basic_info": {
       "age": 28,
       "gender": "男",
-      "education": "大专",
-      "work_experience": "3年"
+      "identity": "返乡农民工",
+      "status": "创业筹备期"
     },
-    "skills": ["汽车维修", "创业经验"],
-    "preferences": {
-      "salary_range": ["4000-7000"],
-      "work_location": ["XX市"],
-      "work_type": ["个体经营"]
-    },
-    "policy_interest": ["创业扶持", "税收优惠"],
-    "job_interest": ["汽车维修", "创业"]
+    "description": "28岁男性，返乡农民工，计划在家乡开小型加工厂（小微企业），缺乏启动资金和政策了解渠道。",
+    "core_needs": ["低息贷款（A01）", "一次性创业补贴（A03）", "政策申请指导"],
+    "policy_interest": ["创业扶持"],
+    "job_interest": ["创业"],
+    "associated_relations": ["POLICY_A01", "POLICY_A03", "JOB_A01"]
   },
   {
-    "user_id": "USER003",
+    "user_id": "USER_A02",
     "basic_info": {
-      "age": 35,
+      "age": 32,
+      "gender": "女",
+      "identity": "失业人员",
+      "status": "失业",
+      "skills": ["中级电工职业资格证书"]
+    },
+    "description": "32岁女性，失业状态，持有中级电工职业资格证书，希望快速找到能申领技能补贴的工作。",
+    "core_needs": ["技能补贴申领（A02）", "稳定收入", "灵活工作时间"],
+    "policy_interest": ["就业服务", "技能培训"],
+    "job_interest": ["电工", "培训讲师"],
+    "associated_relations": ["POLICY_A02", "JOB_A02"]
+  },
+  {
+    "user_id": "USER_A03",
+    "basic_info": {
+      "age": 25,
+      "gender": "女",
+      "identity": "高校毕业生",
+      "status": "创业中",
+      "current_situation": {
+        "location": "市级创业孵化基地",
+        "project": "文创工作室",
+        "rent": "1.2万元/年"
+      }
+    },
+    "description": "25岁女性，高校毕业生，入驻市级创业孵化基地做文创工作室，年租金1.2万元，需减轻成本。",
+    "core_needs": ["场地租金补贴（A04）", "创业资源对接", "低成本启动"],
+    "policy_interest": ["创业扶持"],
+    "job_interest": ["创业"],
+    "associated_relations": ["POLICY_A04", "JOB_A03"]
+  },
+  {
+    "user_id": "USER_A04",
+    "basic_info": {
+      "age": 45,
       "gender": "男",
-      "education": "本科",
-      "work_experience": "8年"
+      "identity": "脱贫人口",
+      "education": "初中",
+      "status": "求职/培训"
     },
-    "skills": ["创业指导", "政策分析"],
-    "preferences": {
-      "salary_range": ["6000-12000"],
-      "work_location": ["XX市"],
-      "work_type": ["全职"]
+    "description": "45岁男性，脱贫人口，初中文化，想参加养老护理员培训（初级证书），担心生活费不足。",
+    "core_needs": ["生活费补贴（A05）", "免费/低价培训机会", "就业推荐"],
+    "policy_interest": ["就业服务", "技能培训"],
+    "job_interest": ["养老护理员"],
+    "associated_relations": ["POLICY_A05", "JOB_A04"]
+  },
+  {
+    "user_id": "USER_A05",
+    "basic_info": {
+      "age": 30,
+      "gender": "男",
+      "identity": "退役军人",
+      "status": "创业筹备期",
+      "project": "汽车维修店（个体经营）"
     },
-    "policy_interest": ["创业扶持", "就业服务"],
-    "job_interest": ["创业顾问", "政策研究员"]
+    "description": "30岁男性，退役军人，计划开汽车维修店（个体经营），关注税收优惠和项目可行性。",
+    "core_needs": ["税收优惠（A06）", "项目评估指导", "创业风险规避"],
+    "policy_interest": ["创业扶持", "税收优惠"],
+    "job_interest": ["创业", "汽车维修"],
+    "associated_relations": ["POLICY_A06", "JOB_A05"]
   }
 ]

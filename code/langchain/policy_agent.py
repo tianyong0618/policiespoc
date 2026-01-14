@@ -83,13 +83,25 @@ class PolicyAgent:
         relevant_policies = []
         for policy in self.policies:
             # 基于意图和实体匹配政策
-            if any(entity["value"] in policy["title"] or entity["value"] in policy["category"] for entity in entities):
+            match_found = False
+            for entity in entities:
+                val = entity["value"]
+                if val in policy["title"] or val in policy["category"]:
+                    match_found = True
+                    break
+                # Check conditions
+                for cond in policy.get("conditions", []):
+                    if val in str(cond["value"]) or str(cond["value"]) in val:
+                        match_found = True
+                        break
+            
+            if match_found:
                 relevant_policies.append(policy)
             elif policy["category"] in intent:
                 relevant_policies.append(policy)
         return relevant_policies if relevant_policies else self.policies
     
-    def generate_response(self, user_input, relevant_policies):
+    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景"):
         """生成结构化回答"""
         # 优化：只发送前3条最相关的政策，减少输入长度
         relevant_policies = relevant_policies[:3]
@@ -107,6 +119,34 @@ class PolicyAgent:
             simplified_policies.append(simplified_policy)
         
         policies_str = json.dumps(simplified_policies, ensure_ascii=False, separators=(',', ':'))
+        
+        # 基础指令
+        base_instructions = """
+1. 结构化输出，包括肯定部分、否定部分（如果有）和主动建议
+2. 清晰引用政策ID和名称
+3. 明确条件判断和资格评估
+4. 语言简洁明了，使用中文
+"""
+
+        # 场景特定指令
+        if "技能培训岗位个性化推荐" in scenario_type:
+             prompt_instructions = base_instructions + """
+5. 特别要求：在"positive"中包含具体的岗位推荐和理由，格式为：推荐岗位：[岗位名称]，推荐理由：①... ②... ③...
+6. 必须结合用户画像（如持有证书、灵活时间需求）和政策优势进行推荐解释
+"""
+        elif "创业扶持政策精准咨询" in scenario_type:
+             prompt_instructions = base_instructions + """
+5. 特别要求：在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
+6. 针对缺失条件（如带动就业人数）进行明确提示
+"""
+        elif "多重政策叠加咨询" in scenario_type:
+             prompt_instructions = base_instructions + """
+5. 特别要求：在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
+6. 明确指出可以同时享受的政策，并说明叠加后的预估收益
+"""
+        else:
+             prompt_instructions = base_instructions
+
         prompt = f"""
 你是一个政策咨询智能体，请根据用户输入和相关政策，生成结构化的回答：
 
@@ -116,10 +156,7 @@ class PolicyAgent:
 {policies_str}
 
 回答要求：
-1. 结构化输出，包括肯定部分、否定部分（如果有）和主动建议
-2. 清晰引用政策ID和名称
-3. 明确条件判断和资格评估
-4. 语言简洁明了，使用中文
+{prompt_instructions}
 
 请按照以下格式输出：
 {{
@@ -357,7 +394,7 @@ class PolicyAgent:
         
         # 生成结构化回答
         logger.info("开始生成结构化回答")
-        response_result = self.generate_response(user_input, relevant_policies)
+        response_result = self.generate_response(user_input, relevant_policies, scenario_type)
         response = response_result["result"]
         llm_calls.append({
             "type": "回答生成",
@@ -416,13 +453,15 @@ class PolicyAgent:
     def fallback_process(self, user_input):
         """降级处理：使用原始方式处理查询"""
         # 识别意图和实体
-        intent_info = self.identify_intent(user_input)
+        intent_result = self.identify_intent(user_input)
+        intent_info = intent_result["result"]
         
         # 检索相关政策
         relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
         
         # 生成结构化回答
-        response = self.generate_response(user_input, relevant_policies)
+        response_result = self.generate_response(user_input, relevant_policies, "通用场景")
+        response = response_result["result"]
         
         # 生成岗位推荐
         recommended_jobs = []
@@ -460,7 +499,7 @@ if __name__ == "__main__":
     # 测试场景一
     print("测试场景一：创业扶持政策精准咨询")
     user_input = "我是去年从广东回来的农民工，想在家开个小加工厂（小微企业），听说有返乡创业补贴，能领2万吗？另外创业贷款怎么申请？"
-    result = agent.process_query(user_input)
+    result = agent.handle_scenario("scenario1", user_input)
     print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
     print("评估:", result["evaluation"])
     
@@ -469,7 +508,7 @@ if __name__ == "__main__":
     # 测试场景二
     print("\n测试场景二：技能培训岗位个性化推荐")
     user_input = "请为一位32岁、失业、持有中级电工证的女性推荐工作，她关注补贴申领和灵活时间。"
-    result = agent.process_query(user_input)
+    result = agent.handle_scenario("scenario2", user_input)
     print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
     print("评估:", result["evaluation"])
     
@@ -478,6 +517,6 @@ if __name__ == "__main__":
     # 测试场景三
     print("\n测试场景三：多重政策叠加咨询")
     user_input = "我是退役军人，开汽车维修店（个体），同时入驻创业孵化基地（年租金8000元），能同时享受税收优惠和场地补贴吗？"
-    result = agent.process_query(user_input)
+    result = agent.handle_scenario("scenario3", user_input)
     print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
     print("评估:", result["evaluation"])
