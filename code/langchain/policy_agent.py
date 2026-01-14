@@ -101,7 +101,7 @@ class PolicyAgent:
                 relevant_policies.append(policy)
         return relevant_policies if relevant_policies else self.policies
     
-    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景"):
+    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
         """生成结构化回答"""
         # 优化：只发送前3条最相关的政策，减少输入长度
         relevant_policies = relevant_policies[:3]
@@ -120,6 +120,25 @@ class PolicyAgent:
         
         policies_str = json.dumps(simplified_policies, ensure_ascii=False, separators=(',', ':'))
         
+        # 推荐岗位信息
+        jobs_str = ""
+        if recommended_jobs:
+            simplified_jobs = []
+            for job in recommended_jobs:
+                simplified_job = {
+                    "job_id": job.get("job_id", ""),
+                    "title": job.get("title", ""),
+                    "requirements": job.get("requirements", []),
+                    "features": job.get("features", "")
+                }
+                simplified_jobs.append(simplified_job)
+            jobs_str = f"\n相关推荐岗位:\n{json.dumps(simplified_jobs, ensure_ascii=False, separators=(',', ':'))}\n"
+
+        # 用户画像信息
+        user_profile_str = ""
+        if matched_user:
+            user_profile_str = f"\n匹配用户画像: {matched_user.get('user_id')} - {matched_user.get('description', '')}\n"
+        
         # 基础指令
         base_instructions = """
 1. 结构化输出，包括肯定部分、否定部分（如果有）和主动建议
@@ -127,33 +146,40 @@ class PolicyAgent:
 3. 明确条件判断和资格评估
 4. 语言简洁明了，使用中文
 """
+        
+        if matched_user:
+            base_instructions += f"5. 在回答中提及匹配到的用户ID ({matched_user.get('user_id')}) 以便确认身份\n"
+            
+        if recommended_jobs:
+            base_instructions += "6. 在推荐岗位时，必须使用提供的相关推荐岗位列表中的岗位ID和名称\n"
 
         # 场景特定指令
         if "技能培训岗位个性化推荐" in scenario_type:
              prompt_instructions = base_instructions + """
-5. 特别要求：在"positive"中包含具体的岗位推荐和理由，格式为：推荐岗位：[岗位名称]，推荐理由：①... ②... ③...
-6. 必须结合用户画像（如持有证书、灵活时间需求）和政策优势进行推荐解释
+7. 特别要求：在"positive"中包含具体的岗位推荐和理由，格式为：推荐岗位：[岗位ID] [岗位名称]，推荐理由：①... ②... ③...
+8. 必须结合用户画像（如持有证书、灵活时间需求）和政策优势进行推荐解释
 """
         elif "创业扶持政策精准咨询" in scenario_type:
              prompt_instructions = base_instructions + """
-5. 特别要求：在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
-6. 针对缺失条件（如带动就业人数）进行明确提示
+7. 特别要求：在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
+8. 针对缺失条件（如带动就业人数）进行明确提示
 """
         elif "多重政策叠加咨询" in scenario_type:
              prompt_instructions = base_instructions + """
-5. 特别要求：在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
-6. 明确指出可以同时享受的政策，并说明叠加后的预估收益
+7. 特别要求：在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
+8. 明确指出可以同时享受的政策，并说明叠加后的预估收益
 """
         else:
              prompt_instructions = base_instructions
 
         prompt = f"""
-你是一个政策咨询智能体，请根据用户输入和相关政策，生成结构化的回答：
+你是一个政策咨询智能体，请根据用户输入、匹配的用户画像、相关政策和推荐岗位，生成结构化的回答：
 
 用户输入: {user_input}
-
+{user_profile_str}
 相关政策:
 {policies_str}
+{jobs_str}
 
 回答要求：
 {prompt_instructions}
@@ -318,10 +344,20 @@ class PolicyAgent:
             "time": intent_result["time"]
         })
 
+        # 尝试匹配用户画像
+        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        if matched_user:
+            intent_info["matched_user_id"] = matched_user.get("user_id")
+            logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
+
         # 只添加完成状态的思考过程
+        thinking_content = f"识别结果：意图为\"{intent_info['intent']}\"，提取实体：{[f'{e['type']}:{e['value']}' for e in intent_info['entities']]}"
+        if matched_user:
+            thinking_content += f"，匹配用户：{matched_user.get('user_id')}"
+            
         thinking_process.append({
             "step": "意图与实体识别",
-            "content": f"识别结果：意图为\"{intent_info['intent']}\"，提取实体：{[f'{e['type']}:{e['value']}' for e in intent_info['entities']]}",
+            "content": thinking_content,
             "status": "completed"
         })
         
@@ -341,6 +377,39 @@ class PolicyAgent:
         })
         
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策")
+
+        # 生成岗位推荐 (提前到回答生成之前，以便作为上下文)
+        logger.info("开始生成岗位推荐")
+        recommended_jobs = []
+        
+        # 为每个相关政策找到关联的岗位
+        for policy in relevant_policies:
+            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
+            recommended_jobs.extend(policy_jobs)
+        
+        # 如果有匹配的用户画像，也尝试基于画像推荐
+        if matched_user:
+            profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
+            recommended_jobs.extend(profile_jobs)
+        
+        # 去重
+        seen_job_ids = set()
+        unique_jobs = []
+        for job in recommended_jobs:
+            job_id = job.get("job_id")
+            if job_id and job_id not in seen_job_ids:
+                seen_job_ids.add(job_id)
+                unique_jobs.append(job)
+        
+        recommended_jobs = unique_jobs[:3]  # 只保留前3个推荐岗位
+        logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
+        
+        # 添加岗位推荐思考过程
+        thinking_process.append({
+            "step": "岗位推荐",
+            "content": f"基于相关政策和用户画像，找到 {len(recommended_jobs)} 个相关岗位推荐：{[j.get('job_id') for j in recommended_jobs]}",
+            "status": "completed"
+        })
         
         # 条件判断与推理
         # 根据场景类型添加特定的思考过程
@@ -394,7 +463,7 @@ class PolicyAgent:
         
         # 生成结构化回答
         logger.info("开始生成结构化回答")
-        response_result = self.generate_response(user_input, relevant_policies, scenario_type)
+        response_result = self.generate_response(user_input, relevant_policies, scenario_type, matched_user, recommended_jobs)
         response = response_result["result"]
         llm_calls.append({
             "type": "回答生成",
@@ -410,41 +479,14 @@ class PolicyAgent:
         
         logger.info("回答生成完成")
         
-        # 生成岗位推荐
-        logger.info("开始生成岗位推荐")
-        recommended_jobs = []
-        
-        # 为每个相关政策找到关联的岗位
-        for policy in relevant_policies:
-            policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
-            recommended_jobs.extend(policy_jobs)
-        
-        # 去重
-        seen_job_ids = set()
-        unique_jobs = []
-        for job in recommended_jobs:
-            job_id = job.get("job_id")
-            if job_id not in seen_job_ids:
-                seen_job_ids.add(job_id)
-                unique_jobs.append(job)
-        
-        recommended_jobs = unique_jobs[:3]  # 只返回前3个推荐岗位
-        logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
-        
-        # 添加岗位推荐思考过程
-        thinking_process.append({
-            "step": "岗位推荐",
-            "content": f"基于相关政策，找到 {len(recommended_jobs)} 个相关岗位推荐",
-            "status": "completed"
-        })
-        
         result = {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
             "response": response,
             "llm_calls": llm_calls,
             "thinking_process": thinking_process,
-            "recommended_jobs": recommended_jobs
+            "recommended_jobs": recommended_jobs,
+            "matched_user": matched_user
         }
         
         logger.info(f"合并处理完成，场景类型: {scenario_type}")
@@ -456,12 +498,13 @@ class PolicyAgent:
         intent_result = self.identify_intent(user_input)
         intent_info = intent_result["result"]
         
+        # 尝试匹配用户画像
+        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        if matched_user:
+            intent_info["matched_user_id"] = matched_user.get("user_id")
+
         # 检索相关政策
         relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
-        
-        # 生成结构化回答
-        response_result = self.generate_response(user_input, relevant_policies, "通用场景")
-        response = response_result["result"]
         
         # 生成岗位推荐
         recommended_jobs = []
@@ -469,23 +512,32 @@ class PolicyAgent:
             policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
             recommended_jobs.extend(policy_jobs)
         
+        if matched_user:
+            profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
+            recommended_jobs.extend(profile_jobs)
+            
         # 去重
         seen_job_ids = set()
         unique_jobs = []
         for job in recommended_jobs:
             job_id = job.get("job_id")
-            if job_id not in seen_job_ids:
+            if job_id and job_id not in seen_job_ids:
                 seen_job_ids.add(job_id)
                 unique_jobs.append(job)
         
         recommended_jobs = unique_jobs[:3]
+
+        # 生成结构化回答
+        response_result = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs)
+        response = response_result["result"]
         
         return {
             "intent": intent_info,
             "relevant_policies": relevant_policies,
             "response": response,
             "thinking_process": [],
-            "recommended_jobs": recommended_jobs
+            "recommended_jobs": recommended_jobs,
+            "matched_user": matched_user
         }
     
     def clear_memory(self):

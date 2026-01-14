@@ -124,6 +124,51 @@ class UserProfileManager:
         self.save_user_profiles()
         return user_profile
     
+    def match_user_profile(self, user_input):
+        """根据用户输入匹配最相似的用户画像"""
+        best_match = None
+        max_score = 0
+        
+        for profile in self.user_profiles:
+            score = 0
+            # 匹配基本信息
+            basic_info = profile.get("basic_info", {})
+            identity = basic_info.get("identity", "")
+            if identity and identity in user_input:
+                score += 3
+            
+            gender = basic_info.get("gender", "")
+            if gender and gender in user_input:
+                score += 1
+                
+            age = str(basic_info.get("age", ""))
+            if age and age in user_input:
+                score += 1
+            
+            # 匹配技能
+            for skill in profile.get("skills", []):
+                if skill in user_input:
+                    score += 2
+            
+            # 匹配描述关键词
+            description = profile.get("description", "")
+            # 简单的关键词提取（这里只是示例，实际可以使用jieba分词）
+            keywords = ["失业", "创业", "退役军人", "高校毕业生", "农民工", "贷款", "补贴"]
+            for kw in keywords:
+                if kw in description and kw in user_input:
+                    score += 1
+            
+            if score > max_score:
+                max_score = score
+                best_match = profile
+        
+        # 设置一个匹配阈值，避免错误匹配
+        if best_match and max_score >= 3:
+            logger.info(f"匹配到用户画像: {best_match.get('user_id')} (得分: {max_score})")
+            return best_match
+        
+        return None
+    
     def analyze_user_skills(self, user_input):
         """分析用户技能"""
         # 简化处理，实际应该使用NLP技术从用户输入中提取技能信息

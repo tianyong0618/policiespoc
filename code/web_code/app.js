@@ -300,7 +300,7 @@ async function displayRecommendedJobs(jobs) {
         jobDiv.className = 'job-item';
         jobDiv.innerHTML = `
             <div class="job-header">
-                <h5>${job.title}</h5>
+                <h5><span class="id-badge">${job.job_id || 'ID未知'}</span> ${job.title}</h5>
                 <span class="job-salary">${job.salary}</span>
             </div>
             <div class="job-info">
@@ -481,6 +481,13 @@ async function loadUserProfile() {
 
 // 填充用户画像表单
 function populateUserProfileForm(profile) {
+    // 显示用户ID
+    const profilePanel = document.getElementById('profile-panel');
+    const title = profilePanel.querySelector('h3');
+    if (title) {
+        title.innerHTML = `用户画像管理 <span class="id-badge">${profile.user_id || 'ID未知'}</span>`;
+    }
+
     // 填充基本信息
     document.getElementById('age').value = profile.basic_info.age || '';
     document.getElementById('gender').value = profile.basic_info.gender || '';
