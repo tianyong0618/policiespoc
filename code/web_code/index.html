@@ -3,174 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策咨询智能体POC</title>
+    <title>AI 政策咨询助手</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-content">
-                <div class="header-icon">🤖</div>
-                <h1>政策咨询智能体POC</h1>
-                <p>基于Doubao-Seed-1.6的智能政策咨询系统</p>
-            </div>
-        </header>
-
-        <main>
-            <!-- 场景选择 -->
-            <div class="scenario-section">
-                <h2>标准场景</h2>
-                <div class="scenario-buttons">
-                    <button class="scenario-btn" data-scenario="scenario1">
-                        <div class="scenario-icon">🚀</div>
-                        <div class="scenario-content">
-                            <strong>场景一：创业扶持政策精准咨询</strong>
-                            <span>返乡创业补贴、创业贷款申请</span>
-                        </div>
-                    </button>
-                    <button class="scenario-btn" data-scenario="scenario2">
-                        <div class="scenario-icon">💼</div>
-                        <div class="scenario-content">
-                            <strong>场景二：技能培训岗位个性化推荐</strong>
-                            <span>职业匹配、补贴申领、灵活时间</span>
-                        </div>
-                    </button>
-                    <button class="scenario-btn" data-scenario="scenario3">
-                        <div class="scenario-icon">🏢</div>
-                        <div class="scenario-content">
-                            <strong>场景三：多重政策叠加咨询</strong>
-                            <span>税收优惠、场地补贴、政策组合</span>
-                        </div>
-                    </button>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🤖</span>
+                    <h1>政策咨询助手</h1>
                 </div>
-            </div>
-
-            <!-- 用户画像管理按钮 -->
-            <div class="profile-section">
-                <button id="profile-btn" class="profile-btn">
-                    <span>👤 用户画像管理</span>
+                <button id="new-chat-btn" class="new-chat-btn">
+                    <span>+</span> 新建对话
                 </button>
             </div>
-
-            <!-- 用户画像管理面板 -->
-            <div id="profile-panel" class="profile-panel">
-                <h3>用户画像管理</h3>
-                <div class="profile-form">
-                    <div class="form-section">
-                        <h4>基本信息</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>年龄</label>
-                                <input type="number" id="age" placeholder="请输入年龄">
-                            </div>
-                            <div class="form-group">
-                                <label>性别</label>
-                                <input type="text" id="gender" placeholder="请输入性别">
-                            </div>
-                            <div class="form-group">
-                                <label>学历</label>
-                                <input type="text" id="education" placeholder="请输入学历">
-                            </div>
-                            <div class="form-group">
-                                <label>工作经验</label>
-                                <input type="text" id="work_experience" placeholder="请输入工作经验">
-                            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <h3>历史记录</h3>
+                    <div class="history-list">
+                        <!-- 模拟历史记录 -->
+                        <div class="history-item active">
+                            <span class="icon">💬</span>
+                            <span class="text">创业补贴政策咨询...</span>
+                        </div>
+                        <div class="history-item">
+                            <span class="icon">💬</span>
+                            <span class="text">技能培训岗位推荐...</span>
                         </div>
                     </div>
-
-                    <div class="form-section">
-                        <h4>技能</h4>
-                        <div class="form-group">
-                            <label>技能列表（用逗号分隔）</label>
-                            <input type="text" id="skills" placeholder="例如：中级电工证, 汽车维修">
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h4>偏好</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>薪资范围（用逗号分隔）</label>
-                                <input type="text" id="salary_range" placeholder="例如：5000-8000, 8000-12000">
-                            </div>
-                            <div class="form-group">
-                                <label>工作地点（用逗号分隔）</label>
-                                <input type="text" id="work_location" placeholder="例如：XX市, YY市">
-                            </div>
-                            <div class="form-group">
-                                <label>工作类型（用逗号分隔）</label>
-                                <input type="text" id="work_type" placeholder="例如：全职, 兼职">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h4>兴趣</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>政策兴趣（用逗号分隔）</label>
-                                <input type="text" id="policy_interest" placeholder="例如：创业扶持, 就业服务">
-                            </div>
-                            <div class="form-group">
-                                <label>岗位兴趣（用逗号分隔）</label>
-                                <input type="text" id="job_interest" placeholder="例如：电工, 技术工人">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button onclick="saveUserProfile()" class="save-btn">保存用户画像</button>
-                        <button onclick="getPersonalizedRecommendations()" class="recommend-btn">获取个性化推荐</button>
-                    </div>
-                </div>
-
-                <div id="recommendations-result" class="recommendations-result">
-                    <h4>个性化推荐</h4>
-                    <p>请先保存用户画像，然后点击"获取个性化推荐"按钮</p>
                 </div>
             </div>
+
+            <div class="sidebar-footer">
+                <button id="profile-btn" class="profile-btn">
+                    <span class="icon">👤</span>
+                    <span class="text">用户画像设置</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部导航（移动端显示） -->
+            <header class="mobile-header">
+                <button id="menu-btn" class="menu-btn">☰</button>
+                <h1>政策咨询助手</h1>
+            </header>
 
             <!-- 对话区域 -->
-            <div class="chat-section">
-                <div class="chat-header">
-                    <h2>对话历史</h2>
-                    <button id="clear-btn">🗑️ 清空历史</button>
-                </div>
-                <div id="chat-history" class="chat-history">
-                    <div class="welcome-message">
+            <div id="chat-container" class="chat-container">
+                <!-- 欢迎页（初始显示） -->
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
                         <div class="welcome-icon">👋</div>
-                        <div class="welcome-text">
-                            <h3>欢迎使用政策咨询智能体</h3>
-                            <p>选择上方场景或直接输入您的问题，我将为您提供精准的政策咨询建议。</p>
+                        <h2>你好，我是您的政策咨询助手</h2>
+                        <p>我可以为您提供政策解读、岗位推荐及多重政策叠加分析服务。</p>
+                        
+                        <div class="scenario-grid">
+                            <div class="scenario-card" data-scenario="scenario1">
+                                <div class="card-icon">🚀</div>
+                                <h3>创业扶持咨询</h3>
+                                <p>返乡创业补贴、创业贷款申请条件及流程解读</p>
+                            </div>
+                            <div class="scenario-card" data-scenario="scenario2">
+                                <div class="card-icon">💼</div>
+                                <h3>技能岗位推荐</h3>
+                                <p>基于证书与画像的精准岗位匹配及补贴申领</p>
+                            </div>
+                            <div class="scenario-card" data-scenario="scenario3">
+                                <div class="card-icon">🏢</div>
+                                <h3>政策叠加分析</h3>
+                                <p>退役军人/高校毕业生多重身份政策红利测算</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 用户输入 -->
-                <div class="input-section">
-                    <input type="text" id="user-input" placeholder="请输入您的问题，例如：我想了解创业补贴政策..." autocomplete="off">
-                    <button id="send-btn">发送 📤</button>
-                </div>
+                <!-- 消息列表 -->
+                <div id="chat-history" class="chat-history"></div>
             </div>
 
-            <!-- 结果展示 -->
-            <div class="result-section">
-                <h2>评估结果</h2>
-                <div id="evaluation-result" class="evaluation-result">
-                    <div class="evaluation-placeholder">
-                        <div class="placeholder-icon">📊</div>
-                        <p>请先发送问题以查看评估结果</p>
-                    </div>
+            <!-- 底部输入区 -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="user-input" placeholder="输入您的问题..." rows="1"></textarea>
+                    <button id="send-btn" class="send-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="footer-text">
+                    AI生成内容仅供参考，具体政策请以官方发布为准
                 </div>
             </div>
         </main>
+    </div>
 
-        <footer>
-            <p>© 2026 政策咨询智能体POC | 基于Doubao-Seed-1.6构建</p>
-        </footer>
+    <!-- 用户画像模态框 -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>用户画像管理 <span id="profile-id-badge" class="id-badge hidden"></span></h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <h4>基本信息</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>年龄</label>
+                            <input type="number" id="age" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>性别</label>
+                            <input type="text" id="gender" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>学历</label>
+                            <input type="text" id="education" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>工作经验</label>
+                            <input type="text" id="work_experience" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>能力与偏好</h4>
+                    <div class="form-group">
+                        <label>技能证书</label>
+                        <input type="text" id="skills" class="form-input" placeholder="逗号分隔">
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>期望薪资</label>
+                            <input type="text" id="salary_range" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>工作地点</label>
+                            <input type="text" id="work_location" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>兴趣方向</h4>
+                    <div class="form-group">
+                        <label>政策兴趣</label>
+                        <input type="text" id="policy_interest" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label>岗位兴趣</label>
+                        <input type="text" id="job_interest" class="form-input">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-btn-action">取消</button>
+                <button class="btn btn-primary" onclick="saveUserProfile()">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 评估结果浮层 -->
+    <div id="evaluation-toast" class="evaluation-toast">
+        <div class="toast-header">
+            <span class="icon">📊</span>
+            <span>响应评估</span>
+            <button class="toast-close">&times;</button>
+        </div>
+        <div class="toast-body" id="evaluation-content">
+            <!-- 动态内容 -->
+        </div>
     </div>
 
     <script src="app.js"></script>
