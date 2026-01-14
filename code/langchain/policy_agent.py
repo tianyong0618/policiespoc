@@ -268,19 +268,14 @@ class PolicyAgent:
         
         # 识别意图和实体
         logger.info("开始识别意图和实体")
-        thinking_process.append({
-            "step": "意图与实体识别",
-            "content": "分析用户输入，识别核心意图和相关实体信息",
-            "status": "in_progress"
-        })
-        
         intent_result = self.identify_intent(user_input)
         intent_info = intent_result["result"]
         llm_calls.append({
             "type": "意图识别",
             "time": intent_result["time"]
         })
-        
+
+        # 只添加完成状态的思考过程
         thinking_process.append({
             "step": "意图与实体识别",
             "content": f"识别结果：意图为\"{intent_info['intent']}\"，提取实体：{[f'{e['type']}:{e['value']}' for e in intent_info['entities']]}",
@@ -291,15 +286,11 @@ class PolicyAgent:
         
         # 检索相关政策
         logger.info("开始检索相关政策")
-        thinking_process.append({
-            "step": "政策检索与匹配",
-            "content": "根据识别的意图和实体，检索相关政策",
-            "status": "in_progress"
-        })
-        
         relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
-        
+
         policy_info = [f"{p['policy_id']}:{p['title']}" for p in relevant_policies]
+        
+        # 只添加完成状态的思考过程
         thinking_process.append({
             "step": "政策检索与匹配",
             "content": f"检索完成，找到 {len(relevant_policies)} 条相关政策：{policy_info}",
@@ -309,30 +300,28 @@ class PolicyAgent:
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策")
         
         # 条件判断与推理
-        thinking_process.append({
-            "step": "条件判断与推理",
-            "content": "分析用户是否满足各政策的条件要求",
-            "status": "in_progress"
-        })
-        
         # 根据场景类型添加特定的思考过程
         if scenario_type == "创业扶持政策精准咨询场景":
             # 场景一特定逻辑
+            # 模拟条件判断过程
+            has_employment = any("就业" in str(e) for e in intent_info["entities"])
+            
+            # 添加创业补贴条件分析完成的思考过程
             thinking_process.append({
                 "step": "条件判断与推理",
                 "content": "分析创业补贴条件：检查是否满足'返乡农民工'身份、'创办小微企业'、'正常经营1年'、'带动3人以上就业'等条件",
-                "status": "in_progress"
+                "status": "completed"
             })
-            
-            # 模拟条件判断过程
-            has_employment = any("就业" in str(e) for e in intent_info["entities"])
+
             if not has_employment:
+                # 添加发现缺失条件的思考过程
                 thinking_process.append({
                     "step": "条件判断与推理",
                     "content": "发现用户未提及'带动就业'条件，需要指出缺失信息",
                     "status": "completed"
                 })
-            
+
+            # 添加创业贷款条件分析完成的思考过程
             thinking_process.append({
                 "step": "条件判断与推理",
                 "content": "分析创业贷款条件：确认'返乡农民工'身份符合贷款申请条件，检查额度和期限要求",
@@ -362,19 +351,14 @@ class PolicyAgent:
         
         # 生成结构化回答
         logger.info("开始生成结构化回答")
-        thinking_process.append({
-            "step": "结构化输出构建",
-            "content": "根据条件判断结果，构建否定部分、肯定部分和主动建议",
-            "status": "in_progress"
-        })
-        
         response_result = self.generate_response(user_input, relevant_policies)
         response = response_result["result"]
         llm_calls.append({
             "type": "回答生成",
             "time": response_result["time"]
         })
-        
+
+        # 只添加完成状态的思考过程
         thinking_process.append({
             "step": "结构化输出构建",
             "content": "完成结构化回答构建，包括政策引用、条件说明和申请路径",
