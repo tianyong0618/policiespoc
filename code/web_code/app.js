@@ -59,6 +59,29 @@ function initEventListeners() {
 
     // 评估结果关闭
     document.querySelector('.toast-close').addEventListener('click', hideEvaluation);
+
+    // 历史记录列表事件委托
+    document.querySelector('.history-list').addEventListener('click', function(e) {
+        // 处理删除按钮点击
+        const deleteBtn = e.target.closest('.delete-icon');
+        if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const sessionId = deleteBtn.dataset.sessionId;
+            deleteSession(sessionId);
+            return;
+        }
+
+        // 处理会话项点击
+        const historyItem = e.target.closest('.history-item');
+        if (historyItem) {
+            // 如果点击的是删除按钮，不处理（理论上上面的 deleteBtn 判断已经拦截了，双重保险）
+            if (e.target.closest('.delete-icon')) return;
+
+            const sessionId = historyItem.dataset.sessionId;
+            loadSession(sessionId);
+        }
+    });
 }
 
 // 加载历史会话列表
@@ -72,10 +95,10 @@ async function loadHistoryList() {
         
         if (data.sessions && data.sessions.length > 0) {
             historyList.innerHTML = data.sessions.map(session => `
-                <div class="history-item ${session.id === currentSessionId ? 'active' : ''}" onclick="loadSession('${session.id}')">
+                <div class="history-item ${session.id === currentSessionId ? 'active' : ''}" data-session-id="${session.id}">
                     <span class="icon">💬</span>
                     <span class="text">${session.title || '新对话'}</span>
-                    <span class="delete-icon" onclick="deleteSession('${session.id}', event)" title="删除">×</span>
+                    <span class="delete-icon" data-session-id="${session.id}" title="删除">×</span>
                 </div>
             `).join('');
             
@@ -112,7 +135,7 @@ async function loadSession(sessionId) {
         // 更新侧边栏激活状态
         document.querySelectorAll('.history-item').forEach(item => {
             item.classList.remove('active');
-            if (item.getAttribute('onclick') === `loadSession('${sessionId}')`) {
+            if (item.dataset.sessionId === sessionId) {
                 item.classList.add('active');
             }
         });
@@ -152,18 +175,40 @@ async function loadSession(sessionId) {
 }
 
 // 删除会话
-async function deleteSession(sessionId, event) {
-    event.stopPropagation(); // 阻止冒泡
-    if (!confirm('确定要删除这条对话吗？')) return;
+async function deleteSession(sessionId) {
+    console.log('Attempting to delete session:', sessionId);
     
+    // 找到对应的DOM元素
+    const historyItem = document.querySelector(`.history-item[data-session-id="${sessionId}"]`);
+    
+    // 如果用户点击取消，不执行删除
+    if (!confirm('确定要删除这条对话吗？')) {
+        console.log('Delete cancelled by user');
+        return; 
+    }
+    
+    console.log('User confirmed delete');
+    
+    // 乐观更新：先在界面上移除（或添加删除中的样式）
+    if (historyItem) {
+        historyItem.style.opacity = '0.5'; // 变淡表示处理中
+        historyItem.style.pointerEvents = 'none'; // 防止重复点击
+    }
+
     try {
         await fetch(`${API_BASE_URL}/history/${sessionId}`, { method: 'DELETE' });
         if (currentSessionId === sessionId) {
             startNewChat();
         }
-        loadHistoryList();
+        loadHistoryList(); // 重新加载列表，这会彻底移除该项
     } catch (error) {
         console.error('删除会话失败:', error);
+        // 如果失败，恢复样式
+        if (historyItem) {
+            historyItem.style.opacity = '1';
+            historyItem.style.pointerEvents = 'auto';
+        }
+        alert('删除失败，请稍后重试');
     }
 }
 

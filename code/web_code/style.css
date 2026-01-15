@@ -68,7 +68,29 @@ body {
 
 /* Logo */
 .logo {
-    display: none; /* 豆包风格侧边栏通常不强调大Logo，或者很小，这里先隐藏或简化 */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 0 4px;
+}
+
+.logo-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+}
+
+.app-brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
 }
 
 /* 新建对话按钮 - 蓝色胶囊样式 */
@@ -109,6 +131,11 @@ body {
     font-weight: 600;
 }
 
+.history-list {
+    display: flex;
+    flex-direction: column;
+}
+
 .history-item {
     display: flex;
     align-items: center;
@@ -120,6 +147,7 @@ body {
     transition: all 0.2s;
     margin-bottom: 4px;
     font-size: 14px;
+    position: relative; /* 为定位删除按钮做准备 */
 }
 
 .history-item:hover, .history-item.active {
@@ -132,6 +160,34 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1; /* 占据剩余空间 */
+    margin-right: 24px; /* 为删除按钮留出空间 */
+}
+
+/* 删除图标默认隐藏，hover时显示 */
+.delete-icon {
+    display: none;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    color: #94a3b8;
+    font-size: 16px;
+    z-index: 2; /* 确保在最上层 */
+}
+
+.history-item:hover .delete-icon {
+    display: block;
+}
+
+.delete-icon:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #ef4444; /* 红色 */
 }
 
 /* 侧边栏底部 */
