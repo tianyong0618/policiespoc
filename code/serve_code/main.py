@@ -110,8 +110,13 @@ async def chat_stream(request: ChatRequest):
             
             # 后续块是文本内容
             for chunk in stream:
-                # 简单的文本块，需要转义换行符以便SSE传输
-                if chunk:
+                if isinstance(chunk, dict):
+                    # 处理特殊事件（如岗位推荐）
+                    if chunk.get("type") == "jobs":
+                        jobs_data = json.dumps({"recommended_jobs": chunk.get("data")}, ensure_ascii=False)
+                        yield f"event: context\ndata: {jobs_data}\n\n"
+                elif chunk:
+                    # 简单的文本块，需要转义换行符以便SSE传输
                     # 使用JSON dump来安全处理字符串
                     json_chunk = json.dumps({"content": chunk}, ensure_ascii=False)
                     yield f"event: message\ndata: {json_chunk}\n\n"

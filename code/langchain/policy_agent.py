@@ -293,7 +293,7 @@ class PolicyAgent:
             return self.fallback_process(user_input)
     
     def process_stream_query(self, user_input):
-        """流式处理查询"""
+        """流式处理查询 - 智能岗位推荐版"""
         start_time = time.time()
         logger.info(f"开始流式处理: {user_input[:50]}...")
         
@@ -301,7 +301,6 @@ class PolicyAgent:
         matched_user = self.user_profile_manager.match_user_profile(user_input)
         
         # 简单关键词匹配政策和岗位（替代LLM检索以提速）
-        # 这里为了演示速度，直接基于关键词做简单过滤
         all_policies = self.policies
         all_jobs = self.job_matcher.get_all_jobs()
         
@@ -312,28 +311,27 @@ class PolicyAgent:
         if not relevant_policies:
             relevant_policies = all_policies[:3] # 默认
             
-        recommended_jobs = []
-        # 简单判断是否需要推荐岗位
+        candidate_jobs = []
+        # 简单筛选候选岗位，但不直接推送
         if any(k in user_input for k in ["工作", "岗位", "招聘", "赚钱"]):
              for j in all_jobs:
                  if any(k in user_input for k in [j["title"]]):
-                     recommended_jobs.append(j)
-             if not recommended_jobs:
-                 recommended_jobs = all_jobs[:3]
+                     candidate_jobs.append(j)
+             if not candidate_jobs:
+                 candidate_jobs = all_jobs[:3]
 
-        # 2. 先发送上下文数据 (JSON格式)
+        # 2. 先发送上下文数据 (不包含岗位，等待LLM判断)
         context_data = {
             "type": "context",
             "matched_user": matched_user,
             "relevant_policies": [p["policy_id"] for p in relevant_policies],
-            "recommended_jobs": recommended_jobs
+            # "recommended_jobs": candidate_jobs # 暂时不发
         }
         yield json.dumps(context_data, ensure_ascii=False) + "\n\n"
         
         # 3. 构建Prompt并流式调用LLM
-        # 简化数据以减少Token
         simple_policies = [{"id": p["policy_id"], "title": p["title"], "content": p["content"]} for p in relevant_policies]
-        simple_jobs = [{"id": j["job_id"], "title": j["title"], "features": j["features"]} for j in recommended_jobs]
+        simple_jobs = [{"id": j["job_id"], "title": j["title"], "features": j["features"]} for j in candidate_jobs]
         
         prompt = f"""
 你是一个政策咨询助手。请根据以下信息回答用户问题。
@@ -344,28 +342,47 @@ class PolicyAgent:
 参考政策:
 {json.dumps(simple_policies, ensure_ascii=False)}
 
-参考岗位:
+候选岗位列表:
 {json.dumps(simple_jobs, ensure_ascii=False)}
 
-请以Markdown格式直接输出回答，包含以下部分（使用加粗标题）：
+请以Markdown格式直接输出回答，要求：
+1. 先进行【意图分析】，判断用户需求。
+2. 如果用户明确表达了求职、找工作或咨询岗位的意图，请在分析完意图后，使用【岗位推荐】作为标题，并列出推荐岗位。
+3. 如果用户不需要岗位推荐，请不要输出【岗位推荐】标题。
+
+输出结构参考（使用加粗标题）：
 **意图分析**
-简要分析用户意图。
+...
 
 **政策解读**
-详细解读符合条件的政策。
+...
 
-**岗位推荐**
-如果有推荐岗位，请列出并说明理由。
+**岗位推荐** (仅当需要时输出)
+...
 
 **建议**
-下一步操作建议。
+...
 
-请直接开始输出内容，不要包含JSON格式。
+请直接开始输出内容。
 """
         
-        # 4. 流式生成内容
+        # 4. 流式生成内容，并监听特殊标记
+        full_response = ""
+        
         for chunk in self.chatbot.chat_stream(prompt):
+            full_response += chunk
             yield chunk
+            
+        # 5. 流结束后，检查是否需要推送岗位（确保在分析完成后）
+        if candidate_jobs:
+             # 检查模型回复中是否包含岗位推荐的章节标题
+             if "**岗位推荐**" in full_response or "【岗位推荐】" in full_response:
+                 # 触发岗位推荐事件
+                 jobs_event = {
+                    "type": "jobs",
+                    "data": candidate_jobs
+                 }
+                 yield jobs_event
     
     def evaluate_response(self, user_input, response):
         """评估回答质量"""
