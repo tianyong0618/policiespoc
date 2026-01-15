@@ -62,9 +62,6 @@ function initEventListeners() {
 
     // 评估结果关闭
     document.querySelector('.toast-close').addEventListener('click', hideEvaluation);
-
-    // 移动端菜单
-    document.getElementById('menu-btn').addEventListener('click', toggleSidebar);
 }
 
 // 加载历史会话列表

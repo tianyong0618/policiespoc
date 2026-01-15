@@ -167,6 +167,28 @@ body {
     background-color: var(--bg-body);
 }
 
+/* 顶部标题栏 */
+.mobile-header {
+    height: 60px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.chat-window-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* 对话区域 */
 .chat-container {
     flex: 1;
@@ -506,6 +528,10 @@ body {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+    .menu-btn {
+        display: block; /* 移动端显示菜单按钮 */
+    }
+
     .scenario-grid {
         grid-template-columns: 1fr;
     }
