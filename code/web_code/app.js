@@ -189,8 +189,11 @@ async function sendMessage() {
                             let text = data.content || '';
                             
                             // 检测是否切换到结构化输出（回答部分）
-                            // 匹配规则：Markdown 分割线 --- 或 **结构化输出**
-                            if (isThinking && (text.includes('---') || text.includes('**结构化输出**'))) {
+                            // 匹配规则：Markdown 分割线 --- 或 **结构化输出** 或 【结构化输出】或 ### 结构化输出
+                            // 移除 ^ 锚点，只要 chunk 中包含这些标记就触发切换，避免因分块导致的匹配失败
+                            const structuredOutputRegex = /(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/;
+                            
+                            if (isThinking && structuredOutputRegex.test(text)) {
                                 isThinking = false;
                                 hasFinishedThinking = true;
                                 
@@ -201,8 +204,8 @@ async function sendMessage() {
                                 // 移除 spinner
                                 if (thinkingSpinner) thinkingSpinner.style.display = 'none';
                                 
-                                // 清理 text 中的分割标记，避免在回答区开头显示不美观的线
-                                text = text.replace('---', '').replace('**结构化输出**', '');
+                                // 清理 text 中的分割标记
+                                text = text.replace(structuredOutputRegex, '');
                             }
                             
                             // 简单处理 Markdown 格式
@@ -248,7 +251,13 @@ async function sendMessage() {
                                     thinkingContentEl.classList.add('has-content');
                                     thinkingContainer.classList.add('active');
                                 }
-                                thinkingContentEl.appendChild(span);
+                                
+                                // 过滤掉思考过程中完全不匹配的内容
+                                // 比如有时候模型会输出 "根据..." 这种无意义的片段
+                                // 这里可以根据实际情况增加更复杂的过滤逻辑
+                                if (text.trim()) {
+                                    thinkingContentEl.appendChild(span);
+                                }
                             } else {
                                 answerContentEl.appendChild(span);
                             }
