@@ -8,7 +8,7 @@
       "status": "创业筹备期"
     },
     "description": "28岁男性，返乡农民工，计划在家乡开小型加工厂（小微企业），缺乏启动资金和政策了解渠道。",
-    "core_needs": ["低息贷款（A01）", "一次性创业补贴（A03）", "政策申请指导"],
+    "core_needs": ["低息贷款（POLICY_A01）", "一次性创业补贴（POLICY_A03）", "政策申请指导"],
     "policy_interest": ["创业扶持"],
     "job_interest": ["创业"],
     "associated_relations": ["POLICY_A01", "POLICY_A03", "JOB_A01"]
@@ -23,9 +23,9 @@
       "skills": ["中级电工职业资格证书"]
     },
     "description": "32岁女性，失业状态，持有中级电工职业资格证书，希望快速找到能申领技能补贴的工作。",
-    "core_needs": ["技能补贴申领（A02）", "稳定收入", "灵活工作时间"],
+    "core_needs": ["技能补贴申领（POLICY_A02）", "稳定收入", "灵活工作时间"],
     "policy_interest": ["就业服务", "技能培训"],
-    "job_interest": ["电工", "培训讲师"],
+    "job_interest": ["电工"],
     "associated_relations": ["POLICY_A02", "JOB_A02"]
   },
   {
@@ -42,7 +42,7 @@
       }
     },
     "description": "25岁女性，高校毕业生，入驻市级创业孵化基地做文创工作室，年租金1.2万元，需减轻成本。",
-    "core_needs": ["场地租金补贴（A04）", "创业资源对接", "低成本启动"],
+    "core_needs": ["场地租金补贴（POLICY_A04）", "创业资源对接", "低成本启动"],
     "policy_interest": ["创业扶持"],
     "job_interest": ["创业"],
     "associated_relations": ["POLICY_A04", "JOB_A03"]
@@ -57,7 +57,7 @@
       "status": "求职/培训"
     },
     "description": "45岁男性，脱贫人口，初中文化，想参加养老护理员培训（初级证书），担心生活费不足。",
-    "core_needs": ["生活费补贴（A05）", "免费/低价培训机会", "就业推荐"],
+    "core_needs": ["生活费补贴（POLICY_A05）", "免费/低价培训机会", "就业推荐"],
     "policy_interest": ["就业服务", "技能培训"],
     "job_interest": ["养老护理员"],
     "associated_relations": ["POLICY_A05", "JOB_A04"]
@@ -72,7 +72,7 @@
       "project": "汽车维修店（个体经营）"
     },
     "description": "30岁男性，退役军人，计划开汽车维修店（个体经营），关注税收优惠和项目可行性。",
-    "core_needs": ["税收优惠（A06）", "项目评估指导", "创业风险规避"],
+    "core_needs": ["税收优惠（POLICY_A06）", "项目评估指导", "创业风险规避"],
     "policy_interest": ["创业扶持", "税收优惠"],
     "job_interest": ["创业", "汽车维修"],
     "associated_relations": ["POLICY_A06", "JOB_A05"]

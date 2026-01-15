@@ -6,7 +6,7 @@
     "features": "服务创业者，对接政策资源，稳定性高",
     "policy_relations": ["POLICY_A01", "POLICY_A03", "POLICY_A04"],
     "salary": "5000-8000",
-    "location": "XX市",
+    "location": "北京市",
     "benefits": ["五险一金"]
   },
   {
@@ -16,7 +16,7 @@
     "features": "传授实操技能，助力学员申领补贴，时间灵活",
     "policy_relations": ["POLICY_A02"],
     "salary": "7000-12000",
-    "location": "XX市",
+    "location": "北京市",
     "benefits": ["时间灵活"]
   },
   {
@@ -26,8 +26,8 @@
     "features": "聚焦电商创业，对接场地与流量资源，年轻化团队",
     "policy_relations": ["POLICY_A04"],
     "salary": "6000-10000",
-    "location": "XX市",
-    "benefits": ["五险一金"]
+    "location": "北京市",
+    "benefits": ["热门职业"]
   },
   {
     "job_id": "JOB_A04",
@@ -36,7 +36,7 @@
     "features": "链接培训需求与政策补贴，促成报名转化",
     "policy_relations": ["POLICY_A02", "POLICY_A05"],
     "salary": "4000-8000",
-    "location": "XX市",
+    "location": "北京市",
     "benefits": ["提成"]
   },
   {
@@ -46,7 +46,7 @@
     "features": "专注退役军人创业，提供税务+项目双指导",
     "policy_relations": ["POLICY_A06"],
     "salary": "8000-15000",
-    "location": "XX市",
+    "location": "北京市",
     "benefits": ["五险一金"]
   }
 ]
