@@ -131,24 +131,25 @@ async function sendMessage() {
         // 构建新的 DOM 结构：思考区 + 回答区
         messageContainer.innerHTML = `
             <div class="message-avatar">🤖</div>
-            <div class="message-content" style="width: 100%;">
-                <!-- 思考折叠区 -->
-                <div class="thinking-container active">
+            <div class="message-content" style="width: 100%; background: transparent; padding: 0; box-shadow: none; border: none;">
+                <!-- 思考折叠区 - 初始不添加 active 类 -->
+                <div class="thinking-container">
                     <div class="thinking-header" onclick="toggleThinking(this)">
-                        <span class="thinking-icon">💭</span>
-                        <span class="thinking-title">正在深度思考...</span>
-                        <span class="thinking-arrow">▼</span>
+                        <span class="thinking-spinner"></span>
+                        <span class="thinking-title">深度思考中...</span>
+                        <span class="thinking-toggle-icon"></span>
                     </div>
                     <div class="thinking-content"></div>
                 </div>
                 <!-- 回答区 -->
-                <div class="answer-content"></div>
+                <div class="answer-content" style="background: transparent; padding: 12px 16px 12px 0; border: none; box-shadow: none;"></div>
             </div>
         `;
         chatHistory.appendChild(messageContainer);
         
         const thinkingContainer = messageContainer.querySelector('.thinking-container');
         const thinkingHeaderTitle = messageContainer.querySelector('.thinking-title');
+        const thinkingSpinner = messageContainer.querySelector('.thinking-spinner');
         const thinkingContentEl = messageContainer.querySelector('.thinking-content');
         const answerContentEl = messageContainer.querySelector('.answer-content');
 
@@ -197,11 +198,13 @@ async function sendMessage() {
                                 thinkingContainer.classList.add('finished');
                                 thinkingContainer.classList.remove('active'); // 默认收起
                                 thinkingHeaderTitle.textContent = '已完成思考';
+                                // 移除 spinner
+                                if (thinkingSpinner) thinkingSpinner.style.display = 'none';
                                 
                                 // 清理 text 中的分割标记，避免在回答区开头显示不美观的线
                                 text = text.replace('---', '').replace('**结构化输出**', '');
                             }
-
+                            
                             // 简单处理 Markdown 格式
                             let html = text
                                 .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
@@ -211,12 +214,25 @@ async function sendMessage() {
                             if (html.includes('📑 结构化输出')) {
                                 html = html.replace('📑 结构化输出', '');
                             }
+                            
+                            // 修复：如果分割线被过滤掉了，导致内容为空，就不添加空 span
+                            if (!html.trim()) {
+                                continue;
+                            }
 
                             // 创建临时 span 追加
                             const span = document.createElement('span');
                             span.innerHTML = html;
                             
                             if (isThinking) {
+                                // 过滤掉思考过程开头的空白字符
+                                if (!thinkingContentEl.classList.contains('has-content')) {
+                                    if (!text.trim()) {
+                                        continue;
+                                    }
+                                    thinkingContentEl.classList.add('has-content');
+                                    thinkingContainer.classList.add('active');
+                                }
                                 thinkingContentEl.appendChild(span);
                             } else {
                                 answerContentEl.appendChild(span);
@@ -230,6 +246,15 @@ async function sendMessage() {
                                 thinkingContainer.classList.add('finished');
                                 thinkingContainer.classList.remove('active');
                                 thinkingHeaderTitle.textContent = '已完成思考';
+                                if (thinkingSpinner) thinkingSpinner.style.display = 'none';
+                                
+                                // 兜底：如果整个返回都在思考区，说明没检测到分割线
+                                // 此时尝试把思考区的内容复制一份到回答区，或者提示用户
+                                if (answerContentEl.innerHTML.trim() === '') {
+                                    // 简单处理：如果回答区为空，就保持思考区展开，方便查看
+                                    thinkingContainer.classList.add('active'); 
+                                    thinkingHeaderTitle.textContent = '思考完成 (未检测到结构化输出)';
+                                }
                             }
                         } else if (event === 'error') {
                             console.error('Stream error:', dataStr);

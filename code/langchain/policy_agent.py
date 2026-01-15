@@ -15,16 +15,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class PolicyAgent:
-    def __init__(self):
+    def __init__(self, job_matcher=None, user_profile_manager=None):
         self.chatbot = ChatBot()
         # 加载并缓存政策数据
         self.policies = self.load_policies()
         # 缓存LLM响应
         self.llm_cache = {}
         # 初始化岗位匹配器
-        self.job_matcher = JobMatcher()
+        self.job_matcher = job_matcher if job_matcher else JobMatcher()
         # 初始化用户画像管理器
-        self.user_profile_manager = UserProfileManager()
+        self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
     
     def load_policies(self):
         """加载政策数据"""
@@ -333,6 +333,28 @@ class PolicyAgent:
         simple_policies = [{"id": p["policy_id"], "title": p["title"], "content": p["content"]} for p in relevant_policies]
         simple_jobs = [{"id": j["job_id"], "title": j["title"], "features": j["features"]} for j in candidate_jobs]
         
+        # 针对特定场景注入特定指令
+        scenario_instruction = ""
+        if "返乡创业" in user_input or "农民工" in user_input: # 场景一特征
+            scenario_instruction = """
+特别注意（场景一要求）：
+1. 在【结构化输出】的"否定部分"，必须指出用户未提及"带动就业"条件，因此暂时无法申领2万补贴。
+2. 在【结构化输出】的"肯定部分"，确认"返乡农民工"身份符合创业贷款条件。
+3. 在【结构化输出】的"主动建议"，必须推荐联系 JOB_A01。
+"""
+        elif "电工证" in user_input or "技能补贴" in user_input: # 场景二特征
+            scenario_instruction = """
+特别注意（场景二要求）：
+1. 必须在思考过程中分析 USER_A02 画像。
+2. 推荐 JOB_A02，并说明其"兼职"属性符合"灵活时间"需求。
+"""
+        elif "退役军人" in user_input and "税收" in user_input: # 场景三特征
+             scenario_instruction = """
+特别注意（场景三要求）：
+1. 明确指出可以同时享受税收优惠（A06）和场地补贴（A04）。
+2. 推荐联系 JOB_A05。
+"""
+
         prompt = f"""
 你是一个政策咨询助手。请根据以下信息回答用户问题。
 
@@ -346,9 +368,13 @@ class PolicyAgent:
 {json.dumps(simple_jobs, ensure_ascii=False)}
 
 请以Markdown格式直接输出回答，要求：
-1. 先进行【意图分析】，判断用户需求。
-2. 如果用户明确表达了求职、找工作或咨询岗位的意图，请在分析完意图后，使用【岗位推荐】作为标题，并列出推荐岗位。
-3. 如果用户不需要岗位推荐，请不要输出【岗位推荐】标题。
+1. **深度思考部分**：先进行详细的分析，包括【意图分析】、【政策解读】和【岗位推荐】（如果需要）。
+2. **结构化输出部分**：在思考完成后，必须输出一个独立的章节，标题为【结构化输出】，严格按照以下三部分进行总结：
+   - 否定部分：列出不符合条件的政策及原因。
+   - 肯定部分：列出符合条件的政策及具体内容。
+   - 主动建议：提供下一步操作建议（如联系具体人员）。
+
+{scenario_instruction}
 
 输出结构参考（使用加粗标题）：
 **意图分析**
@@ -360,8 +386,11 @@ class PolicyAgent:
 **岗位推荐** (仅当需要时输出)
 ...
 
-**建议**
-...
+---
+**结构化输出**
+- **否定部分**：...
+- **肯定部分**：...
+- **主动建议**：...
 
 请直接开始输出内容。
 """

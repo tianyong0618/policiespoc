@@ -34,12 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 初始化政策智能体
-agent = PolicyAgent()
-# 初始化岗位匹配器
+# 初始化岗位匹配器 (单例)
 job_matcher = JobMatcher()
-# 初始化用户画像管理器
-user_profile_manager = UserProfileManager()
+# 初始化用户画像管理器 (注入岗位匹配器)
+user_profile_manager = UserProfileManager(job_matcher=job_matcher)
+# 初始化政策智能体 (注入依赖)
+agent = PolicyAgent(job_matcher=job_matcher, user_profile_manager=user_profile_manager)
 
 # 请求模型
 class ChatRequest(BaseModel):

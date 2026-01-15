@@ -11,9 +11,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class UserProfileManager:
-    def __init__(self):
+    def __init__(self, job_matcher=None):
         self.user_profiles = self.load_user_profiles()
-        self.job_matcher = JobMatcher()
+        self.job_matcher = job_matcher if job_matcher else JobMatcher()
         logger.info(f"加载用户画像数据完成，共 {len(self.user_profiles)} 个用户")
     
     def load_user_profiles(self):
