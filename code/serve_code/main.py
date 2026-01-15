@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.abspath('/Users/tianyong/Documents/works/workspace/hp
 from langchain.policy_agent import PolicyAgent
 from langchain.job_matcher import JobMatcher
 from langchain.user_profile import UserProfileManager
+from langchain.history_manager import HistoryManager
 
 # 初始化应用
 app = FastAPI(title="政策咨询智能体API", description="政策咨询智能体POC服务")
@@ -40,11 +41,14 @@ job_matcher = JobMatcher()
 user_profile_manager = UserProfileManager(job_matcher=job_matcher)
 # 初始化政策智能体 (注入依赖)
 agent = PolicyAgent(job_matcher=job_matcher, user_profile_manager=user_profile_manager)
+# 初始化历史记录管理器
+history_manager = HistoryManager()
 
 # 请求模型
 class ChatRequest(BaseModel):
     message: str
     scenario: str = "general"
+    session_id: str = None  # 新增 session_id 字段
 
 class EvaluateRequest(BaseModel):
     user_input: str
@@ -99,8 +103,20 @@ from fastapi.responses import StreamingResponse
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest):
     """处理用户对话（流式响应）"""
+    # 1. 获取或创建会话
+    session_id = request.session_id
+    if not session_id:
+        session_id = history_manager.create_session()
+    
+    # 2. 保存用户消息
+    history_manager.add_message(session_id, "user", request.message)
+
     async def event_generator():
+        full_response = ""
         try:
+            # 发送 session_id 给前端，以便后续使用
+            yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
+
             # 获取流式生成器
             stream = agent.process_stream_query(request.message)
             
@@ -116,11 +132,17 @@ async def chat_stream(request: ChatRequest):
                         jobs_data = json.dumps({"recommended_jobs": chunk.get("data")}, ensure_ascii=False)
                         yield f"event: context\ndata: {jobs_data}\n\n"
                 elif chunk:
+                    # 收集完整回复
+                    full_response += str(chunk)
                     # 简单的文本块，需要转义换行符以便SSE传输
                     # 使用JSON dump来安全处理字符串
                     json_chunk = json.dumps({"content": chunk}, ensure_ascii=False)
                     yield f"event: message\ndata: {json_chunk}\n\n"
             
+            # 3. 保存 AI 消息
+            if full_response:
+                history_manager.add_message(session_id, "ai", full_response)
+
             yield "event: done\ndata: {}\n\n"
             
         except Exception as e:
@@ -129,6 +151,26 @@ async def chat_stream(request: ChatRequest):
             yield f"event: error\ndata: {error_msg}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/api/history")
+async def get_history():
+    """获取会话历史列表"""
+    return {"sessions": history_manager.get_all_sessions()}
+
+@app.get("/api/history/{session_id}")
+async def get_session_history(session_id: str):
+    """获取特定会话的历史消息"""
+    session = history_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+@app.delete("/api/history/{session_id}")
+async def delete_session(session_id: str):
+    """删除会话"""
+    if history_manager.delete_session(session_id):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Session not found")
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request):

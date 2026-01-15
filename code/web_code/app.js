@@ -19,11 +19,13 @@ const SCENARIOS = {
 
 // 全局状态
 let currentScenario = null;
+let currentSessionId = null;
 
 // 初始化页面
 document.addEventListener('DOMContentLoaded', function() {
     initEventListeners();
     loadUserProfile();
+    loadHistoryList();
 });
 
 // 初始化事件监听
@@ -65,10 +67,147 @@ function initEventListeners() {
     document.getElementById('menu-btn').addEventListener('click', toggleSidebar);
 }
 
+// 加载历史会话列表
+async function loadHistoryList() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/history`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        const historyList = document.querySelector('.history-list');
+        
+        if (data.sessions && data.sessions.length > 0) {
+            historyList.innerHTML = data.sessions.map(session => `
+                <div class="history-item ${session.id === currentSessionId ? 'active' : ''}" onclick="loadSession('${session.id}')">
+                    <span class="icon">💬</span>
+                    <span class="text">${session.title || '新对话'}</span>
+                    <span class="delete-icon" onclick="deleteSession('${session.id}', event)" title="删除">×</span>
+                </div>
+            `).join('');
+        } else {
+            historyList.innerHTML = '<div style="padding: 10px; color: #94a3b8; font-size: 13px; text-align: center;">暂无历史记录</div>';
+        }
+    } catch (error) {
+        console.error('加载历史记录失败:', error);
+    }
+}
+
+// 加载特定会话
+async function loadSession(sessionId) {
+    if (currentSessionId === sessionId) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/history/${sessionId}`);
+        if (!response.ok) throw new Error('加载会话失败');
+        
+        const session = await response.json();
+        currentSessionId = sessionId;
+        currentScenario = null; // 切换会话时重置场景
+        
+        // 更新侧边栏激活状态
+        document.querySelectorAll('.history-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.getAttribute('onclick') === `loadSession('${sessionId}')`) {
+                item.classList.add('active');
+            }
+        });
+        
+        // 隐藏欢迎页，显示聊天记录
+        document.getElementById('welcome-screen').style.display = 'none';
+        const chatHistory = document.getElementById('chat-history');
+        chatHistory.innerHTML = '';
+        
+        // 渲染消息
+        if (session.messages && session.messages.length > 0) {
+            session.messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    addMessageToHistory('user', msg.content);
+                } else if (msg.role === 'ai') {
+                    // AI消息可能包含HTML，直接渲染
+                    // 简单处理：如果是结构化输出的Markdown，这里可能需要重新解析
+                    // 为了简化，直接作为HTML插入（假设后端存的是处理过的或者前端能处理的）
+                    // 实际情况：后端存的是Markdown文本，前端 addMessageToHistory 会直接显示文本
+                    // 我们需要对AI消息做简单的Markdown渲染处理
+                    renderAIMessage(msg.content);
+                }
+            });
+        }
+        
+        scrollToBottom();
+        
+        // 移动端收起侧边栏
+        if (window.innerWidth <= 768) {
+            document.querySelector('.sidebar').classList.remove('active');
+        }
+        
+    } catch (error) {
+        console.error('加载会话详情失败:', error);
+    }
+}
+
+// 删除会话
+async function deleteSession(sessionId, event) {
+    event.stopPropagation(); // 阻止冒泡
+    if (!confirm('确定要删除这条对话吗？')) return;
+    
+    try {
+        await fetch(`${API_BASE_URL}/history/${sessionId}`, { method: 'DELETE' });
+        if (currentSessionId === sessionId) {
+            startNewChat();
+        }
+        loadHistoryList();
+    } catch (error) {
+        console.error('删除会话失败:', error);
+    }
+}
+
+// 渲染AI消息（带简单的Markdown处理）
+function renderAIMessage(content) {
+    // 复用已有的流式处理逻辑中的渲染部分
+    // 这里简化处理：直接创建div并innerHTML
+    
+    // 1. 处理结构化输出标记
+    let text = content.replace(/(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/g, '');
+    
+    // 2. 简单Markdown转HTML
+    let html = text
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\n/g, '<br>');
+    
+    // 3. 渲染岗位卡片
+    const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
+    html = html.replace(jobRegex, (match, jobId, jobTitle) => {
+        return `
+            <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
+                    <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
+                </div>
+                <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
+            </div>
+        `;
+    });
+
+    const chatHistory = document.getElementById('chat-history');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai';
+    messageDiv.innerHTML = `
+        <div class="message-avatar">🤖</div>
+        <div class="message-content">
+            <div class="answer-content" style="background: transparent; padding: 0; border: none; box-shadow: none;">${html}</div>
+        </div>
+    `;
+    chatHistory.appendChild(messageDiv);
+}
+
 // 使用场景
 function useScenario(scenario) {
     const scenarioInfo = SCENARIOS[scenario];
     if (scenarioInfo) {
+        // 如果当前已经在某个会话中，且不是新对话，建议新建会话
+        if (currentSessionId && document.getElementById('chat-history').children.length > 0) {
+            startNewChat();
+        }
         currentScenario = scenario;
         document.getElementById('user-input').value = scenarioInfo.example;
         sendMessage();
@@ -77,11 +216,15 @@ function useScenario(scenario) {
 
 // 开始新对话
 function startNewChat() {
+    currentSessionId = null;
+    currentScenario = null;
     document.getElementById('chat-history').innerHTML = '';
     document.getElementById('welcome-screen').style.display = 'flex';
     document.getElementById('user-input').value = '';
-    currentScenario = null;
     hideEvaluation();
+    
+    // 更新侧边栏选中状态
+    document.querySelectorAll('.history-item').forEach(item => item.classList.remove('active'));
     
     // 移动端收起侧边栏
     if (window.innerWidth <= 768) {
@@ -107,13 +250,19 @@ async function sendMessage() {
 
     // 使用 SSE 流式请求
     try {
+        const body = {
+            message: userInput,
+            scenario: currentScenario || 'general'
+        };
+        // 如果有当前会话ID，带上它
+        if (currentSessionId) {
+            body.session_id = currentSessionId;
+        }
+
         const response = await fetch(`${API_BASE_URL}/chat/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: userInput,
-                scenario: currentScenario || 'general'
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) throw new Error('API请求失败');
@@ -178,7 +327,18 @@ async function sendMessage() {
                         const event = eventMatch[1].trim();
                         const dataStr = dataMatch[1].trim();
 
-                        if (event === 'context') {
+                        if (event === 'session') {
+                            // 接收并更新 session_id
+                            const data = JSON.parse(dataStr);
+                            if (data.session_id) {
+                                const isNewSession = !currentSessionId;
+                                currentSessionId = data.session_id;
+                                // 如果是新会话，刷新列表
+                                if (isNewSession) {
+                                    loadHistoryList();
+                                }
+                            }
+                        } else if (event === 'context') {
                             const data = JSON.parse(dataStr);
                             // 显示推荐岗位
                             if (data.recommended_jobs && data.recommended_jobs.length > 0) {
