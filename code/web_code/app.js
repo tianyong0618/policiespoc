@@ -175,40 +175,82 @@ async function deleteSession(sessionId, event) {
 
 // 渲染AI消息（带简单的Markdown处理）
 function renderAIMessage(content) {
-    // 复用已有的流式处理逻辑中的渲染部分
-    // 这里简化处理：直接创建div并innerHTML
+    // 1. 尝试分离思考过程和回答
+    // 匹配规则同流式处理：Markdown 分割线 --- 或 **结构化输出** 或 【结构化输出】或 ### 结构化输出
+    const separatorRegex = /(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/;
+    const match = content.match(separatorRegex);
     
-    // 1. 处理结构化输出标记
-    let text = content.replace(/(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/g, '');
+    let thinkingText = '';
+    let answerText = content;
     
-    // 2. 简单Markdown转HTML
-    let html = text
-        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-        .replace(/\n/g, '<br>');
+    if (match) {
+        thinkingText = content.substring(0, match.index).trim();
+        // 跳过匹配到的分隔符
+        answerText = content.substring(match.index + match[0].length).trim();
+    } else {
+        // 如果没有匹配到分隔符，尝试检测是否全是回答（或者是老格式数据）
+        // 这里假设如果没分隔符，默认全是回答
+        answerText = content;
+    }
     
-    // 3. 渲染岗位卡片
-    const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
-    html = html.replace(jobRegex, (match, jobId, jobTitle) => {
-        return `
-            <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
-                    <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
+    // 2. 简单Markdown转HTML处理函数
+    const formatMarkdown = (text) => {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+            .replace(/\n/g, '<br>');
+    };
+    
+    // 3. 处理岗位卡片
+    const formatJobs = (html) => {
+        const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
+        return html.replace(jobRegex, (match, jobId, jobTitle) => {
+            return `
+                <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
+                        <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
+                    </div>
+                    <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
                 </div>
-                <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
-            </div>
-        `;
-    });
+            `;
+        });
+    };
 
     const chatHistory = document.getElementById('chat-history');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ai';
-    messageDiv.innerHTML = `
-        <div class="message-avatar">🤖</div>
-        <div class="message-content">
-            <div class="answer-content" style="background: transparent; padding: 0; border: none; box-shadow: none;">${html}</div>
-        </div>
-    `;
+    
+    if (thinkingText) {
+        const thinkingHtml = formatMarkdown(thinkingText);
+        let answerHtml = formatMarkdown(answerText);
+        answerHtml = formatJobs(answerHtml);
+        
+        messageDiv.innerHTML = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content" style="width: 100%; background: transparent; padding: 0; box-shadow: none; border: none;">
+                <div class="thinking-container finished">
+                    <div class="thinking-header" onclick="toggleThinking(this)">
+                        <span class="thinking-title">已完成思考</span>
+                        <span class="thinking-toggle-icon"></span>
+                    </div>
+                    <div class="thinking-content has-content">${thinkingHtml}</div>
+                </div>
+                <div class="answer-content" style="background: transparent; padding: 12px 16px 12px 0; border: none; box-shadow: none;">${answerHtml}</div>
+            </div>
+        `;
+    } else {
+        // 没有思考过程，按原有逻辑
+        let html = formatMarkdown(answerText);
+        html = formatJobs(html);
+        
+        messageDiv.innerHTML = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="answer-content" style="background: transparent; padding: 0; border: none; box-shadow: none;">${html}</div>
+            </div>
+        `;
+    }
+    
     chatHistory.appendChild(messageDiv);
 }
 
@@ -332,6 +374,7 @@ async function sendMessage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let detectionBuffer = ''; // 用于检测跨包的标记
         
         // 状态标记
         let isThinking = true; // 默认为思考模式
