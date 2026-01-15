@@ -66,11 +66,19 @@ class PolicyAgent:
         else:
             content = response
             llm_time = 0
-            logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+            if isinstance(content, str):
+                logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+            else:
+                logger.info(f"大模型返回的意图识别结果: {str(content)[:100]}...")
         
         try:
+            if isinstance(content, dict):
+                result_json = content
+            else:
+                result_json = json.loads(content)
+                
             return {
-                "result": json.loads(content),
+                "result": result_json,
                 "time": llm_time
             }
         except Exception as e:
@@ -205,8 +213,13 @@ class PolicyAgent:
             llm_time = 0
         
         try:
+            if isinstance(content, dict):
+                result_json = content
+            else:
+                result_json = json.loads(content)
+
             return {
-                "result": json.loads(content),
+                "result": result_json,
                 "time": llm_time
             }
         except:
