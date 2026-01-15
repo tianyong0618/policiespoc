@@ -52,9 +52,6 @@ function initEventListeners() {
     // 新建对话
     document.getElementById('new-chat-btn').addEventListener('click', startNewChat);
 
-    // 用户画像管理
-    document.getElementById('profile-btn').addEventListener('click', openProfileModal);
-    
     // 模态框关闭
     document.querySelectorAll('.close-btn, .close-btn-action').forEach(btn => {
         btn.addEventListener('click', closeProfileModal);
