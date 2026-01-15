@@ -306,8 +306,37 @@ class PolicyAgent:
         
         relevant_policies = []
         for p in all_policies:
-            if any(k in user_input for k in [p["title"], p["category"]]):
+            is_match = False
+            # 1. 标题/分类匹配
+            if p["title"] in user_input or p["category"] in user_input:
+                is_match = True
+            
+            # 2. 核心条件匹配 (检查政策的条件值是否出现在用户输入中)
+            if not is_match:
+                for cond in p.get("conditions", []):
+                    val = str(cond.get("value", ""))
+                    # 处理 "高校毕业生/返乡农民工" 这种多选条件
+                    sub_vals = val.split("/")
+                    for sv in sub_vals:
+                        if sv and len(sv) > 1 and sv in user_input:
+                            is_match = True
+                            break
+                    if is_match:
+                        break
+            
+            # 3. 特定关键词补救 (针对简称)
+            if not is_match:
+                # 如用户说"税收优惠"，匹配"退役军人创业税收优惠"
+                if "税收" in user_input and "税收" in p["title"]:
+                    is_match = True
+                elif "场地" in user_input and "场地" in p["title"]:
+                    is_match = True
+                elif "贴息" in user_input and "贴息" in p["title"]:
+                    is_match = True
+            
+            if is_match:
                 relevant_policies.append(p)
+                
         if not relevant_policies:
             relevant_policies = all_policies[:3] # 默认
             
@@ -355,6 +384,7 @@ class PolicyAgent:
 特别注意（场景三要求）：
 1. 明确指出可以同时享受税收优惠（A06）和场地补贴（A04）。
 2. 推荐联系 JOB_A05。
+3. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议。
 """
 
         prompt = f"""
