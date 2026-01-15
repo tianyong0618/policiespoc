@@ -127,20 +127,38 @@ async function sendMessage() {
         const messageContainer = document.createElement('div');
         messageContainer.className = 'message ai';
         messageContainer.id = messageId;
+        
+        // 构建新的 DOM 结构：思考区 + 回答区
         messageContainer.innerHTML = `
             <div class="message-avatar">🤖</div>
-            <div class="message-content">
-                <div class="stream-content"></div>
-                <div class="structured-content"></div>
+            <div class="message-content" style="width: 100%;">
+                <!-- 思考折叠区 -->
+                <div class="thinking-container active">
+                    <div class="thinking-header" onclick="toggleThinking(this)">
+                        <span class="thinking-icon">💭</span>
+                        <span class="thinking-title">正在深度思考...</span>
+                        <span class="thinking-arrow">▼</span>
+                    </div>
+                    <div class="thinking-content"></div>
+                </div>
+                <!-- 回答区 -->
+                <div class="answer-content"></div>
             </div>
         `;
         chatHistory.appendChild(messageContainer);
-        const streamContentEl = messageContainer.querySelector('.stream-content');
-        const structuredContentEl = messageContainer.querySelector('.structured-content');
+        
+        const thinkingContainer = messageContainer.querySelector('.thinking-container');
+        const thinkingHeaderTitle = messageContainer.querySelector('.thinking-title');
+        const thinkingContentEl = messageContainer.querySelector('.thinking-content');
+        const answerContentEl = messageContainer.querySelector('.answer-content');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        
+        // 状态标记
+        let isThinking = true; // 默认为思考模式
+        let hasFinishedThinking = false;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -167,23 +185,55 @@ async function sendMessage() {
                             }
                         } else if (event === 'message') {
                             const data = JSON.parse(dataStr);
-                            // 追加文本内容，简单处理 Markdown
-                            const text = data.content || '';
-                            // 将换行符转换为 <br>，加粗 **text** 转换为 <b>text</b>
-                            const html = text
+                            let text = data.content || '';
+                            
+                            // 检测是否切换到结构化输出（回答部分）
+                            // 匹配规则：Markdown 分割线 --- 或 **结构化输出**
+                            if (isThinking && (text.includes('---') || text.includes('**结构化输出**'))) {
+                                isThinking = false;
+                                hasFinishedThinking = true;
+                                
+                                // 更新思考区状态
+                                thinkingContainer.classList.add('finished');
+                                thinkingContainer.classList.remove('active'); // 默认收起
+                                thinkingHeaderTitle.textContent = '已完成思考';
+                                
+                                // 清理 text 中的分割标记，避免在回答区开头显示不美观的线
+                                text = text.replace('---', '').replace('**结构化输出**', '');
+                            }
+
+                            // 简单处理 Markdown 格式
+                            let html = text
                                 .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
                                 .replace(/\n/g, '<br>');
                             
-                            // 创建临时 span 追加，实现打字机效果
+                            // 移除原有的结构化输出标题转换逻辑，因为现在它是分界线
+                            if (html.includes('📑 结构化输出')) {
+                                html = html.replace('📑 结构化输出', '');
+                            }
+
+                            // 创建临时 span 追加
                             const span = document.createElement('span');
                             span.innerHTML = html;
-                            streamContentEl.appendChild(span);
+                            
+                            if (isThinking) {
+                                thinkingContentEl.appendChild(span);
+                            } else {
+                                answerContentEl.appendChild(span);
+                            }
+                            
                             scrollToBottom();
                         } else if (event === 'done') {
                             console.log('Stream complete');
+                            // 如果流结束了还在思考模式（没遇到分界线），强制结束思考
+                            if (isThinking) {
+                                thinkingContainer.classList.add('finished');
+                                thinkingContainer.classList.remove('active');
+                                thinkingHeaderTitle.textContent = '已完成思考';
+                            }
                         } else if (event === 'error') {
                             console.error('Stream error:', dataStr);
-                            streamContentEl.innerHTML += `<br><span style="color:red">错误: ${dataStr}</span>`;
+                            answerContentEl.innerHTML += `<br><span style="color:red">错误: ${dataStr}</span>`;
                         }
                     }
                 }
@@ -195,6 +245,12 @@ async function sendMessage() {
         removeMessage(loadingId);
         addMessageToHistory('ai', '抱歉，服务暂时不可用，请稍后重试。');
     }
+}
+
+// 切换思考区折叠状态
+function toggleThinking(header) {
+    const container = header.parentElement;
+    container.classList.toggle('active');
 }
 
 // 添加消息到历史

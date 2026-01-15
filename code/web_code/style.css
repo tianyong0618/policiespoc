@@ -675,64 +675,87 @@ body {
     color: var(--text-primary);
 }
 
-/* 思考过程 */
-.thinking-process {
-    margin-top: 12px;
-    border: 1px solid #e0f2fe;
-    background: #f0f9ff;
-    border-radius: var(--radius-sm);
+/* 思考过程样式 */
+.thinking-container {
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     overflow: hidden;
+    background-color: #f8fafc;
 }
 
 .thinking-header {
-    padding: 8px 12px;
-    background: #e0f2fe;
-    color: #0369a1;
-    font-size: 12px;
-    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 6px;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+    background-color: #f1f5f9;
+    font-size: 14px;
+    color: #64748b;
+    transition: background-color 0.2s;
 }
 
-.thinking-steps {
-    padding: 12px;
+.thinking-header:hover {
+    background-color: #e2e8f0;
 }
 
-.step-item {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 12px;
-    font-size: 13px;
+.thinking-icon {
+    margin-right: 8px;
+    animation: pulse 2s infinite;
 }
 
-.step-number {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #0ea5e9;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    flex-shrink: 0;
-}
-
-.step-content {
+.thinking-title {
     flex: 1;
+    font-weight: 500;
 }
 
-.step-status {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
+.thinking-arrow {
+    margin-left: 8px;
+    transition: transform 0.3s;
+    font-size: 12px;
 }
 
-.step-status.completed {
-    background: var(--success-bg);
-    color: var(--success);
+.thinking-container.active .thinking-arrow {
+    transform: rotate(180deg);
+}
+
+.thinking-content {
+    padding: 16px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.6;
+    display: none;
+    background-color: #ffffff;
+}
+
+.thinking-container.active .thinking-content {
+    display: block;
+}
+
+/* 思考完成状态 */
+.thinking-container.finished .thinking-icon {
+    animation: none;
+    color: #10b981; /* Green color for success */
+}
+
+/* 回答区域样式 */
+.answer-content {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1e293b;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+/* 结构化输出样式 - 隐藏原来的标题，因为现在是作为回答的主体 */
+.structured-output-header {
+    display: none;
 }
 
 @media (max-width: 768px) {
