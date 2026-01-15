@@ -210,6 +210,21 @@ async function sendMessage() {
                                 .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
                                 .replace(/\n/g, '<br>');
                             
+                            // 识别推荐岗位格式：推荐岗位：[JOB_A02] [职业技能培训讲师]
+                            // 并转换为卡片样式
+                            const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
+                            html = html.replace(jobRegex, (match, jobId, jobTitle) => {
+                                return `
+                                    <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
+                                            <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
+                                        </div>
+                                        <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
+                                    </div>
+                                `;
+                            });
+                            
                             // 移除原有的结构化输出标题转换逻辑，因为现在它是分界线
                             if (html.includes('📑 结构化输出')) {
                                 html = html.replace('📑 结构化输出', '');

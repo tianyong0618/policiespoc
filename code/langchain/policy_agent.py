@@ -347,6 +347,8 @@ class PolicyAgent:
 特别注意（场景二要求）：
 1. 必须在思考过程中分析 USER_A02 画像。
 2. 推荐 JOB_A02，并说明其"兼职"属性符合"灵活时间"需求。
+3. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议。
+4. 在【结构化输出】的"肯定部分"，必须包含具体的岗位推荐和理由，格式为：推荐岗位：[岗位ID] [岗位名称]，推荐理由：①... ②... ③...
 """
         elif "退役军人" in user_input and "税收" in user_input: # 场景三特征
              scenario_instruction = """
@@ -403,15 +405,16 @@ class PolicyAgent:
             yield chunk
             
         # 5. 流结束后，检查是否需要推送岗位（确保在分析完成后）
-        if candidate_jobs:
-             # 检查模型回复中是否包含岗位推荐的章节标题
-             if "**岗位推荐**" in full_response or "【岗位推荐】" in full_response:
-                 # 触发岗位推荐事件
-                 jobs_event = {
-                    "type": "jobs",
-                    "data": candidate_jobs
-                 }
-                 yield jobs_event
+        # 由于前端已支持在回答中直接渲染岗位卡片，此处不再单独推送岗位事件，避免重复显示
+        # if candidate_jobs:
+        #      # 检查模型回复中是否包含岗位推荐的章节标题
+        #      if "**岗位推荐**" in full_response or "【岗位推荐】" in full_response:
+        #          # 触发岗位推荐事件
+        #          jobs_event = {
+        #             "type": "jobs",
+        #             "data": candidate_jobs
+        #          }
+        #          yield jobs_event
     
     def evaluate_response(self, user_input, response):
         """评估回答质量"""

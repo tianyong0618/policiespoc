@@ -20,9 +20,9 @@ llm = ChatOpenAI(
     openai_api_key="6d78b03a-dd7d-496f-b31e-0bcffd26b539",
     # 火山引擎Doubao API端点
     openai_api_base="https://ark.cn-beijing.volces.com/api/v3",
-    model="doubao-seed-1-6-251015",  # 正确的Doubao-Seed-1.6模型ID
-    timeout=120,  # 增加超时时间到120秒
-    max_tokens=2000  # 限制最大 tokens
+    model="deepseek-v3-2-251201",  # DeepSeek V3模型ID
+    timeout=1800,  # 深度思考模型耗费时间会较长，推荐30分钟以上
+    max_tokens=8192
 )
 
 class ChatBot:
@@ -79,6 +79,12 @@ class ChatBot:
             
             simple_message = HumanMessage(content=user_input)
             for chunk in llm.stream([simple_message]):
+                # 优先提取 DeepSeek 的深度思考内容
+                reasoning = chunk.additional_kwargs.get("reasoning_content", "")
+                if reasoning:
+                    yield reasoning
+                
+                # 再提取常规回复内容
                 if chunk.content:
                     yield chunk.content
         except Exception as e:
