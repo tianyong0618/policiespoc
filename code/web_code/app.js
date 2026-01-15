@@ -84,6 +84,14 @@ async function loadHistoryList() {
                     <span class="delete-icon" onclick="deleteSession('${session.id}', event)" title="删除">×</span>
                 </div>
             `).join('');
+            
+            // 如果当前有选中的会话，同步更新顶部标题
+            if (currentSessionId) {
+                const currentSession = data.sessions.find(s => s.id === currentSessionId);
+                if (currentSession) {
+                    updateChatTitle(currentSession.title || '新对话');
+                }
+            }
         } else {
             historyList.innerHTML = '<div style="padding: 10px; color: #94a3b8; font-size: 13px; text-align: center;">暂无历史记录</div>';
         }
@@ -103,6 +111,9 @@ async function loadSession(sessionId) {
         const session = await response.json();
         currentSessionId = sessionId;
         currentScenario = null; // 切换会话时重置场景
+        
+        // 更新标题
+        updateChatTitle(session.title || '新对话');
         
         // 更新侧边栏激活状态
         document.querySelectorAll('.history-item').forEach(item => {
@@ -133,7 +144,8 @@ async function loadSession(sessionId) {
             });
         }
         
-        scrollToBottom();
+        // 确保滚动到底部
+        setTimeout(scrollToBottom, 100);
         
         // 移动端收起侧边栏
         if (window.innerWidth <= 768) {
@@ -221,6 +233,7 @@ function startNewChat() {
     document.getElementById('chat-history').innerHTML = '';
     document.getElementById('welcome-screen').style.display = 'flex';
     document.getElementById('user-input').value = '';
+    updateChatTitle('政策咨询助手'); // 重置标题
     hideEvaluation();
     
     // 更新侧边栏选中状态
@@ -232,7 +245,21 @@ function startNewChat() {
     }
 }
 
-// 发送消息
+// 统一更新标题函数
+function updateChatTitle(title) {
+    // 更新侧边栏标题
+    const titleEl = document.getElementById('chat-title');
+    if (titleEl) {
+        titleEl.textContent = title;
+    }
+    
+    // 更新所有具有 chat-window-title 类的元素（包括移动端标题）
+    document.querySelectorAll('.chat-window-title').forEach(el => {
+        el.textContent = title;
+    });
+}
+
+// 删除会话发送消息
 async function sendMessage() {
     const inputEl = document.getElementById('user-input');
     const userInput = inputEl.value.trim();
@@ -336,6 +363,8 @@ async function sendMessage() {
                                 // 如果是新会话，刷新列表
                                 if (isNewSession) {
                                     loadHistoryList();
+                                    // 立即尝试设置标题为用户输入
+                                    updateChatTitle(userInput.length > 20 ? userInput.substring(0, 20) + '...' : userInput);
                                 }
                             }
                         } else if (event === 'context') {
