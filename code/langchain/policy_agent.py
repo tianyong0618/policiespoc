@@ -292,6 +292,81 @@ class PolicyAgent:
             # 降级处理：使用原始方式
             return self.fallback_process(user_input)
     
+    def process_stream_query(self, user_input):
+        """流式处理查询"""
+        start_time = time.time()
+        logger.info(f"开始流式处理: {user_input[:50]}...")
+        
+        # 1. 快速匹配上下文 (本地计算，快速)
+        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        
+        # 简单关键词匹配政策和岗位（替代LLM检索以提速）
+        # 这里为了演示速度，直接基于关键词做简单过滤
+        all_policies = self.policies
+        all_jobs = self.job_matcher.get_all_jobs()
+        
+        relevant_policies = []
+        for p in all_policies:
+            if any(k in user_input for k in [p["title"], p["category"]]):
+                relevant_policies.append(p)
+        if not relevant_policies:
+            relevant_policies = all_policies[:3] # 默认
+            
+        recommended_jobs = []
+        # 简单判断是否需要推荐岗位
+        if any(k in user_input for k in ["工作", "岗位", "招聘", "赚钱"]):
+             for j in all_jobs:
+                 if any(k in user_input for k in [j["title"]]):
+                     recommended_jobs.append(j)
+             if not recommended_jobs:
+                 recommended_jobs = all_jobs[:3]
+
+        # 2. 先发送上下文数据 (JSON格式)
+        context_data = {
+            "type": "context",
+            "matched_user": matched_user,
+            "relevant_policies": [p["policy_id"] for p in relevant_policies],
+            "recommended_jobs": recommended_jobs
+        }
+        yield json.dumps(context_data, ensure_ascii=False) + "\n\n"
+        
+        # 3. 构建Prompt并流式调用LLM
+        # 简化数据以减少Token
+        simple_policies = [{"id": p["policy_id"], "title": p["title"], "content": p["content"]} for p in relevant_policies]
+        simple_jobs = [{"id": j["job_id"], "title": j["title"], "features": j["features"]} for j in recommended_jobs]
+        
+        prompt = f"""
+你是一个政策咨询助手。请根据以下信息回答用户问题。
+
+用户输入: {user_input}
+匹配画像: {matched_user.get('user_id') if matched_user else '无'}
+
+参考政策:
+{json.dumps(simple_policies, ensure_ascii=False)}
+
+参考岗位:
+{json.dumps(simple_jobs, ensure_ascii=False)}
+
+请以Markdown格式直接输出回答，包含以下部分（使用加粗标题）：
+**意图分析**
+简要分析用户意图。
+
+**政策解读**
+详细解读符合条件的政策。
+
+**岗位推荐**
+如果有推荐岗位，请列出并说明理由。
+
+**建议**
+下一步操作建议。
+
+请直接开始输出内容，不要包含JSON格式。
+"""
+        
+        # 4. 流式生成内容
+        for chunk in self.chatbot.chat_stream(prompt):
+            yield chunk
+    
     def evaluate_response(self, user_input, response):
         """评估回答质量"""
         # 简单的评估逻辑
@@ -323,205 +398,125 @@ class PolicyAgent:
         return self.process_query(f"[{scenario_name}] {user_input}")
     
     def combined_process(self, user_input):
-        """合并处理：所有场景都调用大模型生成回答"""
+        """合并处理：单次LLM调用完成所有任务"""
         logger.info(f"处理用户输入: {user_input[:50]}...")
         
-        # 检查是否是特定场景
-        is_specific_scenario = False
-        scenario_type = "通用场景"
-        
-        # 识别场景类型
-        if "创业扶持政策精准咨询" in user_input:
-            is_specific_scenario = True
-            scenario_type = "创业扶持政策精准咨询场景"
-        elif "技能培训岗位个性化推荐" in user_input:
-            is_specific_scenario = True
-            scenario_type = "技能培训岗位个性化推荐场景"
-        elif "多重政策叠加咨询" in user_input:
-            is_specific_scenario = True
-            scenario_type = "多重政策叠加咨询场景"
-        
-        # 所有场景都调用大模型生成回答
-        logger.info(f"处理{scenario_type}，调用大模型生成回答")
-        
-        # 初始化LLM调用时间列表
-        llm_calls = []
-        
-        # 初始化思考过程列表
+        # 初始化计时和思考过程
+        start_time = time.time()
         thinking_process = []
         
-        # 识别意图和实体
-        logger.info("开始识别意图和实体")
-        intent_result = self.identify_intent(user_input)
-        intent_info = intent_result["result"]
-        llm_calls.append({
-            "type": "意图识别",
-            "time": intent_result["time"]
-        })
-
-        # 尝试匹配用户画像
+        # 1. 本地快速匹配用户画像
         matched_user = self.user_profile_manager.match_user_profile(user_input)
         if matched_user:
-            intent_info["matched_user_id"] = matched_user.get("user_id")
             logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
-
-        # 只添加完成状态的思考过程
-        thinking_content = f"识别结果：意图为\"{intent_info['intent']}\"，提取实体：{[f'{e['type']}:{e['value']}' for e in intent_info['entities']]}"
-        if matched_user:
-            thinking_content += f"，匹配用户：{matched_user.get('user_id')}"
             
+        # 2. 获取所有上下文数据
+        all_policies = self.policies
+        all_jobs = self.job_matcher.get_all_jobs()
+        
+        # 简化数据以减少Token消耗
+        simple_policies = [{
+            "id": p["policy_id"],
+            "title": p["title"],
+            "content": p["content"],
+            "conditions": p.get("conditions", [])
+        } for p in all_policies]
+        
+        simple_jobs = [{
+            "id": j["job_id"],
+            "title": j["title"],
+            "requirements": j["requirements"],
+            "features": j["features"]
+        } for j in all_jobs]
+        
+        # 3. 构建单次调用Prompt
+        prompt = f"""
+你是一个专业的政策咨询和岗位推荐助手。请基于以下信息处理用户请求。
+
+用户输入: {user_input}
+匹配画像: {json.dumps(matched_user, ensure_ascii=False) if matched_user else "无"}
+
+可用政策列表:
+{json.dumps(simple_policies, ensure_ascii=False)}
+
+可用岗位列表:
+{json.dumps(simple_jobs, ensure_ascii=False)}
+
+任务要求:
+1. 分析用户意图，提取关键实体。
+2. 判断用户是否明确需要找工作/推荐岗位（needs_job_recommendation）。
+3. 从列表中筛选最相关的政策（最多3个）。
+4. 从列表中筛选最相关的岗位（最多3个，仅当needs_job_recommendation为true或场景暗示需要时）。
+5. 生成结构化的回复内容。
+
+回复要求:
+- positive: 符合条件的政策内容和具体岗位推荐（如有）。岗位推荐格式：推荐岗位：[ID] [名称]，理由：...
+- negative: 不符合条件的政策及原因。
+- suggestions: 主动建议和下一步操作。如涉及创业建议联系JOB_A01，涉及退役军人建议联系JOB_A05。
+
+请严格按照以下JSON格式输出:
+{{
+  "intent": {{
+    "summary": "意图描述",
+    "entities": [{{"type": "...", "value": "..."}}],
+    "needs_job_recommendation": true/false
+  }},
+  "relevant_policy_ids": ["POLICY_XXX", ...],
+  "recommended_job_ids": ["JOB_XXX", ...],
+  "response": {{
+    "positive": "...",
+    "negative": "...",
+    "suggestions": "..."
+  }}
+}}
+"""
+        logger.info("调用LLM执行综合处理...")
+        llm_response = self.chatbot.chat_with_memory(prompt)
+        
+        # 4. 解析结果
+        content = llm_response if isinstance(llm_response, str) else llm_response.get("content", "")
+        llm_time = llm_response.get("time", 0) if isinstance(llm_response, dict) else 0
+        
+        try:
+            if isinstance(content, dict):
+                result_data = content
+            else:
+                # 清理可能存在的Markdown标记
+                clean_content = content.replace("```json", "").replace("```", "").strip()
+                result_data = json.loads(clean_content)
+        except Exception as e:
+            logger.error(f"解析LLM响应失败: {e}")
+            # 降级返回
+            return self.fallback_process(user_input)
+
+        # 5. 重构返回对象
+        # 还原政策对象
+        relevant_policy_ids = result_data.get("relevant_policy_ids", [])
+        relevant_policies = [p for p in all_policies if p["policy_id"] in relevant_policy_ids]
+        
+        # 还原岗位对象
+        recommended_job_ids = result_data.get("recommended_job_ids", [])
+        recommended_jobs = [j for j in all_jobs if j["job_id"] in recommended_job_ids]
+        
+        # 构建思考过程
+        intent_info = result_data.get("intent", {})
         thinking_process.append({
-            "step": "意图与实体识别",
-            "content": thinking_content,
+            "step": "综合分析",
+            "content": f"意图：{intent_info.get('summary')} | 匹配政策：{relevant_policy_ids} | 推荐岗位：{recommended_job_ids}",
             "status": "completed"
         })
         
-        logger.info(f"意图识别完成: {intent_info['intent']}")
+        logger.info(f"综合处理完成，耗时: {time.time() - start_time:.2f}秒")
         
-        # 检索相关政策
-        logger.info("开始检索相关政策")
-        relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
-
-        policy_info = [f"{p['policy_id']}:{p['title']}" for p in relevant_policies]
-        
-        # 只添加完成状态的思考过程
-        thinking_process.append({
-            "step": "政策检索与匹配",
-            "content": f"检索完成，找到 {len(relevant_policies)} 条相关政策：{policy_info}",
-            "status": "completed"
-        })
-        
-        logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策")
-
-        # 生成岗位推荐 (提前到回答生成之前，以便作为上下文)
-        # 决定是否需要岗位推荐
-        should_recommend_jobs = intent_info.get("needs_job_recommendation", False)
-        
-        # 特定场景强制开启或关闭
-        if "技能培训岗位个性化推荐" in scenario_type:
-            should_recommend_jobs = True
-        
-        recommended_jobs = []
-        if should_recommend_jobs:
-            logger.info("开始生成岗位推荐")
-            
-            # 为每个相关政策找到关联的岗位
-            for policy in relevant_policies:
-                policy_jobs = self.job_matcher.match_jobs_by_policy(policy.get("policy_id", ""))
-                recommended_jobs.extend(policy_jobs)
-            
-            # 如果有匹配的用户画像，也尝试基于画像推荐
-            if matched_user:
-                profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
-                recommended_jobs.extend(profile_jobs)
-            
-            # 去重
-            seen_job_ids = set()
-            unique_jobs = []
-            for job in recommended_jobs:
-                job_id = job.get("job_id")
-                if job_id and job_id not in seen_job_ids:
-                    seen_job_ids.add(job_id)
-                    unique_jobs.append(job)
-            
-            recommended_jobs = unique_jobs[:3]  # 只保留前3个推荐岗位
-            logger.info(f"岗位推荐完成，找到 {len(recommended_jobs)} 个相关岗位")
-            
-            # 添加岗位推荐思考过程
-            thinking_process.append({
-                "step": "岗位推荐",
-                "content": f"基于相关政策和用户画像，找到 {len(recommended_jobs)} 个相关岗位推荐：{[j.get('job_id') for j in recommended_jobs]}",
-                "status": "completed"
-            })
-        else:
-            logger.info("用户意图不涉及岗位推荐，跳过岗位匹配")
-            # 添加跳过岗位推荐的思考过程
-            thinking_process.append({
-                "step": "岗位推荐",
-                "content": "用户意图不涉及岗位推荐，跳过该步骤",
-                "status": "completed"
-            })
-        
-        # 条件判断与推理
-        # 根据场景类型添加特定的思考过程
-        if scenario_type == "创业扶持政策精准咨询场景":
-            # 场景一特定逻辑
-            # 模拟条件判断过程
-            has_employment = any("就业" in str(e) for e in intent_info["entities"])
-            
-            # 添加创业补贴条件分析完成的思考过程
-            thinking_process.append({
-                "step": "条件判断与推理",
-                "content": "分析创业补贴条件：检查是否满足'返乡农民工'身份、'创办小微企业'、'正常经营1年'、'带动3人以上就业'等条件",
-                "status": "completed"
-            })
-
-            if not has_employment:
-                # 添加发现缺失条件的思考过程
-                thinking_process.append({
-                    "step": "条件判断与推理",
-                    "content": "发现用户未提及'带动就业'条件，需要指出缺失信息",
-                    "status": "completed"
-                })
-
-            # 添加创业贷款条件分析完成的思考过程
-            thinking_process.append({
-                "step": "条件判断与推理",
-                "content": "分析创业贷款条件：确认'返乡农民工'身份符合贷款申请条件，检查额度和期限要求",
-                "status": "completed"
-            })
-        elif scenario_type == "技能培训岗位个性化推荐场景":
-            # 场景二特定逻辑
-            thinking_process.append({
-                "step": "条件判断与推理",
-                "content": "分析技能培训补贴条件：检查证书类型、身份等要求",
-                "status": "completed"
-            })
-        elif scenario_type == "多重政策叠加咨询场景":
-            # 场景三特定逻辑
-            thinking_process.append({
-                "step": "条件判断与推理",
-                "content": "分析多重政策叠加条件：检查各政策的适用条件是否可以同时满足",
-                "status": "completed"
-            })
-        else:
-            # 通用场景逻辑
-            thinking_process.append({
-                "step": "条件判断与推理",
-                "content": "分析通用政策条件：检查用户是否满足相关政策要求",
-                "status": "completed"
-            })
-        
-        # 生成结构化回答
-        logger.info("开始生成结构化回答")
-        response_result = self.generate_response(user_input, relevant_policies, scenario_type, matched_user, recommended_jobs)
-        response = response_result["result"]
-        llm_calls.append({
-            "type": "回答生成",
-            "time": response_result["time"]
-        })
-
-        # 只添加完成状态的思考过程
-        thinking_process.append({
-            "step": "结构化输出构建",
-            "content": "完成结构化回答构建，包括政策引用、条件说明和申请路径",
-            "status": "completed"
-        })
-        
-        logger.info("回答生成完成")
-        
-        result = {
-            "intent": intent_info,
+        return {
+            "intent": {"intent": intent_info.get("summary"), "entities": intent_info.get("entities", [])},
             "relevant_policies": relevant_policies,
-            "response": response,
-            "llm_calls": llm_calls,
+            "response": result_data.get("response", {}),
+            "llm_calls": [{"type": "综合处理", "time": llm_time}],
             "thinking_process": thinking_process,
             "recommended_jobs": recommended_jobs,
             "matched_user": matched_user
         }
-        
-        logger.info(f"合并处理完成，场景类型: {scenario_type}")
-        return result
     
     def fallback_process(self, user_input):
         """降级处理：使用原始方式处理查询"""

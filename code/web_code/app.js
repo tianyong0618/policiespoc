@@ -105,8 +105,9 @@ async function sendMessage() {
     // 添加加载状态
     const loadingId = addLoadingMessage();
 
+    // 使用 SSE 流式请求
     try {
-        const response = await fetch(`${API_BASE_URL}/chat`, {
+        const response = await fetch(`${API_BASE_URL}/chat/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -117,26 +118,77 @@ async function sendMessage() {
 
         if (!response.ok) throw new Error('API请求失败');
 
-        const data = await response.json();
+        // 移除加载动画，准备接收流
         removeMessage(loadingId);
+        
+        // 创建一个新的消息气泡用于显示流式内容
+        const messageId = 'msg-' + Date.now();
+        const chatHistory = document.getElementById('chat-history');
+        const messageContainer = document.createElement('div');
+        messageContainer.className = 'message ai';
+        messageContainer.id = messageId;
+        messageContainer.innerHTML = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="stream-content"></div>
+                <div class="structured-content"></div>
+            </div>
+        `;
+        chatHistory.appendChild(messageContainer);
+        const streamContentEl = messageContainer.querySelector('.stream-content');
+        const structuredContentEl = messageContainer.querySelector('.structured-content');
 
-        // 显示思考过程
-        if (data.thinking_process?.length > 0) {
-            displayThinkingProcess(data.thinking_process);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop(); // 保留最后一个不完整的块
+
+            for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                    const eventMatch = line.match(/^event: (.*)$/m);
+                    const dataMatch = line.match(/^data: (.*)$/m);
+                    
+                    if (eventMatch && dataMatch) {
+                        const event = eventMatch[1].trim();
+                        const dataStr = dataMatch[1].trim();
+
+                        if (event === 'context') {
+                            const data = JSON.parse(dataStr);
+                            // 显示推荐岗位
+                            if (data.recommended_jobs && data.recommended_jobs.length > 0) {
+                                displayRecommendedJobs(data.recommended_jobs);
+                            }
+                        } else if (event === 'message') {
+                            const data = JSON.parse(dataStr);
+                            // 追加文本内容，简单处理 Markdown
+                            const text = data.content || '';
+                            // 将换行符转换为 <br>，加粗 **text** 转换为 <b>text</b>
+                            const html = text
+                                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                                .replace(/\n/g, '<br>');
+                            
+                            // 创建临时 span 追加，实现打字机效果
+                            const span = document.createElement('span');
+                            span.innerHTML = html;
+                            streamContentEl.appendChild(span);
+                            scrollToBottom();
+                        } else if (event === 'done') {
+                            console.log('Stream complete');
+                        } else if (event === 'error') {
+                            console.error('Stream error:', dataStr);
+                            streamContentEl.innerHTML += `<br><span style="color:red">错误: ${dataStr}</span>`;
+                        }
+                    }
+                }
+            }
         }
-
-    // 显示结构化回答
-    if (data.response && (data.response.positive || data.response.negative || data.response.suggestions)) {
-        displayStructuredResponse(data.response);
-    }
-
-        // 显示推荐岗位
-        if (data.recommended_jobs?.length > 0) {
-            displayRecommendedJobs(data.recommended_jobs);
-        }
-
-        // 显示评估结果
-        showEvaluation(data.evaluation, data.execution_time);
 
     } catch (error) {
         console.error(error);

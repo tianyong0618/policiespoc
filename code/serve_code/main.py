@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -92,6 +93,37 @@ class UserProfileResponse(BaseModel):
 class RecommendationsResponse(BaseModel):
     policies: list
     jobs: list
+
+from fastapi.responses import StreamingResponse
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """处理用户对话（流式响应）"""
+    async def event_generator():
+        try:
+            # 获取流式生成器
+            stream = agent.process_stream_query(request.message)
+            
+            # 第一个块是上下文数据
+            context_data = next(stream)
+            yield f"event: context\ndata: {context_data}\n\n"
+            
+            # 后续块是文本内容
+            for chunk in stream:
+                # 简单的文本块，需要转义换行符以便SSE传输
+                if chunk:
+                    # 使用JSON dump来安全处理字符串
+                    json_chunk = json.dumps({"content": chunk}, ensure_ascii=False)
+                    yield f"event: message\ndata: {json_chunk}\n\n"
+            
+            yield "event: done\ndata: {}\n\n"
+            
+        except Exception as e:
+            logger.error(f"流式处理失败: {str(e)}")
+            error_msg = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {error_msg}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request):

@@ -50,8 +50,6 @@ class ChatBot:
             # 生成AI回复
             llm_start = time.time()
             # 优化：只发送最新的消息，减少上下文长度
-            messages = [self.memory.messages[-1]]  # 只使用最新的消息
-            # 再次优化：使用更简单的消息格式
             simple_message = HumanMessage(content=self.memory.messages[-1].content)
             response = llm.invoke([simple_message])
             llm_time = time.time() - llm_start
@@ -71,6 +69,21 @@ class ChatBot:
             total_time = time.time() - start_time
             logger.error(f"发生错误，耗时: {total_time:.2f}秒, 错误: {type(e).__name__}: {str(e)}")
             return "抱歉，我暂时无法回答你的问题，请稍后再试。"
+    
+    def chat_stream(self, user_input):
+        """流式生成回复"""
+        try:
+            # 对于长输入，进行截断处理
+            if len(user_input) > 2000:
+                user_input = user_input[:2000] + "..."
+            
+            simple_message = HumanMessage(content=user_input)
+            for chunk in llm.stream([simple_message]):
+                if chunk.content:
+                    yield chunk.content
+        except Exception as e:
+            logger.error(f"流式生成错误: {e}")
+            yield f"错误: {str(e)}"
     
     def clear_memory(self):
         """清空对话记忆"""
