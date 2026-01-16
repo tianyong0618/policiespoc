@@ -1,5 +1,5 @@
 // API基础URL
-// 使用相对路径，在Vercel部署时自动适配当前域名
+// 使用相对路径，在本地调试和Vercel部署时都能自动适配
 const API_BASE_URL = '/api';
 
 // 场景配置

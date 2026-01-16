@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "code/serve_code/main.py",
+      "src": "main.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "15mb",
@@ -10,27 +10,21 @@
       }
     },
     {
-      "src": "code/web_code/index.html",
-      "use": "@vercel/static",
-      "config": {
-        "public": true
-      }
-    },
-    {
-      "src": "code/web_code/(app|style).*",
-      "use": "@vercel/static",
-      "config": {
-        "public": true
-      }
+      "src": "code/web_code/**/*",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "code/serve_code/main.py"
+      "dest": "main.py"
     },
     {
       "src": "/(.*)",
+      "dest": "code/web_code/$1"
+    },
+    {
+      "src": "/",
       "dest": "code/web_code/index.html"
     }
   ],
