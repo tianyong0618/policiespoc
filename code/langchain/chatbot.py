@@ -12,17 +12,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 导入环境变量库
+from dotenv import load_dotenv
+import os
+
+# 加载环境变量
+load_dotenv()
+
 # 初始化模型和记忆
 # 使用OpenAI兼容API配置Doubao-Seed-1.6模型
 # 优化模型参数，减少响应时间
 llm = ChatOpenAI(
     temperature=0.5,  # 降低温度，减少模型思考时间
-    openai_api_key="6d78b03a-dd7d-496f-b31e-0bcffd26b539",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
     # 火山引擎Doubao API端点
-    openai_api_base="https://ark.cn-beijing.volces.com/api/v3",
-    model="deepseek-v3-2-251201",  # DeepSeek V3模型ID
-    timeout=1800,  # 深度思考模型耗费时间会较长，推荐30分钟以上
-    max_tokens=8192
+    openai_api_base=os.getenv("OPENAI_API_BASE", "https://ark.cn-beijing.volces.com/api/v3"),
+    model=os.getenv("LLM_MODEL", "deepseek-v3-2-251201"),  # DeepSeek V3模型ID
+    timeout=int(os.getenv("LLM_TIMEOUT", "1800")),  # 深度思考模型耗费时间会较长，推荐30分钟以上
+    max_tokens=int(os.getenv("LLM_MAX_TOKENS", "8192"))
 )
 
 class ChatBot:
