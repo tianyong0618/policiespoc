@@ -218,8 +218,10 @@ class PolicyAgent:
 """
         elif "多重政策叠加咨询" in scenario_type:
              prompt_instructions = base_instructions + """
-7. 特别要求：在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
+7. 特别要求：必须在回答中明确输出"--- 结构化输出"作为思考过程和结构化回答的分隔线
 8. 明确指出可以同时享受的政策，并说明叠加后的预估收益
+9. 在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
+10. 结构化输出必须包含政策ID和完整政策名称
 """
         else:
              prompt_instructions = base_instructions
@@ -428,9 +430,11 @@ class PolicyAgent:
         elif "退役军人" in user_input and "税收" in user_input: # 场景三特征
              scenario_instruction = """
 特别注意（场景三要求）：
-1. 明确指出可以同时享受税收优惠（A06）和场地补贴（A04）。
-2. 推荐联系 JOB_A05。
-3. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议。
+1. 必须在思考完成后输出"--- 结构化输出"作为分隔线
+2. 明确指出可以同时享受税收优惠（A06）和场地补贴（A04）
+3. 推荐联系 JOB_A05
+4. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议
+5. 结构化输出必须包含政策ID和完整政策名称
 """
 
         prompt = f"""
