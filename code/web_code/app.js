@@ -1,6 +1,6 @@
 // API基础URL
-// 使用相对路径，在本地调试和Vercel部署时都能自动适配
-const API_BASE_URL = '/api';
+// 本地开发时使用完整的后端URL，部署时可改为相对路径
+const API_BASE_URL = 'http://localhost:8000/api';
 
 // 场景配置
 const SCENARIOS = {

@@ -32,7 +32,13 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                        API服务层                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │  /api/chat   │  │/api/policies │  │/api/evaluate │     │
+│  │  /api/chat   │  │/api/// API基础URL - 自动适配环境
+const API_BASE_URL = (() => {
+  // 检测当前环境
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // 本地开发使用完整URL，部署后使用相对路径
+  return isLocal ? 'http://localhost:8000/api' : '/api';
+})(); │  │/api/evaluate │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
                               ↓
