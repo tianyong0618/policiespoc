@@ -137,3 +137,100 @@ class JobMatcher:
             if job.get("job_id") == job_id:
                 return job
         return None
+    
+    def match_jobs_by_user_input(self, user_input):
+        """基于用户输入信息直接匹配岗位"""
+        matched_jobs = []
+        
+        # 从用户输入中提取关键词
+        keywords = self.extract_keywords_from_input(user_input)
+        logger.info(f"从用户输入中提取的关键词: {keywords}")
+        
+        for job in self.jobs:
+            # 计算岗位与用户输入的匹配度
+            match_score = self.calculate_job_input_match(job, keywords)
+            if match_score > 0:
+                matched_jobs.append({
+                    "job": job,
+                    "match_score": match_score
+                })
+        
+        # 按匹配度排序
+        matched_jobs.sort(key=lambda x: x["match_score"], reverse=True)
+        
+        # 返回匹配度最高的岗位
+        return [item["job"] for item in matched_jobs]
+    
+    def extract_keywords_from_input(self, user_input):
+        """从用户输入中提取关键词"""
+        import re
+        
+        # 提取基本信息关键词
+        keywords = []
+        
+        # 提取证书信息
+        cert_pattern = re.compile(r'(中级|高级|初级)?(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理)证', re.IGNORECASE)
+        cert_matches = cert_pattern.findall(user_input)
+        for cert in cert_matches:
+            keywords.append(''.join(cert))
+        
+        # 提取就业状态
+        if '失业' in user_input:
+            keywords.append('失业')
+        if '在职' in user_input:
+            keywords.append('在职')
+        if '待业' in user_input:
+            keywords.append('待业')
+        if '灵活' in user_input or '兼职' in user_input:
+            keywords.append('灵活')
+            keywords.append('兼职')
+        if '全职' in user_input:
+            keywords.append('全职')
+        
+        # 提取关注点
+        if '补贴' in user_input:
+            keywords.append('补贴')
+        if '时间' in user_input:
+            keywords.append('时间')
+        if '收入' in user_input:
+            keywords.append('收入')
+        
+        # 提取技能相关词
+        skill_pattern = re.compile(r'(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理|实操|技术)', re.IGNORECASE)
+        skill_matches = skill_pattern.findall(user_input)
+        for skill in skill_matches:
+            keywords.append(skill)
+        
+        # 去重
+        return list(set(keywords))
+    
+    def calculate_job_input_match(self, job, keywords):
+        """计算岗位与用户输入关键词的匹配度"""
+        score = 0
+        
+        # 检查岗位需求
+        job_requirements = job.get("requirements", [])
+        for req in job_requirements:
+            for keyword in keywords:
+                if keyword in req:
+                    score += 3
+        
+        # 检查岗位特征
+        job_features = job.get("features", "")
+        for keyword in keywords:
+            if keyword in job_features:
+                score += 2
+        
+        # 检查岗位政策关系
+        job_policy_relations = job.get("policy_relations", [])
+        # 如果用户关注补贴，优先匹配有政策关系的岗位
+        if '补贴' in keywords:
+            if job_policy_relations:
+                score += 1
+        
+        # 检查岗位是否为兼职/灵活
+        if any(keyword in ['灵活', '兼职'] for keyword in keywords):
+            if '灵活' in job_features or '兼职' in job_features:
+                score += 2
+        
+        return score

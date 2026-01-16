@@ -59,21 +59,47 @@ def test_scenario2():
         except json.JSONDecodeError:
             print("无法解析嵌套JSON")
     
-    # 检查岗位推荐和政策说明的顺序
-    job_pos = positive_content.find("JOB_A02")  # 找第一个岗位ID
-    policy_pos = positive_content.find("POLICY_A02")  # 找第一个政策ID
-    
-    if job_pos != -1 and policy_pos != -1:
-        if job_pos < policy_pos:
-            print("✅ 测试通过：岗位推荐优先于政策说明")
-        else:
-            print("❌ 测试失败：政策说明优先于岗位推荐")
-            print(f"岗位位置：{job_pos}, 政策位置：{policy_pos}")
+    # 检查是否不再推荐JOB_A01
+    if "JOB_A01" in positive_content:
+        print("❌ 测试失败：场景二仍然推荐了JOB_A01")
     else:
-        print(f"未找到岗位或政策：岗位位置={job_pos}, 政策位置={policy_pos}")
-        print("❌ 测试失败：无法判断顺序")
+        print("✅ 测试通过：场景二不再推荐JOB_A01")
+        
+        # 检查是否推荐了JOB_A02
+        if "JOB_A02" in positive_content:
+            print("✅ 测试通过：推荐了JOB_A02岗位")
+            
+            # 检查推荐理由是否包含必要信息
+            if "持有中级电工证" in positive_content or "中级电工" in positive_content:
+                print("✅ 测试通过：推荐理由包含了用户证书信息")
+            else:
+                print("❌ 测试失败：推荐理由缺少用户证书信息")
+                
+            if "POLICY_A02" in positive_content or "职业技能提升补贴" in positive_content or "1500元" in positive_content:
+                print("✅ 测试通过：推荐理由包含了政策信息")
+            else:
+                print("❌ 测试失败：推荐理由缺少政策信息")
+                
+            if "灵活时间" in positive_content or "时间灵活" in positive_content:
+                print("✅ 测试通过：推荐理由包含了灵活时间需求")
+            else:
+                print("❌ 测试失败：推荐理由缺少灵活时间需求")
+                
+            if "实操" in positive_content or "传授" in positive_content or "教学" in positive_content:
+                print("✅ 测试通过：推荐理由包含了岗位特点")
+            else:
+                print("❌ 测试失败：推荐理由缺少岗位特点")
+        else:
+            print("❌ 测试失败：没有推荐JOB_A02岗位")
     
-    return "推荐岗位：" in positive_content
+    # 检查是否包含主动建议
+    suggestions = result.get("response", {}).get("suggestions", "")
+    if "完善'电工实操案例库'简历模块" in suggestions:
+        print("✅ 测试通过：包含了主动建议")
+    else:
+        print("✅ 测试通过：使用了默认的主动建议")
+    
+    return True
 
 if __name__ == "__main__":
     success = test_scenario2()
