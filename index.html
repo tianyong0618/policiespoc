@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 政策咨询助手</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon-wrapper">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="white"/>
+                            <path d="M11 7H13V13H11V7ZM11 15H13V17H11V15Z" fill="white"/>
+                        </svg>
+                    </div>
+                    <span class="app-brand-name">AI 政策咨询</span>
+                </div>
+                <button id="new-chat-btn" class="new-chat-btn">
+                    <span>+</span> 新建对话
+                </button>
+            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <h3>历史记录</h3>
+                    <div class="history-list">
+                        <!-- 模拟历史记录 -->
+                        <div class="history-item active">
+                            <span class="icon">💬</span>
+                            <span class="text">创业补贴政策咨询...</span>
+                        </div>
+                        <div class="history-item">
+                            <span class="icon">💬</span>
+                            <span class="text">技能培训岗位推荐...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部导航（移动端显示） -->
+            <header class="mobile-header">
+                <h1 class="chat-window-title">政策咨询助手</h1>
+            </header>
+
+            <!-- 对话区域 -->
+            <div id="chat-container" class="chat-container">
+                <!-- 欢迎页（初始显示） -->
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
+                        <div class="welcome-icon">👋</div>
+                        <h2>你好，我是您的政策咨询助手</h2>
+                        <p>我可以为您提供政策解读、岗位推荐及多重政策叠加分析服务。</p>
+                        
+                        <div class="scenario-grid">
+                            <div class="scenario-card" data-scenario="scenario1">
+                                <div class="card-icon">🚀</div>
+                                <h3>创业扶持咨询</h3>
+                                <p>返乡创业补贴、创业贷款申请条件及流程解读</p>
+                            </div>
+                            <div class="scenario-card" data-scenario="scenario2">
+                                <div class="card-icon">💼</div>
+                                <h3>技能岗位推荐</h3>
+                                <p>基于证书与画像的精准岗位匹配及补贴申领</p>
+                            </div>
+                            <div class="scenario-card" data-scenario="scenario3">
+                                <div class="card-icon">🏢</div>
+                                <h3>政策叠加分析</h3>
+                                <p>退役军人/高校毕业生多重身份政策红利测算</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 消息列表 -->
+                <div id="chat-history" class="chat-history"></div>
+            </div>
+
+            <!-- 底部输入区 -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="user-input" placeholder="发消息或输入 / 选择技能" rows="1"></textarea>
+                    
+                    <!-- 底部工具栏 -->
+                    <div class="input-tools">
+                        <div class="tool-left">
+                            <button class="tool-btn" title="上传附件">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                            </button>
+                            <div class="deep-think-toggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5c0-5.523 4.477-10 10-10z"></path><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-5.38c-3.72-7.13-6.5-12.18-11.6-13.11C4.48 1.5 1.8 4.18 1.8 10.2c0 5.26 2.36 8.16 4.3 9.75 3 2.45 6.4 2.75 8.5 2.75"></path></svg>
+                                深度思考
+                            </div>
+                            <button class="tool-btn" title="技能">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                <span style="font-size: 13px; margin-left: 4px;">技能</span>
+                            </button>
+                        </div>
+                        <button id="send-btn" class="send-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="footer-text">
+                    <!-- 留空或保留简短提示 -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 用户画像模态框 -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>用户画像管理 <span id="profile-id-badge" class="id-badge hidden"></span></h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <h4>基本信息</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>年龄</label>
+                            <input type="number" id="age" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>性别</label>
+                            <input type="text" id="gender" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>学历</label>
+                            <input type="text" id="education" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>工作经验</label>
+                            <input type="text" id="work_experience" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>能力与偏好</h4>
+                    <div class="form-group">
+                        <label>技能证书</label>
+                        <input type="text" id="skills" class="form-input" placeholder="逗号分隔">
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>期望薪资</label>
+                            <input type="text" id="salary_range" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>工作地点</label>
+                            <input type="text" id="work_location" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>兴趣方向</h4>
+                    <div class="form-group">
+                        <label>政策兴趣</label>
+                        <input type="text" id="policy_interest" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label>岗位兴趣</label>
+                        <input type="text" id="job_interest" class="form-input">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-btn-action">取消</button>
+                <button class="btn btn-primary" onclick="saveUserProfile()">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 评估结果浮层 -->
+    <div id="evaluation-toast" class="evaluation-toast">
+        <div class="toast-header">
+            <span class="icon">📊</span>
+            <span>响应评估</span>
+            <button class="toast-close">&times;</button>
+        </div>
+        <div class="toast-body" id="evaluation-content">
+            <!-- 动态内容 -->
+        </div>
+    </div>
+
+    <script src="app.js?v=10"></script>
+</body>
+</html>
