@@ -91,24 +91,63 @@ class PolicyAgent:
     def retrieve_policies(self, intent, entities):
         """检索相关政策"""
         relevant_policies = []
+        logger.info(f"开始检索政策，意图: {intent}, 实体: {entities}")
+        
+        # 提取实体值和用户可能的需求关键词
+        entity_values = [entity["value"] for entity in entities]
+        logger.info(f"实体值列表: {entity_values}")
+        
         for policy in self.policies:
-            # 基于意图和实体匹配政策
+            policy_id = policy["policy_id"]
+            title = policy["title"]
+            category = policy["category"]
+            content = policy.get("content", "")
+            conditions = policy.get("conditions", [])
+            
+            logger.info(f"检查政策: {policy_id} - {title}, 分类: {category}")
             match_found = False
-            for entity in entities:
-                val = entity["value"]
-                if val in policy["title"] or val in policy["category"]:
+            
+            # 匹配逻辑1: 实体值匹配政策title、category或content
+            for val in entity_values:
+                if val in title or val in category or val in content:
                     match_found = True
+                    logger.info(f"政策 {policy_id} 通过实体值 '{val}' 匹配成功 (title/category/content)")
                     break
-                # Check conditions
-                for cond in policy.get("conditions", []):
-                    if val in str(cond["value"]) or str(cond["value"]) in val:
+            
+            # 匹配逻辑2: 实体值匹配政策条件
+            if not match_found:
+                for cond in conditions:
+                    cond_value = str(cond["value"])
+                    for val in entity_values:
+                        if val in cond_value or cond_value in val:
+                            match_found = True
+                            logger.info(f"政策 {policy_id} 通过实体值 '{val}' 匹配条件成功: {cond_value}")
+                            break
+                    if match_found:
+                        break
+            
+            # 匹配逻辑3: 意图匹配政策分类
+            if not match_found:
+                if category in intent:
+                    match_found = True
+                    logger.info(f"政策 {policy_id} 通过分类 '{category}' 匹配意图成功")
+            
+            # 匹配逻辑4: 特殊关键词匹配（针对创业贷款等具体需求）
+            if not match_found:
+                # 检查用户输入中是否包含政策相关的关键词
+                user_needs = ["贷款", "贴息", "补贴", "创业"]
+                for need in user_needs:
+                    # 检查政策是否包含用户需求的关键词，同时用户输入中也包含该关键词
+                    if need in (title + category + content) and any(need in val for val in entity_values):
                         match_found = True
+                        logger.info(f"政策 {policy_id} 通过关键词 '{need}' 匹配成功")
                         break
             
             if match_found:
                 relevant_policies.append(policy)
-            elif policy["category"] in intent:
-                relevant_policies.append(policy)
+                logger.info(f"添加政策 {policy_id} 到相关政策列表")
+        
+        logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策: {[p['policy_id'] for p in relevant_policies]}")
         return relevant_policies if relevant_policies else self.policies
     
     def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
@@ -171,8 +210,11 @@ class PolicyAgent:
 """
         elif "创业扶持政策精准咨询" in scenario_type:
              prompt_instructions = base_instructions + """
-7. 特别要求：在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
-8. 针对缺失条件（如带动就业人数）进行明确提示
+7. 特别要求：必须检索并关联POLICY_A03（返乡创业扶持补贴政策）和POLICY_A01（创业担保贷款贴息政策）
+8. 针对POLICY_A03：若用户未提及"带动就业"，必须在否定部分明确指出缺失条件，说明"需满足带动3人以上就业"方可申领2万补贴
+9. 针对POLICY_A01：必须在肯定部分确认用户"返乡农民工"身份符合贷款条件，说明额度（≤50万）、期限（≤3年）及贴息规则
+10. 在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
+11. 结构化输出必须包含政策ID和完整政策名称
 """
         elif "多重政策叠加咨询" in scenario_type:
              prompt_instructions = base_instructions + """
@@ -367,9 +409,13 @@ class PolicyAgent:
         if "返乡创业" in user_input or "农民工" in user_input: # 场景一特征
             scenario_instruction = """
 特别注意（场景一要求）：
-1. 在【结构化输出】的"否定部分"，必须指出用户未提及"带动就业"条件，因此暂时无法申领2万补贴。
-2. 在【结构化输出】的"肯定部分"，确认"返乡农民工"身份符合创业贷款条件。
-3. 在【结构化输出】的"主动建议"，必须推荐联系 JOB_A01。
+1. 必须检索并关联POLICY_A03（返乡创业扶持补贴政策）和POLICY_A01（创业担保贷款贴息政策）
+2. 针对POLICY_A03：若用户未提及"带动就业"，必须在否定部分明确指出缺失条件，说明"需满足带动3人以上就业"方可申领2万补贴
+3. 针对POLICY_A01：必须在肯定部分确认用户"返乡农民工"身份符合贷款条件，说明额度（≤50万）、期限（≤3年）及贴息规则
+4. 在【结构化输出】的"否定部分"，明确说明：根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足"带动3人以上就业"方可申领2万补贴，当前信息未提及，建议补充就业证明后申请
+5. 在【结构化输出】的"肯定部分"，明确说明：您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，最高贷50万、期限3年，LPR-150BP以上部分财政贴息
+6. 在【结构化输出】的"主动建议"，必须推荐联系 JOB_A01（创业孵化基地管理员），获取政策申请全程指导
+7. 结构化输出必须包含政策ID和完整政策名称
 """
         elif "电工证" in user_input or "技能补贴" in user_input: # 场景二特征
             scenario_instruction = """
@@ -536,7 +582,7 @@ class PolicyAgent:
 任务要求:
 1. 分析用户意图，提取关键实体。
 2. 判断用户是否明确需要找工作/推荐岗位（needs_job_recommendation）。
-3. 从列表中筛选最相关的政策（最多3个）。
+3. 从列表中筛选**所有相关**的政策（最多3个），确保覆盖用户的**所有需求点**。特别是当用户明确提到"创业贷款"、"补贴"等多个需求时，要确保匹配到所有相关政策。
 4. 从列表中筛选最相关的岗位（最多3个，仅当needs_job_recommendation为true或场景暗示需要时）。
 5. 生成结构化的回复内容。
 
