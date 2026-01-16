@@ -177,9 +177,7 @@ async function loadSession(sessionId) {
 // 删除会话
 async function deleteSession(sessionId) {
     console.log('Attempting to delete session:', sessionId);
-    
-    // 找到对应的DOM元素
-    const historyItem = document.querySelector(`.history-item[data-session-id="${sessionId}"]`);
+    console.log('Current history list HTML before confirm:', document.querySelector('.history-list').innerHTML);
     
     // 如果用户点击取消，不执行删除
     if (!confirm('确定要删除这条对话吗？')) {
@@ -188,6 +186,10 @@ async function deleteSession(sessionId) {
     }
     
     console.log('User confirmed delete');
+    console.log('History list HTML after confirm:', document.querySelector('.history-list').innerHTML);
+    
+    // 找到对应的DOM元素（在用户确认后）
+    const historyItem = document.querySelector(`.history-item[data-session-id="${sessionId}"]`);
     
     // 乐观更新：先在界面上移除（或添加删除中的样式）
     if (historyItem) {
@@ -197,6 +199,7 @@ async function deleteSession(sessionId) {
 
     try {
         await fetch(`${API_BASE_URL}/history/${sessionId}`, { method: 'DELETE' });
+        console.log('Delete API call succeeded');
         if (currentSessionId === sessionId) {
             startNewChat();
         }
