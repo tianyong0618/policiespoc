@@ -1,6 +1,10 @@
-// API基础URL
-// 本地开发时使用完整的后端URL，部署时可改为相对路径
-const API_BASE_URL = 'http://localhost:8000/api';
+// API基础URL - 自动适配环境
+const API_BASE_URL = (() => {
+  // 检测当前环境
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // 本地开发使用完整URL，部署后使用相对路径
+  return isLocal ? 'http://localhost:8000/api' : '/api';
+})();
 
 // 场景配置
 const SCENARIOS = {
