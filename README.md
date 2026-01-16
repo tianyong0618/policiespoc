@@ -3,7 +3,7 @@
 ## 1. 系统概述
 
 ### 1.1 项目简介
-政策咨询智能体POC是一个基于大语言模型的智能政策咨询系统，旨在为用户提供精准的政策咨询建议。系统集成了火山引擎的Doubao-Seed-1.6模型，通过LangChain框架实现智能对话和场景化政策推荐。
+政策咨询智能体POC是一个基于大语言模型的智能政策咨询系统，旨在为用户提供精准的政策咨询建议。系统集成了DeepSeek V3模型，通过LangChain框架实现智能对话和场景化政策推荐。
 
 ### 1.2 核心功能
 - **智能对话**：基于LLM的自然语言交互
@@ -12,6 +12,7 @@
 - **结构化回答**：生成包含肯定、否定和建议的结构化回复
 - **性能监控**：实时追踪LLM调用时间和系统响应时间
 - **缓存机制**：提升重复查询的响应速度
+- **会话管理**：支持多会话历史记录
 
 ### 1.3 应用场景
 1. 创业扶持政策精准咨询
@@ -32,13 +33,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                        API服务层                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │  /api/chat   │  │/api/// API基础URL - 自动适配环境
-const API_BASE_URL = (() => {
-  // 检测当前环境
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  // 本地开发使用完整URL，部署后使用相对路径
-  return isLocal ? 'http://localhost:8000/api' : '/api';
-})(); │  │/api/evaluate │     │
+│  │  /api/chat   │  │/api/policies │  │/api/evaluate │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
                               ↓
@@ -57,7 +52,7 @@ const API_BASE_URL = (() => {
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │              ChatBot（对话机器人）                    │  │
 │  │  ┌──────────────────────────────────────────────┐  │  │
-│  │  │     Doubao-Seed-1.6（火山引擎）                 │  │  │
+│  │  │        DeepSeek V3（火山引擎）                │  │  │
 │  │  └──────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -73,21 +68,34 @@ const API_BASE_URL = (() => {
 ### 2.2 目录结构
 ```
 政策咨询POC/
-├── code/
+├── code/                        # 核心代码目录
 │   ├── langchain/              # LangChain业务逻辑
 │   │   ├── __init__.py
 │   │   ├── chatbot.py          # LLM对话集成
 │   │   ├── policy_agent.py     # 政策智能体核心逻辑
-│   │   └── data/
-│   │       └── policies.json   # 政策数据
+│   │   ├── history_manager.py  # 会话历史管理
+│   │   ├── job_matcher.py      # 岗位匹配器
+│   │   ├── user_profile.py     # 用户画像管理
+│   │   └── data/               # 数据文件
+│   │       ├── jobs.json       # 岗位数据
+│   │       ├── policies.json   # 政策数据
+│   │       └── user_profiles.json # 用户画像数据
 │   ├── serve_code/             # 后端API服务
 │   │   ├── main.py             # FastAPI主程序
-│   │   └── requirements.txt    # Python依赖
+│   │   ├── requirements.txt    # Python依赖
+│   │   ├── test_scenario1.py   # 场景1测试脚本
+│   │   └── test_scenario2.py   # 场景2测试脚本
 │   └── web_code/               # 前端界面
 │       ├── index.html          # 主页面
 │       ├── app.js              # 前端逻辑
 │       └── style.css           # 样式文件
-└── doc/                        # 文档目录
+├── doc/                        # 文档目录
+├── .env                        # 环境变量配置（本地开发）
+├── .gitignore                  # Git忽略文件
+├── main.py                     # Vercel部署入口
+├── package.json                # 项目配置
+├── requirements.txt            # 根目录依赖（Vercel部署）
+└── vercel.json                 # Vercel部署配置
 ```
 
 ## 3. 技术栈
@@ -99,8 +107,10 @@ const API_BASE_URL = (() => {
 | FastAPI | Latest | Web框架 |
 | LangChain | Latest | LLM应用框架 |
 | LangChain-OpenAI | Latest | OpenAI兼容API集成 |
+| python-dotenv | Latest | 环境变量管理 |
 | Pydantic | Latest | 数据验证 |
 | Uvicorn | Latest | ASGI服务器 |
+| Mangum | Latest | AWS Lambda适配器（Vercel部署） |
 
 ### 3.2 前端技术
 | 技术 | 用途 |
@@ -113,53 +123,33 @@ const API_BASE_URL = (() => {
 ### 3.3 LLM服务
 | 服务 | 模型 | 用途 |
 |------|------|------|
-| 火山引擎 | Doubao-Seed-1.6 | 大语言模型 |
+| 火山引擎 | DeepSeek V3 | 大语言模型 |
 
 ## 4. 核心模块详解
 
 ### 4.1 ChatBot模块 ([chatbot.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/chatbot.py))
 
 #### 功能描述
-负责与火山引擎Doubao-Seed-1.6模型的集成，提供对话记忆和LLM调用功能。
+负责与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能。
 
 #### 核心方法
 ```python
 def chat_with_memory(self, user_input):
     """带记忆的对话，返回内容和调用时间"""
-    start_time = time.time()
-    
     # 输入截断处理
-    if len(user_input) > 2000:
-        user_input = user_input[:2000] + "..."
-    
-    # 添加到记忆
-    self.memory.add_user_message(user_input)
-    
+    # 添加到对话记忆
     # 限制历史消息数量
-    if len(self.memory.messages) > 10:
-        self.memory.messages = self.memory.messages[-10:]
-    
     # LLM调用
-    llm_start = time.time()
-    simple_message = HumanMessage(content=user_input)
-    response = llm.invoke([simple_message])
-    llm_time = time.time() - llm_start
-    
-    # 添加AI回复到记忆
-    self.memory.add_ai_message(response.content)
-    
-    return {
-        "content": response.content,
-        "time": llm_time
-    }
+    # 记录调用时间
+    # 返回结果
 ```
 
 #### 性能优化
 - **输入截断**：超过2000字符自动截断
 - **历史限制**：只保留最近10条消息
 - **简化消息格式**：使用HumanMessage减少上下文长度
-- **超时设置**：120秒超时保护
-- **Token限制**：最大2000 tokens
+- **超时设置**：1800秒超时保护
+- **Token限制**：最大8192 tokens
 
 ### 4.2 PolicyAgent模块 ([policy_agent.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/policy_agent.py))
 
@@ -170,261 +160,103 @@ def chat_with_memory(self, user_input):
 ```python
 def process_query(self, user_input):
     """处理用户查询的完整流程"""
-    
     # 1. 检查缓存
-    cache_key = f"query:{user_input}"
-    if cache_key in self.llm_cache:
-        return self.llm_cache[cache_key]
-    
     # 2. 合并处理（意图识别 + 回答生成）
-    result = self.combined_process(user_input)
-    
     # 3. 评估结果
-    evaluation = self.evaluate_response(user_input, result["response"])
-    
     # 4. 添加计时信息
-    result["evaluation"] = evaluation
-    result["timing"] = {
-        "total": total_time,
-        "combined": combined_time,
-        "evaluate": evaluate_time
-    }
-    
     # 5. 缓存结果
-    self.llm_cache[cache_key] = result
-    
-    return result
+    # 6. 返回结果
 ```
 
 #### 意图识别
-```python
-def identify_intent(self, user_input):
-    """识别用户意图和实体"""
-    prompt = f"""
-请分析用户输入，识别核心意图和实体：
-用户输入: {user_input}
-
-输出格式：
-{{
-  "intent": "意图描述",
-  "entities": [
-    {{"type": "实体类型", "value": "实体值"}},
-    ...
-  ]
-}}
-"""
-    response = self.chatbot.chat_with_memory(prompt)
-    return json.loads(response["content"])
-```
+- 基于LLM的意图识别和实体提取
+- 支持多种政策咨询场景的意图识别
 
 #### 政策检索
-```python
-def retrieve_policies(self, intent, entities):
-    """基于意图和实体检索相关政策"""
-    relevant_policies = []
-    for policy in self.policies:
-        # 基于实体匹配
-        if any(entity["value"] in policy["title"] or 
-                entity["value"] in policy["category"] 
-                for entity in entities):
-            relevant_policies.append(policy)
-        # 基于意图匹配
-        elif policy["category"] in intent:
-            relevant_policies.append(policy)
-    return relevant_policies if relevant_policies else self.policies
-```
+- 基于意图匹配政策
+- 基于实体匹配政策
+- 支持多政策组合匹配
 
 #### 回答生成
-```python
-def generate_response(self, user_input, relevant_policies):
-    """生成结构化回答"""
-    # 只发送前3条最相关的政策
-    relevant_policies = relevant_policies[:3]
-    
-    # 简化政策格式
-    simplified_policies = []
-    for policy in relevant_policies:
-        simplified_policy = {
-            "policy_id": policy.get("policy_id", ""),
-            "title": policy.get("title", ""),
-            "category": policy.get("category", ""),
-            "conditions": policy.get("conditions", []),
-            "benefits": policy.get("benefits", [])
-        }
-        simplified_policies.append(simplified_policy)
-    
-    prompt = f"""
-你是一个政策咨询智能体，请根据用户输入和相关政策，生成结构化的回答：
-
-用户输入: {user_input}
-
-相关政策: {policies_str}
-
-请按照以下格式输出：
-{{
-  "positive": "符合条件的政策和具体内容",
-  "negative": "不符合条件的政策和原因",
-  "suggestions": "主动建议和下一步操作"
-}}
-"""
-    response = self.chatbot.chat_with_memory(prompt)
-    return json.loads(response["content"])
-```
-
-#### 缓存机制
-- **缓存键**：`query:{user_input}`
-- **缓存大小限制**：最多50条
-- **缓存策略**：LRU（最近最少使用）
-- **缓存效果**：重复查询响应时间从数秒降至毫秒级
+- 生成结构化回答，包含肯定、否定和建议
+- 支持政策叠加分析
+- 提供个性化建议
 
 ### 4.3 API服务模块 ([main.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code/main.py))
 
 #### API端点
 
-##### 1. 对话接口
-```python
-POST /api/chat
+##### 1. 对话接口（流式）
+```
+POST /api/chat/stream
 ```
 
 **请求参数**：
 ```json
 {
   "message": "用户问题",
-  "scenario": "general | scenario1 | scenario2 | scenario3"
+  "scenario": "general | scenario1 | scenario2 | scenario3",
+  "session_id": "可选，会话ID"
 }
+```
+
+**响应数据**：
+- SSE流式响应，包含会话信息、上下文数据和消息内容
+
+##### 2. 对话接口（非流式）
+```
+POST /api/chat
 ```
 
 **响应数据**：
 ```json
 {
-  "intent": {
-    "intent": "意图描述",
-    "entities": [...]
-  },
+  "intent": {"intent": "意图描述", "entities": [...]},
   "relevant_policies": [...],
-  "response": {
-    "positive": "符合条件的政策",
-    "negative": "不符合条件的政策",
-    "suggestions": "主动建议"
-  },
-  "evaluation": {
-    "policy_recall_accuracy": "95%",
-    "condition_accuracy": "100%"
-  },
+  "response": {"positive": "...", "negative": "...", "suggestions": "..."},
+  "evaluation": {...},
   "execution_time": 3.45,
-  "timing": {
-    "total": 3.45,
-    "combined": 3.20,
-    "evaluate": 0.25
-  },
-  "llm_calls": [
-    {
-      "type": "意图识别",
-      "time": 1.5
-    },
-    {
-      "type": "回答生成",
-      "time": 1.7
-    }
-  ]
+  "timing": {...},
+  "llm_calls": [...]
 }
 ```
 
-##### 2. 政策列表接口
-```python
+##### 3. 政策列表接口
+```
 GET /api/policies
 ```
 
-**响应数据**：
-```json
-{
-  "policies": [...]
-}
-```
-
-##### 3. 评估接口
-```python
-POST /api/evaluate
-```
-
-**请求参数**：
-```json
-{
-  "user_input": "用户输入",
-  "response": {
-    "positive": "...",
-    "negative": "...",
-    "suggestions": "..."
-  }
-}
-```
-
-**响应数据**：
-```json
-{
-  "score": 4,
-  "max_score": 4,
-  "policy_recall_accuracy": "95%",
-  "condition_accuracy": "100%",
-  "user_satisfaction": "4.5"
-}
-```
-
 ##### 4. 健康检查接口
-```python
+```
 GET /api/health
 ```
 
-**响应数据**：
-```json
-{
-  "status": "healthy"
-}
+##### 5. 会话管理接口
+```
+GET /api/history
+GET /api/history/{session_id}
+DELETE /api/history/{session_id}
 ```
 
 ### 4.4 前端模块 ([app.js](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/web_code/app.js))
 
-#### 场景配置
-```javascript
-const SCENARIOS = {
-    scenario1: {
-        name: "创业扶持政策精准咨询",
-        example: "我是去年从广东回来的农民工，想在家开个小加工厂（小微企业），听说有返乡创业补贴，能领2万吗？另外创业贷款怎么申请？"
-    },
-    scenario2: {
-        name: "技能培训岗位个性化推荐",
-        example: "请为一位32岁、失业、持有中级电工证的女性推荐工作，她关注补贴申领和灵活时间。"
-    },
-    scenario3: {
-        name: "多重政策叠加咨询",
-        example: "我是退役军人，开汽车维修店（个体），同时入驻创业孵化基地（年租金8000元），能同时享受税收优惠和场地补贴吗？"
-    }
-};
-```
-
 #### 核心功能
 1. **场景选择**：快速选择标准场景
 2. **消息发送**：支持回车键和按钮发送
-3. **历史管理**：清空对话历史
+3. **历史管理**：管理对话历史记录
 4. **结果展示**：结构化显示AI回复
 5. **性能监控**：显示LLM调用时间和响应时间
+6. **会话管理**：支持多会话切换和删除
 
-#### 评估结果展示
+#### API地址配置
 ```javascript
-function displayEvaluation(evaluation, executionTime, timing, llmCalls, isCacheHit) {
-    // 缓存命中提示
-    if (isCacheHit) {
-        // 显示缓存徽章
-    }
-    
-    // 显示多个LLM调用时间
-    llmCalls.forEach((call, index) => {
-        // 显示每次调用的类型和时间
-    });
-    
-    // 显示最终响应时间
-    // 显示政策召回准确率和条件判断准确率
-}
+// API基础URL - 自动适配环境
+const API_BASE_URL = (() => {
+  // 检测当前环境
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // 本地开发使用完整URL，部署后使用相对路径
+  return isLocal ? 'http://localhost:8000/api' : '/api';
+})();
 ```
 
 ## 5. 数据流
@@ -433,7 +265,7 @@ function displayEvaluation(evaluation, executionTime, timing, llmCalls, isCacheH
 ```
 用户输入问题
     ↓
-前端发送请求到 /api/chat
+前端发送请求到 /api/chat/stream
     ↓
 API接收请求，开始计时
     ↓
@@ -479,117 +311,92 @@ PolicyAgent.process_query()
 │    - 限制缓存大小                │
 └─────────────────────────────────┘
     ↓
-返回响应给前端
+通过SSE流式返回响应
     ↓
 前端展示结果
 ```
 
-### 5.2 缓存命中流程
-```
-用户输入问题
-    ↓
-前端发送请求
-    ↓
-PolicyAgent.process_query()
-    ↓
-检查缓存
-    ↓
-缓存命中 ✓
-    ↓
-直接返回缓存结果
-    ↓
-响应时间：毫秒级
-```
+## 6. 部署说明
 
-## 6. 性能优化
-
-### 6.1 LLM调用优化
-| 优化措施 | 效果 |
-|---------|------|
-| 降低temperature参数 | 减少模型思考时间 |
-| 限制max_tokens | 减少生成时间 |
-| 简化消息格式 | 减少上下文长度 |
-| 输入截断处理 | 避免超长输入 |
-| 历史消息限制 | 控制上下文大小 |
-
-### 6.2 缓存优化
-- **内存缓存**：使用Python字典存储
-- **LRU策略**：自动清理最久未使用的缓存
-- **大小限制**：最多50条缓存
-- **缓存键**：基于用户输入的哈希
-
-### 6.3 响应时间分析
-| 操作 | 平均耗时 | 优化后耗时 |
-|------|---------|-----------|
-| 意图识别 | 2.0秒 | 1.5秒 |
-| 政策检索 | 0.1秒 | 0.1秒 |
-| 回答生成 | 2.5秒 | 1.7秒 |
-| 结果评估 | 0.3秒 | 0.25秒 |
-| 总计 | 4.9秒 | 3.55秒 |
-| 缓存命中 | - | <0.01秒 |
-
-## 7. 部署说明
-
-### 7.1 环境要求
+### 6.1 环境要求
 - Python 3.12+
-- Node.js（可选，用于前端开发）
 - 现代浏览器（Chrome、Firefox、Safari、Edge）
 
-### 7.2 安装步骤
+### 6.2 本地开发部署
 
 #### 1. 安装Python依赖
 ```bash
-cd /Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code
+# 安装后端依赖
+cd code/serve_code
 pip install -r requirements.txt
 ```
 
-#### 2. 启动后端服务
+#### 2. 配置环境变量
+在项目根目录创建`.env`文件：
+```
+# LLM API配置
+OPENAI_API_KEY=YOUR_API_KEY
+OPENAI_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+LLM_MODEL=deepseek-v3-2-251201
+LLM_TIMEOUT=1800
+LLM_MAX_TOKENS=8192
+```
+
+#### 3. 启动后端服务
 ```bash
-cd /Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code
+# 方式1：直接运行FastAPI
+cd code/serve_code
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 方式2：从根目录运行（Vercel部署方式）
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-#### 3. 启动前端服务
+#### 4. 启动前端服务
 ```bash
-cd /Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/web_code
+cd code/web_code
 python3 -m http.server 8080
 ```
 
-#### 4. 访问应用
+#### 5. 访问应用
 打开浏览器访问：http://localhost:8080
 
-### 7.3 配置说明
+### 6.3 Vercel部署
 
-#### LLM配置 ([chatbot.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/chatbot.py#L16-L24))
-```python
-llm = ChatOpenAI(
-    temperature=0.5,
-    openai_api_key="YOUR_API_KEY",
-    openai_api_base="https://ark.cn-beijing.volces.com/api/v3",
-    model="doubao-seed-1-6-251015",
-    timeout=120,
-    max_tokens=2000
-)
-```
+#### 1. 配置Vercel环境变量
+在Vercel控制台添加以下环境变量：
+- OPENAI_API_KEY
+- OPENAI_API_BASE
+- LLM_MODEL
+- LLM_TIMEOUT
+- LLM_MAX_TOKENS
 
-#### CORS配置 ([main.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code/main.py#L24-L29))
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
+#### 2. 部署方式
+- 通过GitHub仓库自动部署
+- 使用Vercel CLI手动部署
 
-### 7.4 生产环境建议
-1. **API密钥安全**：使用环境变量存储API密钥
-2. **CORS限制**：设置具体的允许域名
-3. **日志管理**：配置日志轮转和持久化
-4. **负载均衡**：使用Nginx反向代理
-5. **监控告警**：集成APM工具监控系统性能
-6. **缓存持久化**：使用Redis替代内存缓存
+#### 3. 部署配置
+- vercel.json：配置构建规则和路由
+- main.py：FastAPI入口点
+- requirements.txt：根目录依赖
+
+## 7. 配置说明
+
+### 7.1 LLM配置
+通过环境变量配置LLM参数：
+
+| 环境变量 | 说明 | 默认值 |
+|---------|------|--------|
+| OPENAI_API_KEY | API密钥 | 必填 |
+| OPENAI_API_BASE | API端点 | https://ark.cn-beijing.volces.com/api/v3 |
+| LLM_MODEL | 模型名称 | deepseek-v3-2-251201 |
+| LLM_TIMEOUT | 超时时间（秒） | 1800 |
+| LLM_MAX_TOKENS | 最大令牌数 | 8192 |
+
+### 7.2 应用配置
+- **前端API地址**：自动适配环境，本地使用http://localhost:8000/api，部署后使用相对路径
+- **CORS配置**：允许所有来源（生产环境建议限制）
+- **缓存配置**：内存缓存，最多50条记录
 
 ## 8. 测试场景
 
@@ -633,76 +440,103 @@ app.add_middleware(
 
 ### 9.1 常见问题
 
-#### 问题1：422 Unprocessable Entity错误
-**原因**：请求参数类型不正确
-**解决**：确保scenario参数为字符串类型，检查app.js中的类型检查逻辑
+#### 问题1：前端无法连接后端
+**原因**：
+- 后端服务未启动
+- 端口冲突
+- CORS配置问题
+
+**解决**：
+- 检查后端服务是否正常运行
+- 检查端口是否被占用
+- 确认CORS配置是否允许前端域名
 
 #### 问题2：LLM调用超时
-**原因**：网络问题或API响应慢
+**原因**：
+- 网络问题
+- API响应慢
+- 提示词过长
+
 **解决**：
 - 检查网络连接
 - 增加timeout参数
 - 优化提示词长度
+- 减少历史消息数量
 
 #### 问题3：缓存不生效
-**原因**：缓存键冲突或缓存已满
+**原因**：
+- 缓存键冲突
+- 缓存已满
+- 缓存未正确实现
+
 **解决**：
 - 检查缓存键生成逻辑
 - 清空缓存重试
 - 增加缓存大小限制
 
-#### 问题4：前端无法连接后端
-**原因**：CORS配置问题或端口冲突
+#### 问题4：422 Unprocessable Entity错误
+**原因**：
+- 请求参数类型不正确
+- 缺少必填参数
+
 **解决**：
-- 检查CORS配置
-- 确认后端服务正常运行
-- 检查端口是否被占用
+- 确保请求参数类型正确
+- 检查是否缺少必填参数
+- 查看API文档确认参数格式
 
-### 9.2 日志分析
+## 10. 性能优化
 
-#### 后端日志
-```python
-2026-01-14 10:00:00 - __main__ - INFO - 开始处理请求: scenario=general, message=用户问题...
-2026-01-14 10:00:00 - PolicyAgent - INFO - 处理用户输入: 用户问题...
-2026-01-14 10:00:00 - PolicyAgent - INFO - 开始识别意图和实体，调用大模型
-2026-01-14 10:00:01 - ChatBot - INFO - LLM调用完成，耗时: 1.50秒
-2026-01-14 10:00:01 - PolicyAgent - INFO - 意图识别完成: 政策咨询
-2026-01-14 10:00:01 - PolicyAgent - INFO - 政策检索完成，找到 3 条相关政策
-2026-01-14 10:00:02 - ChatBot - INFO - LLM调用完成，耗时: 1.70秒
-2026-01-14 10:00:02 - PolicyAgent - INFO - 回答生成完成
-2026-01-14 10:00:02 - __main__ - INFO - 请求处理完成，耗时: 3.45秒
-```
+### 10.1 LLM调用优化
+| 优化措施 | 效果 |
+|---------|------|
+| 降低temperature参数 | 减少模型思考时间 |
+| 限制max_tokens | 减少生成时间 |
+| 简化消息格式 | 减少上下文长度 |
+| 输入截断处理 | 避免超长输入 |
+| 历史消息限制 | 控制上下文大小 |
 
-#### 前端日志
-```javascript
-发送请求: {message: "用户问题", scenario: "general"}
-响应状态: 200
-响应数据: {intent: {...}, response: {...}, execution_time: 3.45, ...}
-```
+### 10.2 缓存优化
+- **内存缓存**：使用Python字典存储
+- **LRU策略**：自动清理最久未使用的缓存
+- **大小限制**：最多50条缓存
+- **缓存键**：基于用户输入的哈希
 
-## 10. 未来优化方向
+### 10.3 响应时间分析
+| 操作 | 平均耗时 | 优化后耗时 |
+|------|---------|-----------|
+| 意图识别 | 2.0秒 | 1.5秒 |
+| 政策检索 | 0.1秒 | 0.1秒 |
+| 回答生成 | 2.5秒 | 1.7秒 |
+| 结果评估 | 0.3秒 | 0.25秒 |
+| 总计 | 4.9秒 | 3.55秒 |
+| 缓存命中 | - | <0.01秒 |
 
-### 10.1 功能优化
+## 11. 未来优化方向
+
+### 11.1 功能优化
 1. **多轮对话**：增强对话记忆，支持上下文理解
 2. **知识图谱**：构建政策知识图谱，提升检索精度
 3. **个性化推荐**：基于用户画像提供个性化政策推荐
 4. **多模态交互**：支持语音、图片等多模态输入
+5. **政策时效性管理**：自动更新政策数据
 
-### 10.2 性能优化
+### 11.2 性能优化
 1. **异步处理**：使用异步IO提升并发性能
 2. **批处理**：支持批量政策查询
 3. **分布式缓存**：使用Redis集群提升缓存性能
 4. **模型量化**：使用量化模型减少推理时间
+5. **负载均衡**：支持多实例部署
 
-### 10.3 安全优化
+### 11.3 安全优化
 1. **输入验证**：增强输入验证和过滤
 2. **速率限制**：实现API速率限制
 3. **审计日志**：记录所有操作日志
 4. **数据加密**：敏感数据加密存储
+5. **API密钥管理**：使用密钥管理服务
 
-## 11. 附录
+## 12. 附录
 
-### 11.1 政策数据示例
+### 12.1 政策数据示例
 ```json
 {
   "policy_id": "POLICY_A01",
@@ -720,54 +554,24 @@ app.add_middleware(
 }
 ```
 
-### 11.2 API响应示例
-```json
-{
-  "intent": {
-    "intent": "创业扶持政策咨询",
-    "entities": [
-      {"type": "身份", "value": "返乡农民工"},
-      {"type": "企业类型", "value": "小微企业"}
-    ]
-  },
-  "relevant_policies": [
-    {
-      "policy_id": "POLICY_A03",
-      "title": "返乡创业扶持补贴政策",
-      "category": "创业扶持",
-      "conditions": [...],
-      "benefits": [...]
-    }
-  ],
-  "response": {
-    "positive": "根据返乡创业扶持补贴政策，您作为返乡农民工，创办小微企业，正常经营1年且带动3人以上就业，可以申请2万元一次性补贴。",
-    "negative": "",
-    "suggestions": "建议您准备以下材料：1. 身份证明 2. 营业执照 3. 经营证明 4. 就业证明。申请流程：登录XX人社局官网-创业服务专栏在线申请。"
-  },
-  "evaluation": {
-    "policy_recall_accuracy": "95%",
-    "condition_accuracy": "100%"
-  },
-  "execution_time": 3.45,
-  "timing": {
-    "total": 3.45,
-    "combined": 3.20,
-    "evaluate": 0.25
-  },
-  "llm_calls": [
-    {
-      "type": "意图识别",
-      "time": 1.5
-    },
-    {
-      "type": "回答生成",
-      "time": 1.7
-    }
-  ]
-}
+### 12.2 Vercel部署入口示例
+```python
+# Vercel FastAPI 入口点
+# 导入现有FastAPI应用
+import sys
+import os
+
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.abspath('.'))
+
+# 从现有位置导入app实例
+from code.serve_code.main import app
+
+# 暴露app实例，供Vercel使用
+__all__ = ['app']
 ```
 
-### 11.3 技术参考文档
+### 12.3 技术参考文档
 - [FastAPI官方文档](https://fastapi.tiangolo.com/)
 - [LangChain官方文档](https://python.langchain.com/)
 - [火山引擎API文档](https://www.volcengine.com/docs)
@@ -775,6 +579,6 @@ app.add_middleware(
 
 ---
 
-**文档版本**：v1.0  
-**最后更新**：2026-01-14  
+**文档版本**：v1.2  
+**最后更新**：2026-01-16  
 **维护者**：政策咨询智能体POC团队
