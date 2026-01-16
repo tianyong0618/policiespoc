@@ -14,8 +14,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 添加LangChain模块路径
-sys.path.insert(0, os.path.abspath('/Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code'))
+# 添加LangChain模块路径，支持不同环境
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(base_dir, 'code'))
 
 # 直接导入模块
 from langchain.policy_agent import PolicyAgent
@@ -288,6 +289,12 @@ async def get_general_recommendations():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
+
+# 添加Mangum适配器，支持Vercel部署
+from mangum import Mangum
+
+# 创建Mangum处理程序
+handler = Mangum(app)
 
 if __name__ == "__main__":
     import uvicorn

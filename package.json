@@ -1,0 +1,25 @@
+{
+  "name": "policiespoc",
+  "version": "1.0.0",
+  "description": "政策咨询智能体POC系统",
+  "main": "index.js",
+  "scripts": {
+    "dev": "python3 -m uvicorn code/serve_code/main:app --host 0.0.0.0 --port 8000",
+    "build": "echo 'Building project...'",
+    "start": "python3 -m uvicorn code/serve_code/main:app --host 0.0.0.0 --port 8000"
+  },
+  "keywords": ["policy", "ai", "consultation"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "fastapi": "^0.108.0",
+    "uvicorn": "^0.35.0",
+    "mangum": "^0.20.0",
+    "langchain": "^1.2.3",
+    "langchain-openai": "^1.1.7",
+    "python-dotenv": "^1.1.1",
+    "pydantic": "^2.11.7",
+    "pydantic-settings": "^2.10.1",
+    "python-multipart": "^0.0.20"
+  }
+}

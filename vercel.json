@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "code/serve_code/main.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.12"
+      }
+    },
+    {
+      "src": "code/web_code/index.html",
+      "use": "@vercel/static",
+      "config": {
+        "public": true
+      }
+    },
+    {
+      "src": "code/web_code/(app|style).*",
+      "use": "@vercel/static",
+      "config": {
+        "public": true
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "code/serve_code/main.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "code/web_code/index.html"
+    }
+  ],
+  "env": {
+    "PYTHON_VERSION": "3.12"
+  }
+}
