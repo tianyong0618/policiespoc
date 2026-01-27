@@ -620,6 +620,35 @@ function renderScenario2Card(content) {
         suggestion = suggestionMatch[1].trim();
     }
     
+    // 提取关联政策信息
+    let policies = [];
+    if (content.includes('政策') || content.includes('补贴')) {
+        // 尝试提取政策信息
+        const policyRegex = /《(.*?)》\s*\((.*?)\)/g;
+        let match;
+        while ((match = policyRegex.exec(content)) !== null) {
+            policies.push({
+                name: match[1],
+                id: match[2]
+            });
+        }
+    }
+    
+    // 场景二默认关联POLICY_A02政策
+    let hasPolicyA02 = false;
+    for (const policy of policies) {
+        if (policy.id === 'POLICY_A02') {
+            hasPolicyA02 = true;
+            break;
+        }
+    }
+    if (!hasPolicyA02) {
+        policies.push({
+            name: '技能提升补贴政策',
+            id: 'POLICY_A02'
+        });
+    }
+    
     // 如果没有结构化标签，尝试手动提取
     if (!jobTitle) {
         if (content.includes('推荐JOB_A02')) {
@@ -677,6 +706,33 @@ function renderScenario2Card(content) {
                         ${reasons.map(reason => `
                             <div class="reason-item">${reason}</div>
                         `).join('')}
+                    </div>
+                ` : ''}
+                ${policies.length > 0 ? `
+                    <div class="related-policies" style="margin-top: 12px;">
+                        <div class="response-card positive">
+                            <div class="response-card-header">
+                                <span>📋</span>
+                                关联政策
+                            </div>
+                            <div class="response-card-content">
+                                ${policies.map(policy => {
+                                    // 计算符合条件的补贴金额
+                                    let subsidyAmount = '';
+                                    if (policy.id === 'POLICY_A02') {
+                                        // 场景二用户是持有中级电工证的失业女性
+                                        // 根据POLICY_A02政策，中级职业资格证书补贴1500元
+                                        subsidyAmount = '<div style="font-weight: 500; color: #3b82f6; margin-top: 4px;">💵 可申请补贴：1500元（中级职业资格证书）</div>';
+                                    }
+                                    return `
+                                        <div style="margin-bottom: 8px;">
+                                            <div>《${policy.name}》（${policy.id}）</div>
+                                            ${subsidyAmount}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
                     </div>
                 ` : ''}
                 ${suggestion ? `
