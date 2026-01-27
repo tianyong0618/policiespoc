@@ -76,5 +76,21 @@
     "policy_interest": ["创业扶持", "税收优惠"],
     "job_interest": ["创业", "汽车维修"],
     "associated_relations": ["POLICY_A06", "JOB_A05"]
+  },
+  {
+    "user_id": "USER_A06",
+    "basic_info": {
+      "age": 38,
+      "gender": "男",
+      "identity": "失业人员",
+      "status": "失业",
+      "education": "初中",
+      "previous_job": "机械操作工"
+    },
+    "description": "38岁男性，失业人员，之前在工厂做机械操作工，只有初中毕业证，想转行做电商运营。",
+    "core_needs": ["培训课程推荐", "培训补贴申领（POLICY_A02）", "职业转型指导"],
+    "policy_interest": ["技能培训"],
+    "job_interest": ["电商运营"],
+    "associated_relations": ["POLICY_A02", "COURSE_A01", "COURSE_A02"]
   }
 ]
