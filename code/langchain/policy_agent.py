@@ -4,6 +4,7 @@ import time
 import logging
 from .chatbot import ChatBot
 from .job_matcher import JobMatcher
+from .course_matcher import CourseMatcher
 from .user_profile import UserProfileManager
 from functools import lru_cache
 
@@ -23,6 +24,8 @@ class PolicyAgent:
         self.llm_cache = {}
         # 初始化岗位匹配器
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
+        # 初始化课程匹配器
+        self.course_matcher = CourseMatcher()
         # 初始化用户画像管理器
         self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
     
@@ -150,7 +153,7 @@ class PolicyAgent:
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策: {[p['policy_id'] for p in relevant_policies]}")
         return relevant_policies if relevant_policies else self.policies
     
-    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
+    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None, recommended_courses=None):
         """生成结构化回答"""
         # 优化：只发送前3条最相关的政策，减少输入长度
         relevant_policies = relevant_policies[:3]
@@ -182,6 +185,41 @@ class PolicyAgent:
                 }
                 simplified_jobs.append(simplified_job)
             jobs_str = f"\n相关推荐岗位:\n{json.dumps(simplified_jobs, ensure_ascii=False, separators=(',', ':'))}\n"
+        
+        # 推荐课程信息
+        courses_str = ""
+        if recommended_courses:
+            simplified_courses = []
+            for course in recommended_courses:
+                simplified_course = {
+                    "course_id": course.get("course_id", ""),
+                    "title": course.get("title", ""),
+                    "category": course.get("category", ""),
+                    "conditions": course.get("conditions", []),
+                    "benefits": course.get("benefits", []),
+                    "duration": course.get("duration", ""),
+                    "difficulty": course.get("difficulty", "")
+                }
+                simplified_courses.append(simplified_course)
+            courses_str = f"\n相关推荐课程:\n{json.dumps(simplified_courses, ensure_ascii=False, separators=(',', ':'))}\n"
+            
+            # 场景四特殊处理：添加课程+补贴打包方案和成长路径
+            if "培训课程智能匹配" in scenario_type and recommended_courses:
+                # 查找POLICY_A02
+                policy_a02 = None
+                for policy in relevant_policies:
+                    if policy.get("policy_id") == "POLICY_A02":
+                        policy_a02 = policy
+                        break
+                
+                if policy_a02:
+                    # 生成课程+补贴打包方案
+                    course_package = self.course_matcher.get_course_package(recommended_courses, policy_a02)
+                    courses_str += f"\n课程+补贴打包方案:\n{json.dumps(course_package, ensure_ascii=False, separators=(',', ':'))}\n"
+                    
+                    # 生成成长路径
+                    growth_path = self.course_matcher.generate_growth_path(recommended_courses)
+                    courses_str += f"\n成长路径:\n{json.dumps(growth_path, ensure_ascii=False, separators=(',', ':'))}\n"
 
         # 用户画像信息
         user_profile_str = ""
@@ -217,6 +255,9 @@ class PolicyAgent:
 11. 绝对不允许先介绍政策再介绍岗位
 12. 绝对不允许推荐JOB_A01（创业孵化基地管理员），该岗位不符合场景二用户的灵活时间需求
 13. 只推荐JOB_A02岗位，**不得推荐其他岗位**
+14. 岗位推荐必须明确提及"JOB_A02（职业技能培训讲师）"，并说明其"兼职"属性符合"灵活时间"需求
+15. 政策说明必须明确提及"根据POLICY_A02（职业技能提升补贴政策），您可申请1500元技能补贴（若以企业在职职工身份参保）"
+16. 主动建议必须包含"完善'电工实操案例库'简历模块，提升竞争力"
 """
         elif "创业扶持政策精准咨询" in scenario_type:
              prompt_instructions = base_instructions + """
@@ -225,25 +266,41 @@ class PolicyAgent:
 9. 针对POLICY_A01：必须在肯定部分确认用户"返乡农民工"身份符合贷款条件，说明额度（≤50万）、期限（≤3年）及贴息规则
 10. 在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
 11. 结构化输出必须包含政策ID和完整政策名称
+12. 否定部分必须明确提及"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足'带动3人以上就业'方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。"
+13. 肯定部分必须明确提及"您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。"
+14. 主动建议必须明确提及"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。"
 """
         elif "多重政策叠加咨询" in scenario_type:
              prompt_instructions = base_instructions + """
 7. 特别要求：必须在回答中明确输出"--- 结构化输出"作为思考过程和结构化回答的分隔线
 8. 明确指出可以同时享受的政策，并说明叠加后的预估收益
-9. 在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析
+9. 在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率
 10. 结构化输出必须包含政策ID和完整政策名称
+11. 必须明确提及"您可同时享受两项政策：①《退役军人创业税收优惠》（A06）：3年内按14400元/年扣减税费；②《创业场地租金补贴政策》（A04）：租金8000元的50%-80%（4000-6400元）可申请补贴，需提供孵化基地入驻协议。"
+12. 必须计算并提及叠加后的预估收益："两项政策叠加后，您每年可享受18400-20800元的政策支持（14400元税费扣减 + 4000-6400元租金补贴）。"
+13. 主动建议必须包含"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。"
+"""
+        elif "培训课程智能匹配" in scenario_type:
+             prompt_instructions = base_instructions + """
+7. 特别要求：必须推荐COURSE_A01和COURSE_A02课程，并关联POLICY_A02政策
+8. 课程推荐必须包含优先级排序，COURSE_A01优先于COURSE_A02
+9. 必须明确提及"初中及以上学历"符合课程要求
+10. 必须说明失业人员可申请POLICY_A02补贴
+11. 输出结构必须包含"课程+补贴"打包方案
+12. 在"suggestions"中勾勒清晰的成长路径
 """
         else:
              prompt_instructions = base_instructions
 
         prompt = f"""
-你是一个政策咨询智能体，请根据用户输入、匹配的用户画像、相关政策和推荐岗位，生成结构化的回答：
+你是一个政策咨询智能体，请根据用户输入、匹配的用户画像、相关政策、推荐岗位和推荐课程，生成结构化的回答：
 
 用户输入: {user_input}
 {user_profile_str}
 相关政策:
 {policies_str}
 {jobs_str}
+{courses_str}
 
 回答要求：
 {prompt_instructions}
@@ -464,6 +521,16 @@ class PolicyAgent:
 4. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议
 5. 结构化输出必须包含政策ID和完整政策名称
 """
+        elif "电商运营" in user_input and "培训课程" in user_input: # 场景四特征
+             scenario_instruction = """
+特别注意（场景四要求）：
+1. 必须推荐COURSE_A01和COURSE_A02课程，并关联POLICY_A02政策
+2. 课程推荐必须包含优先级排序，COURSE_A01优先于COURSE_A02
+3. 必须明确提及"初中及以上学历"符合课程要求
+4. 必须说明失业人员可申请POLICY_A02补贴
+5. 输出结构必须包含"课程+补贴"打包方案
+6. 在【结构化输出】中勾勒清晰的成长路径
+"""
 
         prompt = f"""
 你是一个政策咨询助手。请根据以下信息回答用户问题。
@@ -559,7 +626,8 @@ class PolicyAgent:
         scenarios = {
             "scenario1": "创业扶持政策精准咨询",
             "scenario2": "技能培训岗位个性化推荐",
-            "scenario3": "多重政策叠加咨询"
+            "scenario3": "多重政策叠加咨询",
+            "scenario4": "培训课程智能匹配"
         }
         
         scenario_name = scenarios.get(scenario_id, "政策咨询")
@@ -578,9 +646,10 @@ class PolicyAgent:
         if matched_user:
             logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
             
-        # 2. 获取所有上下文数据
+        # 获取所有上下文数据
         all_policies = self.policies
         all_jobs = self.job_matcher.get_all_jobs()
+        all_courses = self.course_matcher.get_all_courses()
         
         # 简化数据以减少Token消耗
         simple_policies = [{
@@ -597,6 +666,14 @@ class PolicyAgent:
             "features": j["features"]
         } for j in all_jobs]
         
+        simple_courses = [{
+            "id": c["course_id"],
+            "title": c["title"],
+            "content": c["content"],
+            "conditions": c.get("conditions", []),
+            "policy_relations": c.get("policy_relations", [])
+        } for c in all_courses]
+        
         # 3. 构建单次调用Prompt
         prompt = f"""
 你是一个专业的政策咨询和岗位推荐助手。请基于以下信息处理用户请求。
@@ -610,20 +687,27 @@ class PolicyAgent:
 可用岗位列表:
 {json.dumps(simple_jobs, ensure_ascii=False)}
 
+可用课程列表:
+{json.dumps(simple_courses, ensure_ascii=False)}
+
 任务要求:
 1. 分析用户意图，提取关键实体。
-2. 判断用户是否明确需要找工作/推荐岗位（needs_job_recommendation）。
+2. 判断用户是否明确需要找工作/推荐岗位（needs_job_recommendation）或需要培训课程推荐（needs_course_recommendation）。
 3. 针对不同场景采用不同的处理顺序：
    - 对于技能培训岗位推荐场景：
      a. 先根据用户的要求（如持有证书、关注灵活时间等）从列表中筛选最相关的岗位
      b. 然后根据筛选出的岗位的政策关系，找到对应的相关政策
+   - 对于培训课程智能匹配场景：
+     a. 先根据用户的要求（如学历、基础等）从列表中筛选最相关的课程
+     b. 然后根据筛选出的课程的政策关系，找到对应的相关政策
    - 对于其他场景：
      a. 从列表中筛选**所有相关**的政策（最多3个），确保覆盖用户的**所有需求点**
      b. 然后从列表中筛选最相关的岗位（最多3个，仅当needs_job_recommendation为true或场景暗示需要时）
+     c. 然后从列表中筛选最相关的课程（最多3个，仅当needs_course_recommendation为true或场景暗示需要时）
 4. 生成结构化的回复内容。
 
 回复要求:
-- positive: 符合条件的政策内容和具体岗位推荐（如有）。岗位推荐格式：推荐岗位：[ID] [名称]，理由：...
+- positive: 符合条件的政策内容、具体岗位推荐（如有）和具体课程推荐（如有）。岗位推荐格式：推荐岗位：[ID] [名称]，理由：...；课程推荐格式：推荐课程：[ID] [名称]，理由：...
 - negative: 不符合条件的政策及原因。
 - suggestions: 主动建议和下一步操作。如涉及创业建议联系JOB_A01，涉及退役军人建议联系JOB_A05。
 
@@ -632,10 +716,12 @@ class PolicyAgent:
   "intent": {{
     "summary": "意图描述",
     "entities": [{{"type": "...", "value": "..."}}],
-    "needs_job_recommendation": true/false
+    "needs_job_recommendation": true/false,
+    "needs_course_recommendation": true/false
   }},
   "relevant_policy_ids": ["POLICY_XXX", ...],
   "recommended_job_ids": ["JOB_XXX", ...],
+  "recommended_course_ids": ["COURSE_XXX", ...],
   "response": {{
     "positive": "...",
     "negative": "...",
@@ -671,11 +757,15 @@ class PolicyAgent:
         recommended_job_ids = result_data.get("recommended_job_ids", [])
         recommended_jobs = [j for j in all_jobs if j["job_id"] in recommended_job_ids]
         
+        # 还原课程对象
+        recommended_course_ids = result_data.get("recommended_course_ids", [])
+        recommended_courses = [c for c in all_courses if c["course_id"] in recommended_course_ids]
+        
         # 构建思考过程
         intent_info = result_data.get("intent", {})
         thinking_process.append({
             "step": "综合分析",
-            "content": f"意图：{intent_info.get('summary')} | 匹配政策：{relevant_policy_ids} | 推荐岗位：{recommended_job_ids}",
+            "content": f"意图：{intent_info.get('summary')} | 匹配政策：{relevant_policy_ids} | 推荐岗位：{recommended_job_ids} | 推荐课程：{recommended_course_ids}",
             "status": "completed"
         })
         
@@ -688,6 +778,7 @@ class PolicyAgent:
             "llm_calls": [{"type": "综合处理", "time": llm_time}],
             "thinking_process": thinking_process,
             "recommended_jobs": recommended_jobs,
+            "recommended_courses": recommended_courses,
             "matched_user": matched_user
         }
     
@@ -704,6 +795,8 @@ class PolicyAgent:
 
         # 生成岗位推荐
         recommended_jobs = []
+        # 生成课程推荐
+        recommended_courses = []
         # 直接根据用户输入匹配岗位，而不是基于政策
         if intent_info.get("needs_job_recommendation", False) or "技能培训岗位个性化推荐" in user_input:
             # 1. 直接根据用户输入信息匹配岗位
@@ -738,23 +831,50 @@ class PolicyAgent:
                         filtered_jobs.append(job)
                 recommended_jobs = filtered_jobs
         
+        # 课程推荐逻辑
+        if "培训课程智能匹配" in user_input or "电商运营" in user_input:
+            # 1. 直接根据用户输入信息匹配课程
+            recommended_courses = self.course_matcher.match_courses_for_scenario4(user_input)
+            
+            # 2. 补充：如果有匹配的用户画像，也基于用户画像匹配课程
+            if matched_user:
+                profile_courses = self.course_matcher.match_courses_by_user_profile(matched_user)
+                # 合并并去重
+                all_courses = recommended_courses + profile_courses
+                seen_course_ids = set()
+                unique_courses = []
+                for course in all_courses:
+                    course_id = course.get("course_id")
+                    if course_id and course_id not in seen_course_ids:
+                        seen_course_ids.add(course_id)
+                        unique_courses.append(course)
+                recommended_courses = unique_courses
+        
         # 3. 检索相关政策
         # 提取岗位相关的政策关系
         job_policy_relations = set()
         for job in recommended_jobs:
             job_policy_relations.update(job.get("policy_relations", []))
         
-        # 合并实体和岗位相关政策作为检索条件
+        # 提取课程相关的政策关系
+        course_policy_relations = set()
+        for course in recommended_courses:
+            course_policy_relations.update(course.get("policy_relations", []))
+        
+        # 合并实体和岗位、课程相关政策作为检索条件
         entities = intent_info["entities"].copy()
         # 添加岗位相关的政策ID作为实体，用于政策检索
         for policy_id in job_policy_relations:
+            entities.append({"type": "政策ID", "value": policy_id})
+        # 添加课程相关的政策ID作为实体，用于政策检索
+        for policy_id in course_policy_relations:
             entities.append({"type": "政策ID", "value": policy_id})
         
         # 检索相关政策
         relevant_policies = self.retrieve_policies(intent_info["intent"], entities)
 
         # 生成结构化回答
-        response_result = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs)
+        response_result = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs, recommended_courses)
         response = response_result["result"]
         
         return {
@@ -763,6 +883,7 @@ class PolicyAgent:
             "response": response,
             "thinking_process": [],
             "recommended_jobs": recommended_jobs,
+            "recommended_courses": recommended_courses,
             "matched_user": matched_user
         }
     
@@ -796,5 +917,14 @@ if __name__ == "__main__":
     print("\n测试场景三：多重政策叠加咨询")
     user_input = "我是退役军人，开汽车维修店（个体），同时入驻创业孵化基地（年租金8000元），能同时享受税收优惠和场地补贴吗？"
     result = agent.handle_scenario("scenario3", user_input)
+    print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
+    print("评估:", result["evaluation"])
+    
+    agent.clear_memory()
+    
+    # 测试场景四
+    print("\n测试场景四：培训课程智能匹配")
+    user_input = "我今年38岁，之前在工厂做机械操作工，现在失业了，只有初中毕业证，想转行做电商运营，不知道该报什么培训课程？另外，失业人员参加培训有补贴吗？"
+    result = agent.handle_scenario("scenario4", user_input)
     print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
     print("评估:", result["evaluation"])
