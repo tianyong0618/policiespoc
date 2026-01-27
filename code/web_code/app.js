@@ -771,7 +771,7 @@ function renderScenario3Card(content) {
             // 尝试更宽松的匹配
             policies.push({
                 name: '退役军人创业税收优惠',
-                id: 'A06',
+                id: 'POLICY_A06',
                 benefit: '3年内按14400元/年扣减税费'
             });
         }
@@ -790,7 +790,7 @@ function renderScenario3Card(content) {
             // 尝试更宽松的匹配
             policies.push({
                 name: '创业场地租金补贴政策',
-                id: 'A04',
+                id: 'POLICY_A04',
                 benefit: '租金的50%-80%可申请补贴'
             });
         }
@@ -804,7 +804,7 @@ function renderScenario3Card(content) {
         }
     } catch (e) {
         // 尝试更宽松的匹配
-        suggestion = '推荐联系专业顾问，获取详细政策咨询。';
+        suggestion = '推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率';
     }
     
     // 如果仍然没有内容，显示默认信息
@@ -812,16 +812,16 @@ function renderScenario3Card(content) {
         policies = [
             {
                 name: '退役军人创业税收优惠',
-                id: 'A06',
+                id: 'POLICY_A06',
                 benefit: '3年内按14400元/年扣减税费'
             },
             {
                 name: '创业场地租金补贴政策',
-                id: 'A04',
+                id: 'POLICY_A04',
                 benefit: '租金的50%-80%可申请补贴'
             }
         ];
-        suggestion = '推荐联系专业顾问，获取详细政策咨询。';
+        suggestion = '推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率';
     }
     
     return `
@@ -835,15 +835,28 @@ function renderScenario3Card(content) {
                     <span>✅</span> ${compatibility}
                 </div>
                 <div class="policy-details">
-                    ${policies.map((policy, index) => `
-                        <div class="policy-item">
-                            <div class="policy-item-header">
-                                <div class="policy-name">${policy.name}</div>
-                                <div class="policy-id">${policy.id}</div>
+                    ${policies.map((policy, index) => {
+                        let additionalInfo = '';
+                        if (policy.id === 'POLICY_A04') {
+                            // 为创业场地租金补贴政策添加详细信息
+                            additionalInfo = `
+                                <div class="policy-additional-info">
+                                    <div style="font-weight: 500; color: #3b82f6; margin-top: 4px;">💵 可申请补贴：4000-6400元（租金8000元的50%-80%）</div>
+                                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">📋 申请材料：孵化基地入驻协议</div>
+                                </div>
+                            `;
+                        }
+                        return `
+                            <div class="policy-item">
+                                <div class="policy-item-header">
+                                    <div class="policy-name">${policy.name}</div>
+                                    <div class="policy-id">${policy.id}</div>
+                                </div>
+                                <div class="policy-benefit">${policy.benefit}</div>
+                                ${additionalInfo}
                             </div>
-                            <div class="policy-benefit">${policy.benefit}</div>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
                 ${suggestion ? `
                     <div class="response-card suggestion" style="margin-top: 12px;">
