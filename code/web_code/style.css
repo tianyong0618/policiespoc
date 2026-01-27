@@ -4,6 +4,17 @@
     --primary-hover: #2563eb;
     --primary-bg: #eff6ff;
     
+    /* 场景颜色 */
+    --scenario1-color: #f59e0b; /* 橙色 - 创业扶持 */
+    --scenario2-color: #10b981; /* 绿色 - 技能岗位 */
+    --scenario3-color: #6366f1; /* 紫色 - 多重政策 */
+    --scenario4-color: #ec4899; /* 粉色 - 培训课程 */
+    
+    /* 功能颜色 */
+    --positive-color: #10b981; /* 绿色 - 肯定 */
+    --negative-color: #f59e0b; /* 橙色 - 否定 */
+    --suggestion-color: #3b82f6; /* 蓝色 - 建议 */
+    
     /* 侧边栏 */
     --bg-sidebar: #f9f9fb; /* 浅色侧边栏 */
     --sidebar-text: #334155;
@@ -251,6 +262,102 @@ body {
     overflow-y: auto;
     padding: 20px 0; /* 上下padding，中间留白 */
     scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) var(--border-color);
+}
+
+/* 滚动条美化 */
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+    transition: background 0.3s ease;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-hover);
+}
+
+/* 消息渐入动画 */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message {
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 按钮点击动画 */
+.action-btn:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+}
+
+/* 场景标签动画 */
+.scenario-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    animation: slideInLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 加载动画优化 */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.typing-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    margin: 0 2px;
+    animation: pulse 1.5s infinite;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
 }
 
 .chat-history {
@@ -582,6 +689,540 @@ body {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
+/* 结构化回答卡片样式 */
+.structured-answer {
+    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 场景一：三层卡片样式 */
+.scenario1-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.response-card {
+    border-radius: var(--radius-md);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.response-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.response-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, currentColor, transparent);
+    transition: left 0.5s ease;
+}
+
+.response-card:hover::before {
+    left: 100%;
+}
+
+.response-card.negative::before {
+    background: linear-gradient(90deg, transparent, var(--negative-color), transparent);
+}
+
+.response-card.positive::before {
+    background: linear-gradient(90deg, transparent, var(--positive-color), transparent);
+}
+
+.response-card.suggestion::before {
+    background: linear-gradient(90deg, transparent, var(--suggestion-color), transparent);
+}
+
+.response-card.negative {
+    border: 2px solid var(--negative-color);
+    background-color: rgba(245, 158, 11, 0.05);
+}
+
+.response-card.positive {
+    border: 2px solid var(--positive-color);
+    background-color: rgba(16, 185, 129, 0.05);
+}
+
+.response-card.suggestion {
+    border: 2px solid var(--suggestion-color);
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+.response-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.response-card.negative .response-card-header {
+    color: var(--negative-color);
+}
+
+.response-card.positive .response-card-header {
+    color: var(--positive-color);
+}
+
+.response-card.suggestion .response-card-header {
+    color: var(--suggestion-color);
+}
+
+.response-card-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.response-card-footer {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.job-card-footer {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.policy-item-footer {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.course-card-footer {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid rgba(236, 72, 153, 0.2);
+}
+
+.subsidy-info-footer {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid rgba(236, 72, 153, 0.1);
+}
+
+.action-btn.small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+}
+
+/* 场景二：岗位推荐卡片 */
+.job-recommendation-card {
+    border: 2px solid var(--scenario2-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    background-color: rgba(16, 185, 129, 0.05);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.job-recommendation-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.job-recommendation-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--scenario2-color), transparent);
+    transition: left 0.5s ease;
+}
+
+.job-recommendation-card:hover::before {
+    left: 100%;
+}
+
+.job-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.job-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.job-id-badge {
+    font-size: 12px;
+    padding: 4px 8px;
+    background-color: var(--scenario2-color);
+    color: white;
+    border-radius: var(--radius-sm);
+}
+
+.recommendation-reasons {
+    margin: 12px 0;
+}
+
+.reason-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.reason-item::before {
+    content: "•";
+    color: var(--scenario2-color);
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+/* 场景三：多重政策叠加分析卡片 */
+.policy-overlay-card {
+    border: 2px solid var(--scenario3-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    background-color: rgba(99, 102, 241, 0.05);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.policy-overlay-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.policy-overlay-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--scenario3-color), transparent);
+    transition: left 0.5s ease;
+}
+
+.policy-overlay-card:hover::before {
+    left: 100%;
+}
+
+.policy-compatibility {
+    margin-bottom: 16px;
+    padding: 12px;
+    background-color: rgba(99, 102, 241, 0.1);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    color: var(--scenario3-color);
+}
+
+.policy-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.policy-item {
+    padding: 12px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-sm);
+    background-color: white;
+}
+
+.policy-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.policy-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.policy-id {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.policy-benefit {
+    font-size: 13px;
+    color: var(--scenario3-color);
+    font-weight: 500;
+}
+
+/* 场景四：培训课程推荐卡片 */
+.course-recommendation-card {
+    border: 2px solid var(--scenario4-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    background-color: rgba(236, 72, 153, 0.05);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.course-recommendation-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.course-recommendation-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--scenario4-color), transparent);
+    transition: left 0.5s ease;
+}
+
+.course-recommendation-card:hover::before {
+    left: 100%;
+}
+
+.course-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.course-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.priority-badge {
+    font-size: 12px;
+    padding: 4px 8px;
+    background-color: var(--scenario4-color);
+    color: white;
+    border-radius: var(--radius-sm);
+}
+
+.course-details {
+    margin: 12px 0;
+}
+
+.course-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.subsidy-info {
+    margin-top: 16px;
+    padding: 12px;
+    background-color: rgba(236, 72, 153, 0.1);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.subsidy-info h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--scenario4-color);
+}
+
+/* 场景标签样式 */
+.scenario-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.scenario-tag.scenario1 {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: var(--scenario1-color);
+}
+
+.scenario-tag.scenario2 {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--scenario2-color);
+}
+
+.scenario-tag.scenario3 {
+    background-color: rgba(99, 102, 241, 0.1);
+    color: var(--scenario3-color);
+}
+
+.scenario-tag.scenario4 {
+    background-color: rgba(236, 72, 153, 0.1);
+    color: var(--scenario4-color);
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn.primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.action-btn.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.action-btn.secondary {
+    background-color: #f1f5f9;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.action-btn.secondary:hover {
+    background-color: var(--sidebar-hover);
+}
+
+/* 详情模态框样式 */
+.detail-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: var(--radius-md);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8fafc;
+}
+
+.modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background-color: var(--sidebar-hover);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.modal-body p {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background-color: #f8fafc;
+}
+
+.modal-close-btn {
+    min-width: 80px;
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
     .menu-btn {
@@ -590,6 +1231,7 @@ body {
 
     .scenario-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
     
     .input-area {
@@ -607,5 +1249,112 @@ body {
 
     .sidebar.active {
         transform: translateX(0);
+    }
+    
+    /* 卡片响应式调整 */
+    .response-card {
+        padding: 12px;
+    }
+    
+    .job-recommendation-card {
+        padding: 12px;
+    }
+    
+    .policy-overlay-card {
+        padding: 12px;
+    }
+    
+    .course-recommendation-card {
+        padding: 12px;
+    }
+    
+    /* 结构化回答区域响应式调整 */
+    .structured-answer {
+        margin: 12px 0;
+        gap: 8px;
+    }
+    
+    /* 场景标签响应式调整 */
+    .scenario-tag {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+    
+    /* 操作按钮响应式调整 */
+    .action-buttons {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .action-btn {
+        width: 100%;
+        padding: 10px 16px;
+        text-align: center;
+    }
+    
+    /* 消息内容响应式调整 */
+    .message-content {
+        max-width: 90%;
+    }
+    
+    /* 卡片内容响应式调整 */
+    .response-card-header {
+        font-size: 13px;
+    }
+    
+    .response-card-content {
+        font-size: 13px;
+    }
+    
+    .job-title {
+        font-size: 14px;
+    }
+    
+    .reason-item {
+        font-size: 13px;
+    }
+    
+    .policy-name {
+        font-size: 13px;
+    }
+    
+    .policy-benefit {
+        font-size: 12px;
+    }
+    
+    .course-title {
+        font-size: 14px;
+    }
+    
+    .course-detail-item {
+        font-size: 13px;
+    }
+    
+    .subsidy-info {
+        font-size: 13px;
+    }
+    
+    /* 侧边栏响应式调整 */
+    .sidebar {
+        width: 240px;
+    }
+    
+    .app-brand-name {
+        font-size: 16px;
+    }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .scenario-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .message-content {
+        max-width: 85%;
+    }
+    
+    .action-buttons {
+        flex-wrap: wrap;
     }
 }

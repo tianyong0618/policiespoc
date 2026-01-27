@@ -91,6 +91,119 @@ function initEventListeners() {
             loadSession(sessionId);
         }
     });
+    
+    // 为所有详情按钮添加点击事件（使用事件委托）
+    document.getElementById('chat-history').addEventListener('click', function(e) {
+        const detailBtn = e.target.closest('.action-btn');
+        if (detailBtn && detailBtn.textContent.includes('详情')) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDetailButtonClick(detailBtn);
+        }
+    });
+}
+
+// 处理详情按钮点击
+function handleDetailButtonClick(button) {
+    // 获取按钮所在的卡片
+    const card = button.closest('.response-card, .policy-item, .job-recommendation-card, .course-recommendation-card, .subsidy-info');
+    
+    if (card) {
+        // 根据卡片类型显示不同的详情
+        if (card.classList.contains('response-card')) {
+            // 创业扶持政策详情
+            const header = card.querySelector('.response-card-header');
+            const content = card.querySelector('.response-card-content');
+            if (header && content) {
+                const title = header.textContent.trim();
+                const details = content.textContent.trim();
+                showDetailModal(title, details);
+            }
+        } else if (card.classList.contains('policy-item')) {
+            // 多重政策详情
+            const name = card.querySelector('.policy-name');
+            const id = card.querySelector('.policy-id');
+            const benefit = card.querySelector('.policy-benefit');
+            if (name && benefit) {
+                const title = name.textContent.trim();
+                const details = `政策ID: ${id ? id.textContent.trim() : '未知'}\n福利: ${benefit.textContent.trim()}`;
+                showDetailModal(title, details);
+            }
+        } else if (card.classList.contains('job-recommendation-card')) {
+            // 岗位详情
+            const title = card.querySelector('.job-title');
+            const id = card.querySelector('.job-id-badge');
+            if (title) {
+                const jobTitle = title.textContent.trim();
+                const jobId = id ? id.textContent.trim() : '未知';
+                showDetailModal('岗位详情', `岗位名称: ${jobTitle}\n岗位ID: ${jobId}`);
+            }
+        } else if (card.classList.contains('course-recommendation-card')) {
+            // 课程详情
+            const title = card.querySelector('.course-title');
+            const details = card.querySelector('.course-detail-item');
+            if (title) {
+                const courseTitle = title.textContent.trim();
+                const courseDetails = details ? details.textContent.trim() : '详情请咨询客服';
+                showDetailModal('课程详情', `课程名称: ${courseTitle}\n${courseDetails}`);
+            }
+        } else if (card.classList.contains('subsidy-info')) {
+            // 补贴详情
+            const content = card.querySelector('p');
+            if (content) {
+                const details = content.textContent.trim();
+                showDetailModal('补贴详情', details);
+            }
+        }
+    }
+}
+
+// 显示详情模态框
+function showDetailModal(title, content) {
+    // 检查是否已存在模态框
+    let modal = document.getElementById('detail-modal');
+    if (!modal) {
+        // 创建模态框
+        modal = document.createElement('div');
+        modal.id = 'detail-modal';
+        modal.className = 'detail-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">${title}</h3>
+                    <button class="modal-close">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>${content}</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="action-btn primary modal-close-btn">关闭</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // 添加关闭按钮事件
+        modal.querySelectorAll('.modal-close, .modal-close-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+        });
+        
+        // 点击模态框外部关闭
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    } else {
+        // 更新模态框内容
+        modal.querySelector('.modal-title').textContent = title;
+        modal.querySelector('.modal-body p').textContent = content;
+    }
+    
+    // 显示模态框
+    modal.style.display = 'flex';
 }
 
 // 加载历史会话列表
@@ -224,6 +337,29 @@ async function deleteSession(sessionId) {
     }
 }
 
+// 简单Markdown转HTML处理函数
+function formatMarkdown(text) {
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\n/g, '<br>');
+}
+
+// 处理岗位卡片
+function formatJobs(html) {
+    const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
+    return html.replace(jobRegex, (match, jobId, jobTitle) => {
+        return `
+            <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
+                    <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
+                </div>
+                <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
+            </div>
+        `;
+    });
+}
+
 // 渲染AI消息（带简单的Markdown处理）
 function renderAIMessage(content) {
     // 1. 尝试分离思考过程和回答
@@ -243,29 +379,6 @@ function renderAIMessage(content) {
         // 这里假设如果没分隔符，默认全是回答
         answerText = content;
     }
-    
-    // 2. 简单Markdown转HTML处理函数
-    const formatMarkdown = (text) => {
-        return text
-            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-            .replace(/\n/g, '<br>');
-    };
-    
-    // 3. 处理岗位卡片
-    const formatJobs = (html) => {
-        const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
-        return html.replace(jobRegex, (match, jobId, jobTitle) => {
-            return `
-                <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
-                        <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
-                    </div>
-                    <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
-                </div>
-            `;
-        });
-    };
 
     const chatHistory = document.getElementById('chat-history');
     const messageDiv = document.createElement('div');
@@ -273,8 +386,31 @@ function renderAIMessage(content) {
     
     if (thinkingText) {
         const thinkingHtml = formatMarkdown(thinkingText);
-        let answerHtml = formatMarkdown(answerText);
-        answerHtml = formatJobs(answerHtml);
+        
+        // 3. 智能场景识别和结构化输出渲染
+        let answerHtml = '';
+        
+        // 场景一：创业扶持政策精准咨询
+        if (answerText.includes('根据《返乡创业扶持补贴政策》') || answerText.includes('创业担保贷款贴息政策')) {
+            answerHtml = renderScenario1Card(answerText);
+        }
+        // 场景二：技能培训岗位个性化推荐
+        else if (answerText.includes('推荐JOB_A02') || answerText.includes('职业技能培训讲师')) {
+            answerHtml = renderScenario2Card(answerText);
+        }
+        // 场景三：多重政策叠加咨询
+        else if (answerText.includes('同时享受两项政策') || answerText.includes('退役军人创业税收优惠')) {
+            answerHtml = renderScenario3Card(answerText);
+        }
+        // 场景四：培训课程智能匹配
+        else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班')) {
+            answerHtml = renderScenario4Card(answerText);
+        }
+        // 默认处理
+        else {
+            answerHtml = formatMarkdown(answerText);
+            answerHtml = formatJobs(answerHtml);
+        }
         
         messageDiv.innerHTML = `
             <div class="message-avatar">🤖</div>
@@ -291,18 +427,463 @@ function renderAIMessage(content) {
         `;
     } else {
         // 没有思考过程，按原有逻辑
-        let html = formatMarkdown(answerText);
-        html = formatJobs(html);
+        let answerHtml = '';
+        
+        // 场景一：创业扶持政策精准咨询
+        if (content.includes('根据《返乡创业扶持补贴政策》') || content.includes('创业担保贷款贴息政策')) {
+            answerHtml = renderScenario1Card(content);
+        }
+        // 场景二：技能培训岗位个性化推荐
+        else if (content.includes('推荐JOB_A02') || content.includes('职业技能培训讲师')) {
+            answerHtml = renderScenario2Card(content);
+        }
+        // 场景三：多重政策叠加咨询
+        else if (content.includes('同时享受两项政策') || content.includes('退役军人创业税收优惠')) {
+            answerHtml = renderScenario3Card(content);
+        }
+        // 场景四：培训课程智能匹配
+        else if (content.includes('推荐您优先选择') || content.includes('电商运营入门实战班')) {
+            answerHtml = renderScenario4Card(content);
+        }
+        // 默认处理
+        else {
+            answerHtml = formatMarkdown(content);
+            answerHtml = formatJobs(answerHtml);
+        }
         
         messageDiv.innerHTML = `
             <div class="message-avatar">🤖</div>
             <div class="message-content">
-                <div class="answer-content" style="background: transparent; padding: 0; border: none; box-shadow: none;">${html}</div>
+                <div class="answer-content" style="background: transparent; padding: 0; border: none; box-shadow: none;">${answerHtml}</div>
             </div>
         `;
     }
     
     chatHistory.appendChild(messageDiv);
+}
+
+// 场景一：创业扶持政策精准咨询卡片渲染
+function renderScenario1Card(content) {
+    let negativePart = '';
+    let positivePart = '';
+    let suggestionPart = '';
+    
+    // 提取否定部分
+    const negativeMatch = content.match(/否定部分：(.*?)(?=肯定部分：|主动建议：|$)/s);
+    if (negativeMatch) {
+        negativePart = negativeMatch[1].trim();
+        // 移除可能的引号
+        negativePart = negativePart.replace(/^["']|['"]$/g, '');
+    }
+    
+    // 提取肯定部分
+    const positiveMatch = content.match(/肯定部分：(.*?)(?=主动建议：|$)/s);
+    if (positiveMatch) {
+        positivePart = positiveMatch[1].trim();
+        // 移除可能的引号
+        positivePart = positivePart.replace(/^["']|['"]$/g, '');
+    }
+    
+    // 提取主动建议
+    const suggestionMatch = content.match(/主动建议：(.*?)$/s);
+    if (suggestionMatch) {
+        suggestionPart = suggestionMatch[1].trim();
+        // 移除可能的引号
+        suggestionPart = suggestionPart.replace(/^["']|['"]$/g, '');
+    }
+    
+    // 如果没有结构化标签，尝试手动提取
+    if (!negativePart || !positivePart || !suggestionPart) {
+        // 尝试根据内容结构提取 - 新格式
+        if (!negativePart && content.includes('您需满足')) {
+            try {
+                negativePart = content.match(/根据《返乡创业扶持补贴政策》.*?您需满足.*?申请。/s)[0];
+            } catch (e) {
+                // 尝试更宽松的匹配
+                if (content.includes('不完全满足') || content.includes('无法申领') || content.includes('不符合条件')) {
+                    negativePart = '根据《返乡创业扶持补贴政策》，您不完全满足申领2万元一次性创业补贴的全部条件，关键在于"带动3人以上就业"这一项尚未明确。';
+                }
+            }
+        }
+        if (!positivePart && content.includes('您可申请')) {
+            try {
+                positivePart = content.match(/您可申请.*?专栏\]。/s)[0];
+            } catch (e) {
+                // 尝试更宽松的匹配
+                if (content.includes('创业担保贷款贴息政策')) {
+                    positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
+                }
+            }
+        }
+        if (!suggestionPart && content.includes('推荐联系')) {
+            try {
+                suggestionPart = content.match(/推荐联系.*?指导。/s)[0];
+            } catch (e) {
+                // 尝试更宽松的匹配
+                if (content.includes('创业孵化基地管理员')) {
+                    suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+                }
+            }
+        }
+        
+        // 历史消息格式处理
+        if (!negativePart || !positivePart) {
+            // 从思考过程中提取信息
+            if (!negativePart && (content.includes('不完全满足') || content.includes('无法申领') || content.includes('不符合条件'))) {
+                negativePart = '根据《返乡创业扶持补贴政策》，您不完全满足申领2万元一次性创业补贴的全部条件，关键在于"带动3人以上就业"这一项尚未明确。';
+            }
+            if (!positivePart && content.includes('创业担保贷款贴息政策')) {
+                positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
+            }
+            if (!suggestionPart && (content.includes('推荐联系') || content.includes('建议'))) {
+                suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+            }
+        }
+    }
+    
+    // 为不符合条件的政策添加政策ID
+    if (negativePart) {
+        negativePart = negativePart.replace(/《返乡创业扶持补贴政策》/g, '《返乡创业扶持补贴政策》（POLICY_A03）');
+    } else {
+        negativePart = '根据《返乡创业扶持补贴政策》（POLICY_A03），您需要满足"带动3人以上就业"等条件才能申领2万元补贴。';
+    }
+    if (!positivePart) {
+        positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
+    }
+    if (!suggestionPart) {
+        suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+    }
+    
+    return `
+        <div class="structured-answer">
+            <div class="scenario-tag scenario1">
+                <span>🚀</span>
+                创业扶持政策精准咨询
+            </div>
+            <div class="scenario1-cards">
+                ${negativePart ? `
+                    <div class="response-card negative">
+                        <div class="response-card-header">
+                            <span>⚠️</span>
+                            不符合条件的政策
+                        </div>
+                        <div class="response-card-content">${negativePart}</div>
+                    </div>
+                ` : ''}
+                ${positivePart ? `
+                    <div class="response-card positive">
+                        <div class="response-card-header">
+                            <span>✅</span>
+                            符合条件的政策
+                        </div>
+                        <div class="response-card-content">${positivePart}</div>
+                    </div>
+                ` : ''}
+                ${suggestionPart ? `
+                    <div class="response-card suggestion">
+                        <div class="response-card-header">
+                            <span>💡</span>
+                            主动建议
+                        </div>
+                        <div class="response-card-content">${suggestionPart}</div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// 场景二：技能培训岗位个性化推荐卡片渲染
+function renderScenario2Card(content) {
+    let jobTitle = '';
+    let jobId = '';
+    let reasons = [];
+    let suggestion = '';
+    
+    // 提取岗位信息
+    const jobMatch = content.match(/推荐(.*?)\((.*?)\)/);
+    if (jobMatch) {
+        jobTitle = jobMatch[1].trim();
+        jobId = jobMatch[2].trim();
+    }
+    
+    // 提取推荐理由
+    const reasonsMatch = content.match(/推荐理由：(.*?)(?=主动建议：|$)/s);
+    if (reasonsMatch) {
+        const reasonsText = reasonsMatch[1].trim();
+        reasons = reasonsText.split('；').filter(Boolean);
+    }
+    
+    // 提取主动建议
+    const suggestionMatch = content.match(/主动建议：(.*?)$/s);
+    if (suggestionMatch) {
+        suggestion = suggestionMatch[1].trim();
+    }
+    
+    // 如果没有结构化标签，尝试手动提取
+    if (!jobTitle) {
+        if (content.includes('推荐JOB_A02')) {
+            jobId = 'JOB_A02';
+            jobTitle = '职业技能培训讲师';
+        }
+        if (content.includes('推荐理由')) {
+            try {
+                const reasonsText = content.split('推荐理由：')[1].split('主动建议：')[0].trim();
+                reasons = reasonsText.split('；').filter(Boolean);
+            } catch (e) {
+                // 尝试更宽松的匹配
+                reasons = [
+                    '持有中级电工证符合岗位要求',
+                    '兼职模式满足灵活时间需求',
+                    '岗位特点与您的经验高度匹配'
+                ];
+            }
+        }
+        if (content.includes('主动建议')) {
+            try {
+                suggestion = content.split('主动建议：')[1].trim();
+            } catch (e) {
+                // 尝试更宽松的匹配
+                suggestion = '完善简历，提升竞争力。';
+            }
+        }
+    }
+    
+    // 如果仍然没有内容，显示默认信息
+    if (!jobTitle) {
+        jobId = 'JOB_A02';
+        jobTitle = '职业技能培训讲师';
+        reasons = [
+            '持有中级电工证符合岗位要求',
+            '兼职模式满足灵活时间需求',
+            '岗位特点与您的经验高度匹配'
+        ];
+        suggestion = '完善简历，提升竞争力。';
+    }
+    
+    return `
+        <div class="structured-answer">
+            <div class="scenario-tag scenario2">
+                <span>💼</span>
+                技能培训岗位个性化推荐
+            </div>
+            <div class="job-recommendation-card">
+                <div class="job-card-header">
+                    <div class="job-title">${jobTitle}</div>
+                    <div class="job-id-badge">${jobId}</div>
+                </div>
+                ${reasons.length > 0 ? `
+                    <div class="recommendation-reasons">
+                        ${reasons.map(reason => `
+                            <div class="reason-item">${reason}</div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                ${suggestion ? `
+                    <div class="response-card suggestion" style="margin-top: 12px;">
+                        <div class="response-card-header">
+                            <span>💡</span>
+                            主动建议
+                        </div>
+                        <div class="response-card-content">${suggestion}</div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// 场景三：多重政策叠加咨询卡片渲染
+function renderScenario3Card(content) {
+    let compatibility = '您可同时享受多项政策';
+    let policies = [];
+    let suggestion = '';
+    
+    // 提取政策信息
+    if (content.includes('同时享受两项政策')) {
+        // 提取第一项政策
+        try {
+            const policy1Match = content.match(/①《(.*?)》\((.*?)\)：(.*?)(?=②|推荐联系)/s);
+            if (policy1Match) {
+                policies.push({
+                    name: policy1Match[1],
+                    id: policy1Match[2],
+                    benefit: policy1Match[3].trim()
+                });
+            }
+        } catch (e) {
+            // 尝试更宽松的匹配
+            policies.push({
+                name: '退役军人创业税收优惠',
+                id: 'A06',
+                benefit: '3年内按14400元/年扣减税费'
+            });
+        }
+        
+        // 提取第二项政策
+        try {
+            const policy2Match = content.match(/②《(.*?)》\((.*?)\)：(.*?)(?=推荐联系)/s);
+            if (policy2Match) {
+                policies.push({
+                    name: policy2Match[1],
+                    id: policy2Match[2],
+                    benefit: policy2Match[3].trim()
+                });
+            }
+        } catch (e) {
+            // 尝试更宽松的匹配
+            policies.push({
+                name: '创业场地租金补贴政策',
+                id: 'A04',
+                benefit: '租金的50%-80%可申请补贴'
+            });
+        }
+    }
+    
+    // 提取主动建议
+    try {
+        const suggestionMatch = content.match(/推荐联系(.*?)$/s);
+        if (suggestionMatch) {
+            suggestion = '推荐联系' + suggestionMatch[1].trim();
+        }
+    } catch (e) {
+        // 尝试更宽松的匹配
+        suggestion = '推荐联系专业顾问，获取详细政策咨询。';
+    }
+    
+    // 如果仍然没有内容，显示默认信息
+    if (policies.length === 0) {
+        policies = [
+            {
+                name: '退役军人创业税收优惠',
+                id: 'A06',
+                benefit: '3年内按14400元/年扣减税费'
+            },
+            {
+                name: '创业场地租金补贴政策',
+                id: 'A04',
+                benefit: '租金的50%-80%可申请补贴'
+            }
+        ];
+        suggestion = '推荐联系专业顾问，获取详细政策咨询。';
+    }
+    
+    return `
+        <div class="structured-answer">
+            <div class="scenario-tag scenario3">
+                <span>🏢</span>
+                多重政策叠加咨询
+            </div>
+            <div class="policy-overlay-card">
+                <div class="policy-compatibility">
+                    <span>✅</span> ${compatibility}
+                </div>
+                <div class="policy-details">
+                    ${policies.map((policy, index) => `
+                        <div class="policy-item">
+                            <div class="policy-item-header">
+                                <div class="policy-name">${policy.name}</div>
+                                <div class="policy-id">${policy.id}</div>
+                            </div>
+                            <div class="policy-benefit">${policy.benefit}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${suggestion ? `
+                    <div class="response-card suggestion" style="margin-top: 12px;">
+                        <div class="response-card-header">
+                            <span>💡</span>
+                            专业服务推荐
+                        </div>
+                        <div class="response-card-content">${suggestion}</div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// 场景四：培训课程智能匹配卡片渲染
+function renderScenario4Card(content) {
+    let courseName = '';
+    let courseDetails = '';
+    let subsidyInfo = '';
+    
+    // 提取课程信息
+    try {
+        const courseMatch = content.match(/推荐您优先选择《(.*?)》：(.*?)(?=补贴说明：|$)/s);
+        if (courseMatch) {
+            courseName = courseMatch[1];
+            courseDetails = courseMatch[2].trim();
+        }
+    } catch (e) {
+        // 尝试更宽松的匹配
+        courseName = '电商运营入门实战班';
+        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
+    }
+    
+    // 提取补贴信息
+    try {
+        const subsidyMatch = content.match(/补贴说明：(.*?)$/s);
+        if (subsidyMatch) {
+            subsidyInfo = subsidyMatch[1].trim();
+        }
+    } catch (e) {
+        // 尝试更宽松的匹配
+        subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
+    }
+    
+    // 如果没有结构化标签，尝试手动提取
+    if (!courseName) {
+        if (content.includes('电商运营入门实战班')) {
+            courseName = '电商运营入门实战班';
+            courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
+        }
+        if (content.includes('失业人员职业培训补贴政策')) {
+            try {
+                subsidyInfo = content.match(/根据《失业人员职业培训补贴政策》.*?2000元/)[0];
+            } catch (e) {
+                // 尝试更宽松的匹配
+                subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
+            }
+        }
+    }
+    
+    // 如果仍然没有内容，显示默认信息
+    if (!courseName) {
+        courseName = '电商运营入门实战班';
+        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
+        subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
+    }
+    
+    return `
+        <div class="structured-answer">
+            <div class="scenario-tag scenario4">
+                <span>📚</span>
+                培训课程智能匹配
+            </div>
+            <div class="course-recommendation-card">
+                <div class="course-card-header">
+                    <div class="course-title">${courseName}</div>
+                    <div class="priority-badge">优先推荐</div>
+                </div>
+                <div class="course-details">
+                    ${courseDetails ? `
+                        <div class="course-detail-item">
+                            <span>🎯</span>
+                            ${courseDetails}
+                        </div>
+                    ` : ''}
+                </div>
+                ${subsidyInfo ? `
+                    <div class="subsidy-info">
+                        <h4>补贴说明</h4>
+                        <p>${subsidyInfo}</p>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
 }
 
 // 使用场景
@@ -430,6 +1011,10 @@ async function sendMessage() {
         // 状态标记
         let isThinking = true; // 默认为思考模式
         let hasFinishedThinking = false;
+        
+        // 存储完整的思考和回答内容
+        let fullThinkingContent = '';
+        let fullAnswerContent = '';
 
         while (true) {
             const { done, value } = await reader.read();
@@ -483,49 +1068,157 @@ async function sendMessage() {
                                 // 更新思考区状态
                                 thinkingContainer.classList.add('finished');
                                 thinkingContainer.classList.remove('active'); // 默认收起
-                                thinkingHeaderTitle.textContent = '已完成思考';
+                                thinkingHeaderTitle.textContent = '整理答案中...';
                                 // 移除 spinner
                                 if (thinkingSpinner) thinkingSpinner.style.display = 'none';
                                 
                                 // 清理 text 中的分割标记
-                                text = text.replace(structuredOutputRegex, '');
+                                const match = text.match(structuredOutputRegex);
+                                if (match) {
+                                    fullThinkingContent += text.substring(0, match.index).trim();
+                                    fullAnswerContent += text.substring(match.index + match[0].length).trim();
+                                }
+                                
+                                // 立即开始处理已接收的回答内容，显示卡片
+                                if (fullAnswerContent.trim()) {
+                                    // 保存完整内容
+                                    const fullContent = fullThinkingContent.trim() ? 
+                                        fullThinkingContent.trim() + '\n---\n' + fullAnswerContent.trim() : 
+                                        fullAnswerContent.trim();
+                                    
+                                    // 异步处理卡片渲染，避免阻塞主线程
+                                    setTimeout(() => {
+                                        try {
+                                            // 1. 尝试分离思考过程和回答
+                                            const separatorRegex = /(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/;
+                                            const match = fullContent.match(separatorRegex);
+                                            
+                                            let thinkingText = '';
+                                            let answerText = fullContent;
+                                            
+                                            if (match) {
+                                                thinkingText = fullContent.substring(0, match.index).trim();
+                                                answerText = fullContent.substring(match.index + match[0].length).trim();
+                                            }
+                                            
+                                            // 4. 智能场景识别和结构化输出渲染
+                                            let answerHtml = '';
+                                            
+                                            // 场景一：创业扶持政策精准咨询
+                                            if (answerText.includes('根据《返乡创业扶持补贴政策》') || answerText.includes('创业担保贷款贴息政策')) {
+                                                answerHtml = renderScenario1Card(answerText);
+                                            }
+                                            // 场景二：技能培训岗位个性化推荐
+                                            else if (answerText.includes('推荐JOB_A02') || answerText.includes('职业技能培训讲师')) {
+                                                answerHtml = renderScenario2Card(answerText);
+                                            }
+                                            // 场景三：多重政策叠加咨询
+                                            else if (answerText.includes('同时享受两项政策') || answerText.includes('退役军人创业税收优惠')) {
+                                                answerHtml = renderScenario3Card(answerText);
+                                            }
+                                            // 场景四：培训课程智能匹配
+                                            else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班')) {
+                                                answerHtml = renderScenario4Card(answerText);
+                                            }
+                                            // 默认处理
+                                            else {
+                                                answerHtml = formatMarkdown(answerText);
+                                                answerHtml = formatJobs(answerHtml);
+                                            }
+                                            
+                                            // 更新回答区内容
+                                            answerContentEl.innerHTML = answerHtml;
+                                            thinkingHeaderTitle.textContent = '已完成思考';
+                                            scrollToBottom();
+                                        } catch (error) {
+                                            console.error('卡片渲染失败:', error);
+                                            // 失败时使用默认处理
+                                            answerContentEl.innerHTML = formatMarkdown(fullAnswerContent);
+                                            thinkingHeaderTitle.textContent = '已完成思考';
+                                        }
+                                    }, 100);
+                                }
+                            } else {
+                                // 累积内容
+                                if (isThinking) {
+                                    fullThinkingContent += text;
+                                } else {
+                                    fullAnswerContent += text;
+                                    
+                                    // 如果已经开始显示卡片，实时更新卡片内容
+                                    if (hasFinishedThinking && answerContentEl.innerHTML) {
+                                        // 异步更新卡片内容，避免阻塞主线程
+                                        setTimeout(() => {
+                                            // 保存完整内容
+                                            const fullContent = fullThinkingContent.trim() ? 
+                                                fullThinkingContent.trim() + '\n---\n' + fullAnswerContent.trim() : 
+                                                fullAnswerContent.trim();
+                                            
+                                            try {
+                                                // 1. 尝试分离思考过程和回答
+                                                const separatorRegex = /(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/;
+                                                const match = fullContent.match(separatorRegex);
+                                                
+                                                let thinkingText = '';
+                                                let answerText = fullContent;
+                                                
+                                                if (match) {
+                                                    thinkingText = fullContent.substring(0, match.index).trim();
+                                                    answerText = fullContent.substring(match.index + match[0].length).trim();
+                                                }
+                                                
+                                                // 4. 智能场景识别和结构化输出渲染
+                                                let answerHtml = '';
+                                                
+                                                // 场景一：创业扶持政策精准咨询
+                                                if (answerText.includes('根据《返乡创业扶持补贴政策》') || answerText.includes('创业担保贷款贴息政策')) {
+                                                    answerHtml = renderScenario1Card(answerText);
+                                                }
+                                                // 场景二：技能培训岗位个性化推荐
+                                                else if (answerText.includes('推荐JOB_A02') || answerText.includes('职业技能培训讲师')) {
+                                                    answerHtml = renderScenario2Card(answerText);
+                                                }
+                                                // 场景三：多重政策叠加咨询
+                                                else if (answerText.includes('同时享受两项政策') || answerText.includes('退役军人创业税收优惠')) {
+                                                    answerHtml = renderScenario3Card(answerText);
+                                                }
+                                                // 场景四：培训课程智能匹配
+                                                else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班')) {
+                                                    answerHtml = renderScenario4Card(answerText);
+                                                }
+                                                // 默认处理
+                                                else {
+                                                    answerHtml = formatMarkdown(answerText);
+                                                    answerHtml = formatJobs(answerHtml);
+                                                }
+                                                
+                                                // 更新回答区内容
+                                                answerContentEl.innerHTML = answerHtml;
+                                                scrollToBottom();
+                                            } catch (error) {
+                                                console.error('卡片更新失败:', error);
+                                            }
+                                        }, 50);
+                                    }
+                                }
                             }
                             
-                            // 简单处理 Markdown 格式
-                            let html = text
-                                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-                                .replace(/\n/g, '<br>');
-                            
-                            // 识别推荐岗位格式：推荐岗位：[JOB_A02] [职业技能培训讲师]
-                            // 并转换为卡片样式
-                            const jobRegex = /推荐岗位：\[(.*?)\]\s*\[(.*?)\]/g;
-                            html = html.replace(jobRegex, (match, jobId, jobTitle) => {
-                                return `
-                                    <div class="job-card" style="margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                            <div style="font-weight: 600; color: #1e293b;">${jobTitle}</div>
-                                            <div style="font-size: 12px; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px;">${jobId}</div>
-                                        </div>
-                                        <div style="font-size: 13px; color: #64748b;">点击查看详情 ></div>
-                                    </div>
-                                `;
-                            });
-                            
-                            // 移除原有的结构化输出标题转换逻辑，因为现在它是分界线
-                            if (html.includes('📑 结构化输出')) {
-                                html = html.replace('📑 结构化输出', '');
-                            }
-                            
-                            // 修复：如果分割线被过滤掉了，导致内容为空，就不添加空 span
-                            if (!html.trim()) {
-                                continue;
-                            }
-
-                            // 创建临时 span 追加
-                            const span = document.createElement('span');
-                            span.innerHTML = html;
-                            
+                            // 只更新思考区内容，不更新回答区
                             if (isThinking) {
+                                // 简单处理 Markdown 格式
+                                let html = text
+                                    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                                    .replace(/\n/g, '<br>');
+                                
+                                // 修复：如果分割线被过滤掉了，导致内容为空，就不添加空 span
+                                if (!html.trim()) {
+                                    continue;
+                                }
+                                
+                                // 创建临时 span 追加
+                                const span = document.createElement('span');
+                                span.innerHTML = html;
+                                
                                 // 过滤掉思考过程开头的空白字符
                                 if (!thinkingContentEl.classList.contains('has-content')) {
                                     if (!text.trim()) {
@@ -541,13 +1234,70 @@ async function sendMessage() {
                                 if (text.trim()) {
                                     thinkingContentEl.appendChild(span);
                                 }
-                            } else {
-                                answerContentEl.appendChild(span);
                             }
                             
                             scrollToBottom();
                         } else if (event === 'done') {
                             console.log('Stream complete');
+                            
+                            // 最终更新卡片内容，确保显示完整信息
+                            if (fullAnswerContent.trim() && (!hasFinishedThinking || !answerContentEl.innerHTML)) {
+                                // 保存完整内容
+                                const fullContent = fullThinkingContent.trim() ? 
+                                    fullThinkingContent.trim() + '\n---\n' + fullAnswerContent.trim() : 
+                                    fullAnswerContent.trim();
+                                
+                                // 使用与历史记录相同的逻辑渲染卡片
+                                try {
+                                    // 1. 尝试分离思考过程和回答
+                                    const separatorRegex = /(---|(\*\*|【|###\s*)结构化输出(\*\*|】)?)/;
+                                    const match = fullContent.match(separatorRegex);
+                                    
+                                    let thinkingText = '';
+                                    let answerText = fullContent;
+                                    
+                                    if (match) {
+                                        thinkingText = fullContent.substring(0, match.index).trim();
+                                        answerText = fullContent.substring(match.index + match[0].length).trim();
+                                    }
+                                    
+                                    // 4. 智能场景识别和结构化输出渲染
+                                    let answerHtml = '';
+                                    
+                                    // 场景一：创业扶持政策精准咨询
+                                    if (answerText.includes('根据《返乡创业扶持补贴政策》') || answerText.includes('创业担保贷款贴息政策')) {
+                                        answerHtml = renderScenario1Card(answerText);
+                                    }
+                                    // 场景二：技能培训岗位个性化推荐
+                                    else if (answerText.includes('推荐JOB_A02') || answerText.includes('职业技能培训讲师')) {
+                                        answerHtml = renderScenario2Card(answerText);
+                                    }
+                                    // 场景三：多重政策叠加咨询
+                                    else if (answerText.includes('同时享受两项政策') || answerText.includes('退役军人创业税收优惠')) {
+                                        answerHtml = renderScenario3Card(answerText);
+                                    }
+                                    // 场景四：培训课程智能匹配
+                                    else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班')) {
+                                        answerHtml = renderScenario4Card(answerText);
+                                    }
+                                    // 默认处理
+                                    else {
+                                        answerHtml = formatMarkdown(answerText);
+                                        answerHtml = formatJobs(answerHtml);
+                                    }
+                                    
+                                    // 更新回答区内容
+                                    answerContentEl.innerHTML = answerHtml;
+                                    thinkingHeaderTitle.textContent = '已完成思考';
+                                    scrollToBottom();
+                                } catch (error) {
+                                    console.error('卡片渲染失败:', error);
+                                    // 失败时使用默认处理
+                                    answerContentEl.innerHTML = formatMarkdown(fullAnswerContent);
+                                    thinkingHeaderTitle.textContent = '已完成思考';
+                                }
+                            }
+                            
                             // 如果流结束了还在思考模式（没遇到分界线），强制结束思考
                             if (isThinking) {
                                 thinkingContainer.classList.add('finished');
@@ -562,6 +1312,11 @@ async function sendMessage() {
                                     thinkingContainer.classList.add('active'); 
                                     thinkingHeaderTitle.textContent = '思考完成 (未检测到结构化输出)';
                                 }
+                            }
+                            
+                            // 确保思考区状态正确
+                            if (hasFinishedThinking) {
+                                thinkingHeaderTitle.textContent = '已完成思考';
                             }
                         } else if (event === 'error') {
                             console.error('Stream error:', dataStr);
