@@ -403,7 +403,7 @@ function renderAIMessage(content) {
             answerHtml = renderScenario3Card(answerText);
         }
         // 场景四：培训课程智能匹配
-        else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班')) {
+        else if (answerText.includes('推荐您优先选择') || answerText.includes('电商运营入门实战班') || answerText.includes('课程路径：') || answerText.includes('否定部分：无') || answerText.includes('培训课程：') || answerText.includes('首选方案')) {
             answerHtml = renderScenario4Card(answerText);
         }
         // 默认处理
@@ -442,7 +442,7 @@ function renderAIMessage(content) {
             answerHtml = renderScenario3Card(content);
         }
         // 场景四：培训课程智能匹配
-        else if (content.includes('推荐您优先选择') || content.includes('电商运营入门实战班')) {
+        else if (content.includes('推荐您优先选择') || content.includes('电商运营入门实战班') || content.includes('课程路径：') || content.includes('否定部分：无') || content.includes('培训课程：') || content.includes('首选方案')) {
             answerHtml = renderScenario4Card(content);
         }
         // 默认处理
@@ -875,56 +875,58 @@ function renderScenario3Card(content) {
 // 场景四：培训课程智能匹配卡片渲染
 function renderScenario4Card(content) {
     let courseName = '';
+    let courseId = '';
     let courseDetails = '';
     let subsidyInfo = '';
+    let policies = [];
     
-    // 提取课程信息
+    // 直接提取培训课程信息，忽略否定和肯定部分
     try {
-        const courseMatch = content.match(/推荐您优先选择《(.*?)》：(.*?)(?=补贴说明：|$)/s);
-        if (courseMatch) {
-            courseName = courseMatch[1];
-            courseDetails = courseMatch[2].trim();
+        // 提取政策信息
+        const policyMatch = content.match(/政策 \((.*?)\)：(.*?)(?=\d\.培训课程：|$)/s);
+        if (policyMatch) {
+            const policyId = policyMatch[1];
+            policies.push({
+                name: '职业技能提升补贴政策',
+                id: policyId
+            });
+            // 构建完整的补贴说明
+            subsidyInfo = `根据《失业人员职业培训补贴政策》（${policyId}），企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元`;
+        } else {
+            // 默认完整补贴说明
+            subsidyInfo = '根据《失业人员职业培训补贴政策》（POLICY_A02），企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元';
         }
-    } catch (e) {
-        // 尝试更宽松的匹配
-        courseName = '电商运营入门实战班';
-        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
-    }
-    
-    // 提取补贴信息
-    try {
-        const subsidyMatch = content.match(/补贴说明：(.*?)$/s);
-        if (subsidyMatch) {
-            subsidyInfo = subsidyMatch[1].trim();
-        }
-    } catch (e) {
-        // 尝试更宽松的匹配
-        subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
-    }
-    
-    // 如果没有结构化标签，尝试手动提取
-    if (!courseName) {
-        if (content.includes('电商运营入门实战班')) {
-            courseName = '电商运营入门实战班';
-            courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
-        }
-        if (content.includes('失业人员职业培训补贴政策')) {
-            try {
-                subsidyInfo = content.match(/根据《失业人员职业培训补贴政策》.*?2000元/)[0];
-            } catch (e) {
-                // 尝试更宽松的匹配
-                subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
+        
+        // 尝试匹配培训课程部分
+        const trainingCoursesMatch = content.match(/培训课程：(.*?)(?=主动建议：|$)/s);
+        if (trainingCoursesMatch) {
+            const trainingCoursesText = trainingCoursesMatch[1].trim();
+            
+            // 提取首选方案
+            const preferredCourseMatch = trainingCoursesText.match(/首选方案.*?：(.*?)\((.*?)\)。(.*?)(?=- 备选方案|$)/s);
+            if (preferredCourseMatch) {
+                courseName = preferredCourseMatch[1].trim();
+                courseId = preferredCourseMatch[2].trim();
+                courseDetails = preferredCourseMatch[3].trim();
+            } else {
+                courseName = '电商运营实战课程';
+                courseId = 'COURSE_A01';
+                courseDetails = '适合零基础转行，涵盖核心技能培训';
             }
+        } else {
+            courseName = '电商运营入门实战班';
+            courseId = 'COURSE_A01';
+            courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。';
         }
-    }
-    
-    // 如果仍然没有内容，显示默认信息
-    if (!courseName) {
+    } catch (e) {
+        // 默认值
         courseName = '电商运营入门实战班';
-        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺运营全流程实操训练，更贴合转行就业需求。';
-        subsidyInfo = '根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书，可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元。';
+        courseId = 'COURSE_A01';
+        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。';
+        subsidyInfo = '根据《失业人员职业培训补贴政策》（POLICY_A02），企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元';
     }
     
+    // 直接返回课程推荐卡片，不包含否定或肯定部分
     return `
         <div class="structured-answer">
             <div class="scenario-tag scenario4">
@@ -933,21 +935,37 @@ function renderScenario4Card(content) {
             </div>
             <div class="course-recommendation-card">
                 <div class="course-card-header">
-                    <div class="course-title">${courseName}</div>
+                    <div class="course-title">${courseName}（${courseId}）</div>
                     <div class="priority-badge">优先推荐</div>
                 </div>
                 <div class="course-details">
-                    ${courseDetails ? `
-                        <div class="course-detail-item">
-                            <span>🎯</span>
-                            ${courseDetails}
-                        </div>
-                    ` : ''}
+                    <div class="course-detail-item">
+                        <span>🎯</span>
+                        ${courseDetails}
+                    </div>
                 </div>
+                ${policies.length > 0 ? `
+                    <div class="related-policies" style="margin-top: 12px;">
+                        <div class="response-card positive">
+                            <div class="response-card-header">
+                                <span>📋</span>
+                                关联政策
+                            </div>
+                            <div class="response-card-content">
+                                ${policies.map(policy => `
+                                    <div style="margin-bottom: 4px;">《${policy.name}》（${policy.id}）</div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
                 ${subsidyInfo ? `
-                    <div class="subsidy-info">
-                        <h4>补贴说明</h4>
-                        <p>${subsidyInfo}</p>
+                    <div class="response-card positive" style="margin-top: 12px;">
+                        <div class="response-card-header">
+                            <span>💰</span>
+                            补贴说明
+                        </div>
+                        <div class="response-card-content">${subsidyInfo}</div>
                     </div>
                 ` : ''}
             </div>
