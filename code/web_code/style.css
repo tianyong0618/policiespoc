@@ -987,10 +987,8 @@ body {
 
 /* 场景四：培训课程推荐卡片 */
 .course-recommendation-card {
-    border: 2px solid var(--scenario4-color);
     border-radius: var(--radius-md);
     padding: 16px;
-    background-color: rgba(236, 72, 153, 0.05);
     box-shadow: var(--shadow-sm);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
@@ -1009,12 +1007,31 @@ body {
     left: -100%;
     width: 100%;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--scenario4-color), transparent);
     transition: left 0.5s ease;
 }
 
 .course-recommendation-card:hover::before {
     left: 100%;
+}
+
+/* 优先推荐课程卡片样式 */
+.course-recommendation-card.priority {
+    border: 2px solid var(--scenario4-color);
+    background-color: rgba(236, 72, 153, 0.05);
+}
+
+.course-recommendation-card.priority::before {
+    background: linear-gradient(90deg, transparent, var(--scenario4-color), transparent);
+}
+
+/* 备选方案课程卡片样式 */
+.course-recommendation-card.alternative {
+    border: 2px solid var(--primary);
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+.course-recommendation-card.alternative::before {
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
 }
 
 .course-card-header {
@@ -1033,9 +1050,18 @@ body {
 .priority-badge {
     font-size: 12px;
     padding: 4px 8px;
-    background-color: var(--scenario4-color);
     color: white;
     border-radius: var(--radius-sm);
+}
+
+/* 优先推荐标签样式 */
+.priority-badge.primary {
+    background-color: var(--scenario4-color);
+}
+
+/* 备选方案标签样式 */
+.priority-badge.secondary {
+    background-color: var(--primary);
 }
 
 .course-details {

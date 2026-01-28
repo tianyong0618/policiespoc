@@ -874,9 +874,7 @@ function renderScenario3Card(content) {
 
 // 场景四：培训课程智能匹配卡片渲染
 function renderScenario4Card(content) {
-    let courseName = '';
-    let courseId = '';
-    let courseDetails = '';
+    let courses = [];
     let subsidyInfo = '';
     let policies = [];
     
@@ -905,24 +903,139 @@ function renderScenario4Card(content) {
             // 提取首选方案
             const preferredCourseMatch = trainingCoursesText.match(/首选方案.*?：(.*?)\((.*?)\)。(.*?)(?=- 备选方案|$)/s);
             if (preferredCourseMatch) {
-                courseName = preferredCourseMatch[1].trim();
-                courseId = preferredCourseMatch[2].trim();
-                courseDetails = preferredCourseMatch[3].trim();
-            } else {
-                courseName = '电商运营实战课程';
-                courseId = 'COURSE_A01';
-                courseDetails = '适合零基础转行，涵盖核心技能培训';
+                const courseDetails = preferredCourseMatch[3].trim();
+                // 尝试从详情中提取更详细的课程信息
+                let education = '';
+                let basicReq = '';
+                let courseContent = '';
+                let reason = '';
+                
+                // 解析逻辑，根据示例格式提取信息
+                if (courseDetails.includes('学历要求') || courseDetails.includes('零基础') || courseDetails.includes('课程涵盖') || courseDetails.includes('贴合')) {
+                    // 按照示例格式解析
+                    const parts = courseDetails.split('，');
+                    for (const part of parts) {
+                        if (part.includes('学历要求')) {
+                            education = part;
+                        } else if (part.includes('零基础')) {
+                            basicReq = part;
+                        } else if (part.includes('课程涵盖')) {
+                            courseContent = part;
+                        } else if (part.includes('贴合')) {
+                            reason = part;
+                        }
+                    }
+                } else if (courseDetails.includes('适合') && courseDetails.includes('涵盖')) {
+                    // 兼容旧格式
+                    const parts = courseDetails.split('，');
+                    reason = parts[0];
+                    courseContent = parts[1];
+                }
+                
+                courses.push({
+                    name: preferredCourseMatch[1].trim(),
+                    id: preferredCourseMatch[2].trim(),
+                    details: courseDetails,
+                    education: education,
+                    basicReq: basicReq,
+                    content: courseContent,
+                    reason: reason,
+                    priority: '优先推荐'
+                });
             }
-        } else {
-            courseName = '电商运营入门实战班';
-            courseId = 'COURSE_A01';
-            courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。';
+            
+            // 提取备选方案
+            const alternativeCourseMatch = trainingCoursesText.match(/备选方案.*?：(.*?)\((.*?)\)。(.*?)(?=- |$)/s);
+            if (alternativeCourseMatch) {
+                const courseDetails = alternativeCourseMatch[3].trim();
+                // 尝试从详情中提取更详细的课程信息
+                let education = '';
+                let basicReq = '';
+                let courseContent = '';
+                let reason = '';
+                
+                // 解析逻辑，根据示例格式提取信息
+                if (courseDetails.includes('学历要求') || courseDetails.includes('零基础') || courseDetails.includes('课程涵盖') || courseDetails.includes('贴合')) {
+                    // 按照示例格式解析
+                    const parts = courseDetails.split('，');
+                    for (const part of parts) {
+                        if (part.includes('学历要求')) {
+                            education = part;
+                        } else if (part.includes('零基础')) {
+                            basicReq = part;
+                        } else if (part.includes('课程涵盖')) {
+                            courseContent = part;
+                        } else if (part.includes('贴合')) {
+                            reason = part;
+                        }
+                    }
+                } else if (courseDetails.includes('适合') && courseDetails.includes('基础')) {
+                    // 兼容旧格式
+                    const parts = courseDetails.split('，');
+                    reason = parts[0];
+                    courseContent = parts[1];
+                }
+                
+                courses.push({
+                    name: alternativeCourseMatch[1].trim(),
+                    id: alternativeCourseMatch[2].trim(),
+                    details: courseDetails,
+                    education: education,
+                    basicReq: basicReq,
+                    content: courseContent,
+                    reason: reason,
+                    priority: '备选方案'
+                });
+            }
+        }
+        
+        // 如果没有提取到课程，添加默认课程
+        if (courses.length === 0) {
+            courses.push({
+                name: '电商运营入门实战班',
+                id: 'COURSE_A01',
+                details: '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求',
+                education: '学历要求匹配（初中及以上）',
+                basicReq: '零基础可学',
+                content: '课程涵盖店铺搭建、产品上架、流量运营等核心技能',
+                reason: '贴合您转行电商运营的需求',
+                priority: '优先推荐'
+            });
+            courses.push({
+                name: '电商运营进阶课程',
+                id: 'COURSE_A02',
+                details: '学历要求匹配（初中及以上），有一定基础可学，课程涵盖数据分析、客户运营、活动策划等进阶技能，贴合您提升电商运营能力的需求',
+                education: '学历要求匹配（初中及以上）',
+                basicReq: '有一定基础可学',
+                content: '课程涵盖数据分析、客户运营、活动策划等进阶技能',
+                reason: '贴合您提升电商运营能力的需求',
+                priority: '备选方案'
+            });
         }
     } catch (e) {
         // 默认值
-        courseName = '电商运营入门实战班';
-        courseId = 'COURSE_A01';
-        courseDetails = '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。';
+        courses = [
+            {
+                name: '电商运营入门实战班',
+                id: 'COURSE_A01',
+                details: '学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求',
+                education: '学历要求匹配（初中及以上）',
+                basicReq: '零基础可学',
+                content: '课程涵盖店铺搭建、产品上架、流量运营等核心技能',
+                reason: '贴合您转行电商运营的需求',
+                priority: '优先推荐'
+            },
+            {
+                name: '电商运营进阶课程',
+                id: 'COURSE_A02',
+                details: '学历要求匹配（初中及以上），有一定基础可学，课程涵盖数据分析、客户运营、活动策划等进阶技能，贴合您提升电商运营能力的需求',
+                education: '学历要求匹配（初中及以上）',
+                basicReq: '有一定基础可学',
+                content: '课程涵盖数据分析、客户运营、活动策划等进阶技能',
+                reason: '贴合您提升电商运营能力的需求',
+                priority: '备选方案'
+            }
+        ];
         subsidyInfo = '根据《失业人员职业培训补贴政策》（POLICY_A02），企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元';
     }
     
@@ -933,42 +1046,68 @@ function renderScenario4Card(content) {
                 <span>📚</span>
                 培训课程智能匹配
             </div>
-            <div class="course-recommendation-card">
-                <div class="course-card-header">
-                    <div class="course-title">${courseName}（${courseId}）</div>
-                    <div class="priority-badge">优先推荐</div>
-                </div>
-                <div class="course-details">
-                    <div class="course-detail-item">
-                        <span>🎯</span>
-                        ${courseDetails}
+            ${courses.map(course => {
+                const cardClass = course.priority === '优先推荐' ? 'course-recommendation-card priority' : 'course-recommendation-card alternative';
+                const badgeClass = course.priority === '优先推荐' ? 'priority-badge primary' : 'priority-badge secondary';
+                return `
+                <div class="${cardClass}" style="margin-bottom: 16px;">
+                    <div class="course-card-header">
+                        <div class="course-title">${course.name}（${course.id}）</div>
+                        <div class="${badgeClass}">${course.priority}</div>
                     </div>
-                </div>
-                ${policies.length > 0 ? `
-                    <div class="related-policies" style="margin-top: 12px;">
-                        <div class="response-card positive">
-                            <div class="response-card-header">
-                                <span>📋</span>
-                                关联政策
-                            </div>
-                            <div class="response-card-content">
-                                ${policies.map(policy => `
-                                    <div style="margin-bottom: 4px;">《${policy.name}》（${policy.id}）</div>
-                                `).join('')}
-                            </div>
+                    <div class="course-details">
+                        ${course.education ? `
+                        <div class="course-detail-item">
+                            <span>🎓</span>
+                            ${course.education}
                         </div>
+                        ` : ''}
+                        ${course.basicReq ? `
+                        <div class="course-detail-item">
+                            <span>🎯</span>
+                            ${course.basicReq}
+                        </div>
+                        ` : ''}
+                        ${course.content ? `
+                        <div class="course-detail-item">
+                            <span>📚</span>
+                            ${course.content}
+                        </div>
+                        ` : ''}
+                        ${course.reason ? `
+                        <div class="course-detail-item">
+                            <span>✨</span>
+                            ${course.reason}
+                        </div>
+                        ` : ''}
                     </div>
-                ` : ''}
-                ${subsidyInfo ? `
-                    <div class="response-card positive" style="margin-top: 12px;">
+                </div>
+            `;
+            }).join('')}
+            ${policies.length > 0 ? `
+                <div class="related-policies" style="margin-top: 12px;">
+                    <div class="response-card positive">
                         <div class="response-card-header">
-                            <span>💰</span>
-                            补贴说明
+                            <span>📋</span>
+                            关联政策
                         </div>
-                        <div class="response-card-content">${subsidyInfo}</div>
+                        <div class="response-card-content">
+                            ${policies.map(policy => `
+                                <div style="margin-bottom: 4px;">《${policy.name}》（${policy.id}）</div>
+                            `).join('')}
+                        </div>
                     </div>
-                ` : ''}
-            </div>
+                </div>
+            ` : ''}
+            ${subsidyInfo ? `
+                <div class="response-card positive" style="margin-top: 12px;">
+                    <div class="response-card-header">
+                        <span>💰</span>
+                        补贴说明
+                    </div>
+                    <div class="response-card-content">${subsidyInfo}</div>
+                </div>
+            ` : ''}
         </div>
     `;
 }
