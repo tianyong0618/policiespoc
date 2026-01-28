@@ -521,7 +521,7 @@ function renderScenario1Card(content) {
             } catch (e) {
                 // 尝试更宽松的匹配
                 if (content.includes('创业孵化基地管理员')) {
-                    suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+                    suggestionPart = '推荐联系《创业孵化基地管理员》（JOB_A01），获取政策申请全程指导。';
                 }
             }
         }
@@ -536,7 +536,7 @@ function renderScenario1Card(content) {
                 positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
             }
             if (!suggestionPart && (content.includes('推荐联系') || content.includes('建议'))) {
-                suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+                suggestionPart = '推荐联系《创业孵化基地管理员》（JOB_A01），获取政策申请全程指导。';
             }
         }
     }
@@ -551,7 +551,10 @@ function renderScenario1Card(content) {
         positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
     }
     if (!suggestionPart) {
-        suggestionPart = '推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。';
+        suggestionPart = '推荐联系《创业孵化基地管理员》（JOB_A01），获取政策申请全程指导。';
+    } else {
+        // 调整岗位信息格式：先显示岗位名，再显示岗位ID
+        suggestionPart = suggestionPart.replace(/推荐联系(\w+)\(([^)]+)\)/g, '推荐联系《$2》（$1）');
     }
     
     return `
@@ -800,11 +803,13 @@ function renderScenario3Card(content) {
     try {
         const suggestionMatch = content.match(/推荐联系(.*?)$/s);
         if (suggestionMatch) {
-            suggestion = '推荐联系' + suggestionMatch[1].trim();
+            let rawSuggestion = '推荐联系' + suggestionMatch[1].trim();
+            // 调整岗位信息格式：先显示岗位名，再显示岗位ID
+            suggestion = rawSuggestion.replace(/推荐联系(\w+)\(([^)]+)\)/g, '推荐联系《$2》（$1）');
         }
     } catch (e) {
         // 尝试更宽松的匹配
-        suggestion = '推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率';
+        suggestion = '推荐联系《退役军人创业项目评估师》（JOB_A05）做项目可行性分析，提升成功率';
     }
     
     // 如果仍然没有内容，显示默认信息
@@ -821,7 +826,7 @@ function renderScenario3Card(content) {
                 benefit: '租金的50%-80%可申请补贴'
             }
         ];
-        suggestion = '推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率';
+        suggestion = '推荐联系《退役军人创业项目评估师》（JOB_A05）做项目可行性分析，提升成功率';
     }
     
     return `
