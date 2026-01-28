@@ -854,8 +854,7 @@ function renderScenario3Card(content) {
                         return `
                             <div class="policy-item">
                                 <div class="policy-item-header">
-                                    <div class="policy-name">${policy.name}</div>
-                                    <div class="policy-id">${policy.id}</div>
+                                    <div class="policy-name">${policy.name}（${policy.id}）</div>
                                 </div>
                                 <div class="policy-benefit">${policy.benefit}</div>
                                 ${additionalInfo}
