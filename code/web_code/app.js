@@ -701,8 +701,8 @@ function renderScenario2Card(content) {
             </div>
             <div class="job-recommendation-card">
                 <div class="job-card-header">
-                    <div class="job-title">${jobTitle}</div>
-                    <div class="job-id-badge">${jobId}</div>
+                    <div class="job-title">${jobTitle}（${jobId}）</div>
+                    <div class="priority-badge primary">优先推荐</div>
                 </div>
                 ${reasons.length > 0 ? `
                     <div class="recommendation-reasons">
