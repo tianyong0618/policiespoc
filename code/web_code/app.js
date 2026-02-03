@@ -547,8 +547,12 @@ function renderScenario1Card(content) {
     } else {
         negativePart = '根据《返乡创业扶持补贴政策》（POLICY_A03），您需要满足"带动3人以上就业"等条件才能申领2万元补贴。';
     }
+    // 确保肯定部分包含完整的政策信息
     if (!positivePart) {
-        positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。';
+        positivePart = '您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，符合贷款申请条件。提供最高额度（50万元）、一定期限（3年）的贷款支持，并对贷款利率超过LPR一定基点以上的部分给予财政贴息';
+    } else if (positivePart.includes('符合贷款申请条件') && !positivePart.includes('最高额度')) {
+        // 如果已有部分信息但缺少具体数据，补充完整
+        positivePart = positivePart.replace('符合贷款申请条件', '符合贷款申请条件。提供最高额度（50万元）、一定期限（3年）的贷款支持，并对贷款利率超过LPR一定基点以上的部分给予财政贴息');
     }
     if (!suggestionPart) {
         suggestionPart = '推荐联系《创业孵化基地管理员》（JOB_A01），获取政策申请全程指导。';
