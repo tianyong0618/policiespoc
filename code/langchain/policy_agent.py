@@ -102,7 +102,7 @@ class PolicyAgent:
                 "time": llm_time
             }
     
-    def retrieve_policies(self, intent, entities):
+    def retrieve_policies(self, intent, entities, original_input=None):
         """检索相关政策"""
         relevant_policies = []
         logger.info(f"开始检索政策，意图: {intent}, 实体: {entities}")
@@ -111,58 +111,80 @@ class PolicyAgent:
         entity_values = [entity["value"] for entity in entities]
         logger.info(f"实体值列表: {entity_values}")
         
+        # 检查用户具体条件 - 同时考虑实体值和原始用户输入
+        entity_input_str = "".join(entity_values)
+        # 使用原始用户输入作为备用，确保所有信息都被考虑
+        user_input_str = original_input if original_input else entity_input_str
+        logger.info(f"使用的用户输入字符串: {user_input_str}")
+        
+        has_certificate = "电工证" in user_input_str or "证书" in user_input_str
+        is_unemployed = "失业" in user_input_str
+        has_return_home = "返乡" in user_input_str or "农民工" in user_input_str
+        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str
+        has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
+        has_veteran = "退役军人" in user_input_str
+        has_individual_business = "个体经营" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "维修店" in user_input_str or "开店" in user_input_str
+        
+        logger.info(f"用户条件检测: 证书={has_certificate}, 失业={is_unemployed}, 返乡={has_return_home}, 创业={has_entrepreneurship}, 孵化基地={has_incubator}, 退役军人={has_veteran}, 个体经营={has_individual_business}")
+        
+        # 逐个检查政策是否符合用户条件
         for policy in self.policies:
             policy_id = policy["policy_id"]
             title = policy["title"]
-            category = policy["category"]
-            content = policy.get("content", "")
             conditions = policy.get("conditions", [])
             
-            logger.info(f"检查政策: {policy_id} - {title}, 分类: {category}")
-            match_found = False
+            logger.info(f"检查政策: {policy_id} - {title}")
             
-            # 匹配逻辑1: 实体值匹配政策title、category或content
-            for val in entity_values:
-                if val in title or val in category or val in content:
-                    match_found = True
-                    logger.info(f"政策 {policy_id} 通过实体值 '{val}' 匹配成功 (title/category/content)")
-                    break
+            # 根据政策ID和用户条件判断是否符合
+            is_eligible = False
             
-            # 匹配逻辑2: 实体值匹配政策条件
-            if not match_found:
-                for cond in conditions:
-                    cond_value = str(cond["value"])
-                    for val in entity_values:
-                        if val in cond_value or cond_value in val:
-                            match_found = True
-                            logger.info(f"政策 {policy_id} 通过实体值 '{val}' 匹配条件成功: {cond_value}")
-                            break
-                    if match_found:
-                        break
+            if policy_id == "POLICY_A02":  # 职业技能提升补贴政策
+                # 条件：持有职业资格证书或失业人员
+                if has_certificate or is_unemployed:
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 持有证书或失业")
             
-            # 匹配逻辑3: 意图匹配政策分类
-            if not match_found:
-                if category in intent:
-                    match_found = True
-                    logger.info(f"政策 {policy_id} 通过分类 '{category}' 匹配意图成功")
+            elif policy_id == "POLICY_A03":  # 返乡创业扶持补贴政策
+                # 条件：返乡人员，创办小微企业，经营满1年，带动3人以上就业
+                if has_return_home and has_entrepreneurship:
+                    # 这里简化处理，实际需要更多条件验证
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 返乡创业")
             
-            # 匹配逻辑4: 特殊关键词匹配（针对创业贷款等具体需求）
-            if not match_found:
-                # 检查用户输入中是否包含政策相关的关键词
-                user_needs = ["贷款", "贴息", "补贴", "创业"]
-                for need in user_needs:
-                    # 检查政策是否包含用户需求的关键词，同时用户输入中也包含该关键词
-                    if need in (title + category + content) and any(need in val for val in entity_values):
-                        match_found = True
-                        logger.info(f"政策 {policy_id} 通过关键词 '{need}' 匹配成功")
-                        break
+            elif policy_id == "POLICY_A04":  # 创业场地租金补贴政策
+                # 条件：入驻创业孵化基地
+                if has_incubator:
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地")
             
-            if match_found:
+            elif policy_id == "POLICY_A01":  # 创业担保贷款贴息政策
+                # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）
+                if has_return_home or has_veteran:
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人")
+            
+            elif policy_id == "POLICY_A05":  # 技能培训生活费补贴政策
+                # 条件：脱贫人口、低保家庭成员、残疾人等
+                if any(keyword in user_input_str for keyword in ["脱贫", "低保", "残疾"]):
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 特殊群体")
+            
+            elif policy_id == "POLICY_A06":  # 退役军人创业税收优惠
+                # 条件：退役军人且从事个体经营
+                if has_veteran and has_individual_business:
+                    is_eligible = True
+                    logger.info(f"用户符合 {policy_id} 条件: 退役军人且从事个体经营")
+            
+            # 如果符合条件，添加到相关政策列表
+            if is_eligible:
                 relevant_policies.append(policy)
-                logger.info(f"添加政策 {policy_id} 到相关政策列表")
+                logger.info(f"添加符合条件的政策: {policy_id} - {title}")
         
-        logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条相关政策: {[p['policy_id'] for p in relevant_policies]}")
-        return relevant_policies if relevant_policies else self.policies
+        # 限制返回的政策数量
+        relevant_policies = relevant_policies[:3]
+        
+        logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条符合条件的政策: {[p['policy_id'] for p in relevant_policies]}")
+        return relevant_policies if relevant_policies else []
     
     def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None, recommended_courses=None):
         """生成结构化回答"""
@@ -345,7 +367,7 @@ class PolicyAgent:
         intent_info = intent_result["result"]
         
         # 2. 检索相关政策
-        relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
+        relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"], user_input)
         
         # 3. 生成岗位推荐
         recommended_jobs = []

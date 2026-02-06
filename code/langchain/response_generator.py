@@ -32,6 +32,13 @@ class ResponseGenerator:
         
         policies_str = json.dumps(simplified_policies, ensure_ascii=False, separators=(',', ':'))
         
+        # 打印调试信息
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"生成回答时的政策数量: {len(relevant_policies)}")
+        logger.info(f"生成回答时的政策ID: {[p['policy_id'] for p in relevant_policies]}")
+        logger.info(f"传递给LLM的政策: {policies_str}")
+        
         # 推荐岗位信息
         jobs_str = ""
         if recommended_jobs:
@@ -142,7 +149,9 @@ class ResponseGenerator:
             prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
             prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。\"\n"
             prompt += "3. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
-            prompt += "4. 主动建议：\n"
+            prompt += "4. 重要提示：只根据提供的相关政策生成回答，不要提及未在相关政策中列出的政策。\n"
+            prompt += "5. 重要提示：如果相关政策列表为空，请在positive中说明\"未找到符合条件的政策\"，不要提及任何具体政策。\n"
+            prompt += "6. 主动建议：\n"
             prompt += "   - 如果用户是退役军人，必须输出：\"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。\"\n"
             prompt += "   - 否则，必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
         else:

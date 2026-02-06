@@ -408,6 +408,14 @@ async function sendMessage() {
                                 
                             case 'thinking':
                                 // 显示思考过程 - 流式动态显示
+                                if (!aiMessageDiv.querySelector('.message-content')) {
+                                    // 如果message-content不存在，重新创建整个结构
+                                    aiMessageDiv.innerHTML = `
+                                        <div class="message-avatar">🤖</div>
+                                        <div class="message-content">
+                                        </div>
+                                    `;
+                                }
                                 if (!thinkingElement) {
                                     // 清空之前的内容，创建思考过程容器
                                     aiMessageDiv.querySelector('.message-content').innerHTML = '';
@@ -423,13 +431,17 @@ async function sendMessage() {
                                     aiMessageDiv.querySelector('.message-content').appendChild(thinkingContainer);
                                     thinkingElement = thinkingContainer.querySelector('.thinking-content');
                                     // 添加点击事件
-                                    thinkingContainer.querySelector('.thinking-header').addEventListener('click', function() {
-                                        thinkingContainer.classList.toggle('active');
-                                    });
+                                    if (thinkingContainer.querySelector('.thinking-header')) {
+                                        thinkingContainer.querySelector('.thinking-header').addEventListener('click', function() {
+                                            thinkingContainer.classList.toggle('active');
+                                        });
+                                    }
                                 }
                                 // 流式添加思考内容
-                                thinkingElement.innerHTML += `<div class="thinking-step">${data.content}</div>`;
-                                scrollToBottom();
+                                if (thinkingElement) {
+                                    thinkingElement.innerHTML += `<div class="thinking-step">${data.content}</div>`;
+                                    scrollToBottom();
+                                }
                                 break;
                                 
                             case 'analysis_result':
@@ -654,6 +666,163 @@ function renderAnalysisResult(data, container) {
         `;
     }
     
+    // 生成动态主动建议
+    let dynamicSuggestions = '';
+    const suggestions = [];
+    
+    // 加载岗位数据
+    let jobsData = [
+        {"job_id": "JOB_A01", "title": "创业孵化基地管理员", "policy_relations": ["POLICY_A01", "POLICY_A03", "POLICY_A04"]},
+        {"job_id": "JOB_A02", "title": "职业技能培训讲师", "policy_relations": ["POLICY_A02"]},
+        {"job_id": "JOB_A03", "title": "电商创业辅导专员", "policy_relations": ["POLICY_A04"]},
+        {"job_id": "JOB_A04", "title": "技能培训课程顾问", "policy_relations": ["POLICY_A02", "POLICY_A05"]},
+        {"job_id": "JOB_A05", "title": "退役军人创业项目评估师", "policy_relations": ["POLICY_A06"]}
+    ];
+    
+    console.log('加载的岗位数据:', jobsData);
+    
+    // 提取涉及到的政策ID
+    const involvedPolicyIds = [];
+    if (relevantPolicies && relevantPolicies.length > 0) {
+        relevantPolicies.forEach(policy => {
+            if (policy.policy_id) {
+                involvedPolicyIds.push(policy.policy_id);
+            }
+        });
+    }
+    
+    // 额外处理：从positiveContent中提取可能的政策ID
+    if (typeof positiveContent === 'string' && positiveContent.trim() !== '') {
+        // 尝试从文本中匹配政策ID格式，如POLICY_A01
+        const policyIdMatches = positiveContent.match(/POLICY_[A-Z0-9]+/g);
+        if (policyIdMatches) {
+            policyIdMatches.forEach(policyId => {
+                if (!involvedPolicyIds.includes(policyId)) {
+                    involvedPolicyIds.push(policyId);
+                }
+            });
+        }
+    }
+    
+    console.log('涉及到的政策ID:', involvedPolicyIds);
+    
+    // 根据政策和用户意图找到相关岗位
+    const relatedJobs = [];
+    if (involvedPolicyIds.length > 0) {
+        // 从数据中提取用户意图信息
+        let userIntent = '';
+        let hasVeteran = false;
+        let hasEcommerce = false;
+        let hasEntrepreneurship = false;
+        let hasIncubator = false;
+        
+        // 检查相关政策
+        relevantPolicies.forEach(policy => {
+            if (policy.policy_id === "POLICY_A06") {
+                hasVeteran = true;
+            }
+            if (policy.policy_id === "POLICY_A04") {
+                hasIncubator = true;
+            }
+        });
+        
+        // 检查思考过程中的信息
+        if (thinkingProcess && thinkingProcess.length > 0) {
+            thinkingProcess.forEach(step => {
+                if (step.content) {
+                    userIntent += step.content;
+                }
+                if (step.substeps && step.substeps.length > 0) {
+                    step.substeps.forEach(substep => {
+                        if (substep.content) {
+                            userIntent += substep.content;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // 检查用户意图中的关键词和否定词
+        hasEcommerce = userIntent.includes("电商") && !userIntent.includes("没有电商") && !userIntent.includes("未选择电商") && !userIntent.includes("不做电商");
+        hasEntrepreneurship = userIntent.includes("创业") && !userIntent.includes("没有创业") && !userIntent.includes("未选择创业") && !userIntent.includes("不创业");
+        hasIncubator = hasIncubator || (userIntent.includes("孵化基地") && !userIntent.includes("没有入驻") && !userIntent.includes("未入驻"));
+        hasVeteran = hasVeteran || userIntent.includes("退役军人");
+        
+        console.log('用户意图分析:', { hasVeteran, hasEcommerce, hasEntrepreneurship, hasIncubator });
+        
+        jobsData.forEach(job => {
+            // 检查岗位是否与政策相关
+            const isPolicyRelated = job.policy_relations && job.policy_relations.some(policyId => involvedPolicyIds.includes(policyId));
+            
+            // 检查岗位是否与用户意图相关
+            let isIntentRelated = true;
+            
+            // 特殊处理：电商创业辅导专员（JOB_A03）
+            if (job.job_id === "JOB_A03") {
+                // 只有当用户明确提到电商创业时才推荐，单纯提到创业不足以推荐
+                isIntentRelated = hasEcommerce;
+            }
+            
+            // 特殊处理：退役军人创业项目评估师（JOB_A05）
+            if (job.job_id === "JOB_A05") {
+                // 只有当用户是退役军人时才推荐
+                isIntentRelated = hasVeteran;
+            }
+            
+            // 特殊处理：创业孵化基地管理员（JOB_A01）
+            if (job.job_id === "JOB_A01") {
+                // 只有当用户提到创业或孵化基地时才推荐
+                isIntentRelated = hasEntrepreneurship || hasIncubator;
+            }
+            
+            // 只有同时满足政策相关和意图相关的岗位才推荐
+            if (isPolicyRelated && isIntentRelated) {
+                relatedJobs.push(job);
+            }
+        });
+    }
+    
+    console.log('相关岗位:', relatedJobs);
+    
+    // 根据符合条件的政策生成建议
+    if (typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无') {
+        suggestions.push('根据您的情况，您符合相关政策条件，建议及时准备材料申请，以获取政策支持。');
+        
+        // 无论是否有相关岗位，都显示岗位信息
+        if (jobsData.length > 0) {
+            // 优先显示相关岗位，如果没有则显示所有岗位
+            const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
+            const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
+            suggestions.push(`建议您联系以下岗位的人员获取政策支持：${jobInfo}。这些岗位的工作人员熟悉相关政策，可以为您提供专业的指导和帮助。`);
+        } else {
+            suggestions.push('建议您联系当地人力资源和社会保障部门或就业服务中心，咨询具体政策申请流程和所需材料。');
+        }
+    }
+    
+    // 根据推荐岗位生成建议
+    if (recommendedJobs.length > 0) {
+        const topJobs = recommendedJobs.slice(0, 2); // 取前两个推荐岗位
+        const jobTitles = topJobs.map(job => job.title).join('、');
+        suggestions.push(`我们为您推荐了 ${recommendedJobs.length} 个适合的岗位，其中 ${jobTitles} 等岗位与您的技能和需求匹配度较高，建议优先考虑。`);
+        suggestions.push('建议您联系对应岗位的招聘负责人，了解岗位详情和入职流程，同时咨询企业是否提供政策支持相关服务。');
+    }
+    
+    // 根据推荐课程生成建议
+    if (recommendedCourses.length > 0) {
+        const topCourses = recommendedCourses.slice(0, 2); // 取前两个推荐课程
+        const courseTitles = topCourses.map(course => course.title).join('、');
+        suggestions.push(`针对您的学习需求，我们推荐了 ${recommendedCourses.length} 门课程，其中 ${courseTitles} 等课程可以帮助您提升相关技能，增加就业竞争力。`);
+        suggestions.push('建议您联系课程提供方，了解课程详情、报名流程以及是否有相关政策支持的培训补贴。');
+    }
+    
+    // 如果有建议，组合成主动建议内容
+    if (suggestions.length > 0) {
+        dynamicSuggestions = suggestions.join('\n\n');
+    }
+    
+    // 使用动态建议或后端返回的建议
+    const finalSuggestionsContent = dynamicSuggestions || suggestionsContent;
+    
     // 构建HTML
     let html = `
         <div class="message-avatar">🤖</div>
@@ -737,11 +906,11 @@ function renderAnalysisResult(data, container) {
                 </div>
                 ` : ''}
                 
-                ${typeof suggestionsContent === 'string' && suggestionsContent.trim() !== '' && suggestionsContent.trim() !== '无' ? `
+                ${typeof finalSuggestionsContent === 'string' && finalSuggestionsContent.trim() !== '' && finalSuggestionsContent.trim() !== '无' ? `
                 <div class="card-section">
                     <h3>💡 主动建议</h3>
                     <div class="suggestions-card">
-                        <div class="suggestion-item">${suggestionsContent}</div>
+                        <div class="suggestion-item">${finalSuggestionsContent}</div>
                     </div>
                 </div>
                 ` : ''}
