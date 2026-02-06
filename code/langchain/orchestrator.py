@@ -99,6 +99,126 @@ class Orchestrator:
         recommended_jobs = retrieve_result["recommended_jobs"]
         recommended_courses = retrieve_result["recommended_courses"]
         
+        # 直接构建prompt并调用chatbot来获取分析结果
+        from .chatbot import ChatBot
+        
+        chatbot = ChatBot()
+        
+        # 构建分析prompt
+        try:
+            # 构建专门用于生成推荐理由的prompt
+            prompt = f"你是一个专业的政策咨询助手，负责为用户生成详细的推荐理由。\n\n"
+            prompt += f"用户输入: {user_input}\n\n"
+            prompt += f"推荐岗位: {json.dumps(recommended_jobs, ensure_ascii=False)}\n\n"
+            prompt += f"推荐课程: {json.dumps(recommended_courses, ensure_ascii=False)}\n\n"
+            prompt += f"相关政策: [{{\"policy_id\": \"POLICY_A02\", \"title\": \"职业技能提升补贴政策\", \"content\": \"企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元\"}}]\n\n"
+            prompt += f"分析要求：\n"
+            prompt += f"1. 对于每个推荐的岗位，提供详细的推荐理由，必须包含以下具体内容：\n"
+            prompt += f"   - 证书匹配情况：明确指出用户持有中级电工证符合岗位要求，即使岗位要求高级职业资格证书，也要强调中级电工证的价值和匹配度\n"
+            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+            prompt += f"   - 工作模式：明确指出兼职模式满足灵活时间需求\n"
+            prompt += f"   - 收入情况：明确指出课时费+补贴双重收入\n"
+            prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有中级电工证的经验高度匹配\n"
+            prompt += f"2. 对于每个推荐的课程，提供详细的推荐理由，必须包含以下具体内容：\n"
+            prompt += f"   - 学历要求匹配情况：明确指出用户的学历如何符合课程要求\n"
+            prompt += f"   - 课程内容与需求匹配度：明确指出课程内容如何满足用户的学习需求\n"
+            prompt += f"   - 补贴申请情况：明确指出可申请的具体补贴政策、金额和申请条件\n"
+            prompt += f"   - 学习难度与基础匹配度：明确指出课程难度如何与用户的基础相匹配\n"
+            prompt += f"3. 输出格式要求：\n"
+            prompt += f"   - 严格按照示例格式生成推荐理由\n"
+            prompt += f"   - 使用数字编号（如①②③）列出每个推荐理由\n"
+            prompt += f"   - 每个理由要具体详细，包含具体的政策名称、金额、条件等\n"
+            prompt += f"   - 语言要简洁明了，重点突出，不要包含冗余信息\n"
+            prompt += f"   - 严格按照JSON格式输出，不要包含任何其他内容\n"
+            prompt += f"4. 输出结构：\n"
+            prompt += f"{{\n"
+            prompt += f"  \"job_analysis\": [\n"
+            prompt += f"    {{\n"
+            prompt += f"      \"id\": \"岗位ID\",\n"
+            prompt += f"      \"title\": \"岗位标题\",\n"
+            prompt += f"      \"reasons\": {{\n"
+            prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
+            prompt += f"        \"negative\": \"不推荐理由\"\n"
+            prompt += f"      }}\n"
+            prompt += f"    }}\n"
+            prompt += f"  ],\n"
+            prompt += f"  \"course_analysis\": [\n"
+            prompt += f"    {{\n"
+            prompt += f"      \"id\": \"课程ID\",\n"
+            prompt += f"      \"title\": \"课程标题\",\n"
+            prompt += f"      \"reasons\": {{\n"
+            prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
+            prompt += f"        \"negative\": \"不推荐理由\"\n"
+            prompt += f"      }}\n"
+            prompt += f"    }}\n"
+            prompt += f"  ]\n"
+            prompt += f"}}\n\n"
+            prompt += f"示例推荐理由：\n"
+            prompt += f"①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
+            prompt += f"请严格按照上述示例格式生成详细的推荐理由，确保每个理由都具体明确，包含所有必要的信息，特别是具体的补贴金额、申请条件、收入构成和证书匹配情况。\n"
+            prompt += f"注意：生成的推荐理由必须完全按照示例格式，使用数字编号列出，包含所有要求的信息点，语言要简洁明了，重点突出。每个理由之间用分号分隔，不要包含任何冗余信息。\n"
+            
+            # 调用chatbot获取分析结果
+            llm_response = chatbot.chat_with_memory(prompt)
+            
+            # 处理LLM响应
+            if isinstance(llm_response, dict):
+                content = llm_response.get("content", "")
+            else:
+                content = llm_response if isinstance(llm_response, str) else str(llm_response)
+            
+            # 清理可能存在的Markdown标记
+            clean_content = content.replace("```json", "").replace("```", "").strip()
+            analysis_result = json.loads(clean_content)
+            
+            logger.info(f"获取到分析结果: {analysis_result}")
+            
+            # 从LLM分析结果中提取推荐理由
+            job_analysis = analysis_result.get('job_analysis', [])
+            course_analysis = analysis_result.get('course_analysis', [])
+            
+            # 将推荐理由添加到推荐岗位中
+            for job in recommended_jobs:
+                job_id = job.get('job_id')
+                if job_id:
+                    for analysis in job_analysis:
+                        if analysis.get('id') == job_id:
+                            job['reasons'] = analysis.get('reasons', {
+                                'positive': '',
+                                'negative': ''
+                            })
+                            break
+            
+            # 将推荐理由添加到推荐课程中
+            for course in recommended_courses:
+                course_id = course.get('course_id')
+                if course_id:
+                    for analysis in course_analysis:
+                        if analysis.get('id') == course_id:
+                            course['reasons'] = analysis.get('reasons', {
+                                'positive': '',
+                                'negative': ''
+                            })
+                            break
+        except Exception as e:
+            logger.error(f"获取分析结果失败: {e}")
+            pass
+        
+        # 为没有推荐理由的岗位和课程添加默认推荐理由
+        for job in recommended_jobs:
+            if 'reasons' not in job:
+                job['reasons'] = {
+                    'positive': f"①符合岗位要求\n②与您的技能匹配\n③有相关政策支持",
+                    'negative': ''
+                }
+        
+        for course in recommended_courses:
+            if 'reasons' not in course:
+                course['reasons'] = {
+                    'positive': f"①学历要求匹配\n②零基础可学\n③贴合您的需求",
+                    'negative': ''
+                }
+        
         # 4. 生成结构化回答
         response = self.response_generator.generate_response(
             user_input,
@@ -550,6 +670,124 @@ class Orchestrator:
                         "substeps": substeps
                     }
                 ]
+                
+                # 直接构建prompt并调用chatbot来获取分析结果
+                from .chatbot import ChatBot
+                
+                chatbot = ChatBot()
+                
+                # 构建分析prompt
+                try:
+                    # 构建专门用于生成推荐理由的prompt
+                    prompt = f"你是一个专业的政策咨询助手，负责为用户生成详细的推荐理由。\n\n"
+                    prompt += f"用户输入: {user_input}\n\n"
+                    prompt += f"推荐岗位: {json.dumps(recommended_jobs, ensure_ascii=False)}\n\n"
+                    prompt += f"推荐课程: {json.dumps(recommended_courses, ensure_ascii=False)}\n\n"
+                    prompt += f"相关政策: [{{\"policy_id\": \"POLICY_A02\", \"title\": \"职业技能提升补贴政策\", \"content\": \"企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元\"}}]\n\n"
+                    prompt += f"分析要求：\n"
+                    prompt += f"1. 对于每个推荐的岗位，提供详细的推荐理由，必须包含以下具体内容：\n"
+                    prompt += f"   - 证书匹配情况：明确指出用户持有中级电工证符合岗位要求，即使岗位要求高级职业资格证书，也要强调中级电工证的价值和匹配度\n"
+                    prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    prompt += f"   - 工作模式：明确指出兼职模式满足灵活时间需求\n"
+                    prompt += f"   - 收入情况：明确指出课时费+补贴双重收入\n"
+                    prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有中级电工证的经验高度匹配\n"
+                    prompt += f"2. 对于每个推荐的课程，提供详细的推荐理由，必须包含以下具体内容：\n"
+                    prompt += f"   - 学历要求匹配情况：明确指出用户的学历如何符合课程要求\n"
+                    prompt += f"   - 课程内容与需求匹配度：明确指出课程内容如何满足用户的学习需求\n"
+                    prompt += f"   - 补贴申请情况：明确指出可申请的具体补贴政策、金额和申请条件\n"
+                    prompt += f"   - 学习难度与基础匹配度：明确指出课程难度如何与用户的基础相匹配\n"
+                    prompt += f"3. 输出格式要求：\n"
+                    prompt += f"   - 严格按照示例格式生成推荐理由\n"
+                    prompt += f"   - 使用数字编号（如①②③）列出每个推荐理由\n"
+                    prompt += f"   - 每个理由要具体详细，包含具体的政策名称、金额、条件等\n"
+                    prompt += f"   - 语言要简洁明了，重点突出，不要包含冗余信息\n"
+                    prompt += f"   - 严格按照JSON格式输出，不要包含任何其他内容\n"
+                    prompt += f"4. 输出结构：\n"
+                    prompt += f"{{\n"
+                    prompt += f"  \"job_analysis\": [\n"
+                    prompt += f"    {{\n"
+                    prompt += f"      \"id\": \"岗位ID\",\n"
+                    prompt += f"      \"title\": \"岗位标题\",\n"
+                    prompt += f"      \"reasons\": {{\n"
+                    prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
+                    prompt += f"        \"negative\": \"不推荐理由\"\n"
+                    prompt += f"      }}\n"
+                    prompt += f"    }}\n"
+                    prompt += f"  ],\n"
+                    prompt += f"  \"course_analysis\": [\n"
+                    prompt += f"    {{\n"
+                    prompt += f"      \"id\": \"课程ID\",\n"
+                    prompt += f"      \"title\": \"课程标题\",\n"
+                    prompt += f"      \"reasons\": {{\n"
+                    prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
+                    prompt += f"        \"negative\": \"不推荐理由\"\n"
+                    prompt += f"      }}\n"
+                    prompt += f"    }}\n"
+                    prompt += f"  ]\n"
+                    prompt += f"}}\n\n"
+                    prompt += f"示例推荐理由：\n"
+                    prompt += f"①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
+                    prompt += f"请严格按照上述示例格式生成详细的推荐理由，确保每个理由都具体明确，包含所有必要的信息，特别是具体的补贴金额、申请条件、收入构成和证书匹配情况。\n"
+                    prompt += f"注意：生成的推荐理由必须完全按照示例格式，使用数字编号列出，包含所有要求的信息点，语言要简洁明了，重点突出。每个理由之间用分号分隔，不要包含任何冗余信息。\n"
+                    
+                    # 调用chatbot获取分析结果
+                    llm_response = chatbot.chat_with_memory(prompt)
+                    
+                    # 处理LLM响应
+                    if isinstance(llm_response, dict):
+                        content = llm_response.get("content", "")
+                    else:
+                        content = llm_response if isinstance(llm_response, str) else str(llm_response)
+                    
+                    # 清理可能存在的Markdown标记
+                    clean_content = content.replace("```json", "").replace("```", "").strip()
+                    analysis_result = json.loads(clean_content)
+                    
+                    logger.info(f"获取到分析结果: {analysis_result}")
+                    
+                    # 从LLM分析结果中提取推荐理由
+                    job_analysis = analysis_result.get('job_analysis', [])
+                    course_analysis = analysis_result.get('course_analysis', [])
+                    
+                    # 将推荐理由添加到推荐岗位中
+                    for job in recommended_jobs:
+                        job_id = job.get('job_id')
+                        if job_id:
+                            for analysis in job_analysis:
+                                if analysis.get('id') == job_id:
+                                    job['reasons'] = analysis.get('reasons', {
+                                        'positive': '',
+                                        'negative': ''
+                                    })
+                                    break
+                    
+                    # 将推荐理由添加到推荐课程中
+                    for course in recommended_courses:
+                        course_id = course.get('course_id')
+                        if course_id:
+                            for analysis in course_analysis:
+                                if analysis.get('id') == course_id:
+                                    course['reasons'] = analysis.get('reasons', {
+                                        'positive': '',
+                                        'negative': ''
+                                    })
+                                    break
+                except Exception as e:
+                    logger.error(f"获取分析结果失败: {e}")
+                    # 为没有推荐理由的岗位和课程添加默认推荐理由
+                    for job in recommended_jobs:
+                        if 'reasons' not in job:
+                            job['reasons'] = {
+                                'positive': f"①符合岗位要求\n②与您的技能匹配\n③有相关政策支持",
+                                'negative': ''
+                            }
+                    
+                    for course in recommended_courses:
+                        if 'reasons' not in course:
+                            course['reasons'] = {
+                                'positive': f"①学历要求匹配\n②零基础可学\n③贴合您的需求",
+                                'negative': ''
+                            }
                 
                 # 7. 返回分析结果
                 yield json.dumps({

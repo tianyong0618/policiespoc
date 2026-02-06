@@ -845,8 +845,8 @@ function renderAnalysisResult(data, container) {
                         ${recommendedJobs.map((job, index) => `
                         <div class="job-item">
                             <div class="job-title">${job.title} <span class="job-id">(${job.job_id || 'ID未提供'})</span> <span class="job-priority">优先级: ${index + 1}</span></div>
-                            <div class="job-requirements">
-                                <strong>要求:</strong> ${job.requirements && job.requirements.length > 0 ? job.requirements.join(', ') : '无具体要求'}
+                            <div class="job-reasons">
+                                <strong>推荐理由:</strong> ${job.reasons && job.reasons.positive ? job.reasons.positive : '无具体推荐理由'}
                             </div>
                             <div class="job-features">
                                 <strong>特点:</strong> ${job.features || '无具体特点'}
@@ -864,8 +864,8 @@ function renderAnalysisResult(data, container) {
                         ${recommendedCourses.map((course, index) => `
                         <div class="course-item">
                             <div class="course-title">${course.title} <span class="course-id">(${course.course_id || 'ID未提供'})</span> <span class="course-priority">优先级: ${index + 1}</span></div>
-                            <div class="course-requirements">
-                                <strong>要求:</strong> ${course.conditions ? course.conditions.map(cond => `${cond.type}: ${cond.value}`).join(', ') : '无具体要求'}
+                            <div class="course-reasons">
+                                <strong>推荐理由:</strong> ${course.reasons && course.reasons.positive ? course.reasons.positive : '无具体推荐理由'}
                             </div>
                             <div class="course-features">
                                 <strong>特点:</strong> ${course.content || '无具体特点'}
