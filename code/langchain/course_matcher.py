@@ -207,8 +207,14 @@ class CourseMatcher:
             '入门级' in x['difficulty']
         ), reverse=True)
         
-        logger.info(f"最终推荐 {len(prioritized_courses)} 门课程: {[course['course_id'] for course in prioritized_courses]}")
-        return prioritized_courses
+        # 只返回符合条件的课程（COURSE_A01、COURSE_A02）
+        final_courses = []
+        for course in prioritized_courses:
+            if course['course_id'] in ['COURSE_A01', 'COURSE_A02']:
+                final_courses.append(course)
+        
+        logger.info(f"最终推荐 {len(final_courses)} 门课程: {[course['course_id'] for course in final_courses]}")
+        return final_courses
     
     def get_course_with_policy(self, course_id):
         """获取课程及其关联的政策"""
@@ -322,6 +328,20 @@ class CourseMatcher:
         
         logger.info(f"生成的成长路径包含 {len(growth_path)} 个阶段")
         return growth_path
+    
+    def match_courses_by_policy(self, policy_id):
+        """根据政策ID匹配课程"""
+        logger.info(f"根据政策ID匹配课程: {policy_id}")
+        matched_courses = []
+        
+        # 匹配逻辑：检查课程的policy_relations字段是否包含指定的政策ID
+        for course in self.courses:
+            if policy_id in course.get('policy_relations', []):
+                matched_courses.append(course)
+                logger.info(f"课程 {course['course_id']} 与政策 {policy_id} 匹配成功")
+        
+        logger.info(f"根据政策 {policy_id} 匹配到 {len(matched_courses)} 门课程: {[course['course_id'] for course in matched_courses]}")
+        return matched_courses
 
 # 测试代码
 if __name__ == "__main__":

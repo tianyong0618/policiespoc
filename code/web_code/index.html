@@ -60,30 +60,39 @@
                     <div class="welcome-content">
                         <div class="welcome-icon">👋</div>
                         <h2>你好，我是您的政策咨询助手</h2>
-                        <p>我可以为您提供政策解读、岗位推荐及多重政策叠加分析服务。</p>
+                        <p>我可以为您提供政策解读、岗位推荐、课程推荐及多重政策叠加分析服务。</p>
                         
-                        <div class="scenario-grid">
-                <div class="scenario-card" data-scenario="scenario1">
-                    <div class="card-icon">🚀</div>
-                    <h3>创业扶持咨询</h3>
-                    <p>返乡创业补贴、创业贷款申请条件及流程解读</p>
-                </div>
-                <div class="scenario-card" data-scenario="scenario2">
-                    <div class="card-icon">💼</div>
-                    <h3>技能岗位推荐</h3>
-                    <p>基于证书与画像的精准岗位匹配及补贴申领</p>
-                </div>
-                <div class="scenario-card" data-scenario="scenario3">
-                    <div class="card-icon">🏢</div>
-                    <h3>政策叠加分析</h3>
-                    <p>退役军人/高校毕业生多重身份政策红利测算</p>
-                </div>
-                <div class="scenario-card" data-scenario="scenario4" style="display: none;">
-                    <div class="card-icon">📚</div>
-                    <h3>培训课程匹配</h3>
-                    <p>基于学历与需求的精准课程推荐及补贴政策</p>
-                </div>
-            </div>
+                        <!-- 用例快捷按钮 -->
+                        <div class="use-case-buttons">
+                            <div class="use-case-btn" onclick="startConversationWithQuery('我想了解创业扶持政策，包括返乡创业补贴和创业贷款申请条件')">
+                                <div class="use-case-icon">🚀</div>
+                                <div class="use-case-content">
+                                    <h3>创业扶持咨询</h3>
+                                    <p>返乡创业补贴、创业贷款申请条件及流程解读</p>
+                                </div>
+                            </div>
+                            <div class="use-case-btn" onclick="startConversationWithQuery('我有初级电工证，想找相关岗位，有什么推荐吗？')">
+                                <div class="use-case-icon">💼</div>
+                                <div class="use-case-content">
+                                    <h3>技能岗位推荐</h3>
+                                    <p>基于证书与画像的精准岗位匹配及补贴申领</p>
+                                </div>
+                            </div>
+                            <div class="use-case-btn" onclick="startConversationWithQuery('我今年38岁，失业了，只有初中毕业证，想转行做电商运营，有什么培训课程推荐？')">
+                                <div class="use-case-icon">📚</div>
+                                <div class="use-case-content">
+                                    <h3>培训课程推荐</h3>
+                                    <p>基于学历和基础的个性化课程推荐及补贴申请</p>
+                                </div>
+                            </div>
+                            <div class="use-case-btn" onclick="startConversationWithQuery('我是退役军人，又是高校毕业生，能享受哪些叠加政策？')">
+                                <div class="use-case-icon">📊</div>
+                                <div class="use-case-content">
+                                    <h3>政策叠加分析</h3>
+                                    <p>退役军人/高校毕业生多重身份政策红利测算</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

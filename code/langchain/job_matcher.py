@@ -234,3 +234,41 @@ class JobMatcher:
                 score += 2
         
         return score
+    
+    def match_jobs_by_entities(self, entities):
+        """基于实体信息匹配岗位"""
+        logger.info(f"基于实体匹配岗位，实体: {entities}")
+        matched_jobs = []
+        
+        # 从实体中提取关键词
+        keywords = []
+        for entity in entities:
+            entity_value = entity.get("value", "")
+            entity_type = entity.get("type", "")
+            keywords.append(entity_value)
+            
+            # 基于实体类型添加额外关键词
+            if entity_type == "certificate":
+                keywords.append("证书")
+            elif entity_type == "employment_status":
+                keywords.append("就业状态")
+            elif entity_type == "skill":
+                keywords.append("技能")
+        
+        logger.info(f"从实体中提取的关键词: {keywords}")
+        
+        # 基于关键词匹配岗位
+        for job in self.jobs:
+            # 计算岗位与关键词的匹配度
+            match_score = self.calculate_job_input_match(job, keywords)
+            if match_score > 0:
+                matched_jobs.append({
+                    "job": job,
+                    "match_score": match_score
+                })
+        
+        # 按匹配度排序
+        matched_jobs.sort(key=lambda x: x["match_score"], reverse=True)
+        
+        # 返回匹配度最高的3个岗位
+        return [item["job"] for item in matched_jobs[:3]]

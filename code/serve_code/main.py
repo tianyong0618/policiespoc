@@ -19,7 +19,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, os.path.join(base_dir, 'code'))
 
 # 直接导入模块
-from langchain.policy_agent import PolicyAgent
+from langchain.orchestrator import Orchestrator
 from langchain.job_matcher import JobMatcher
 from langchain.user_profile import UserProfileManager
 from langchain.history_manager import HistoryManager
@@ -38,10 +38,14 @@ app.add_middleware(
 
 # 初始化岗位匹配器 (单例)
 job_matcher = JobMatcher()
-# 初始化用户画像管理器 (注入岗位匹配器)
-user_profile_manager = UserProfileManager(job_matcher=job_matcher)
-# 初始化政策智能体 (注入依赖)
-agent = PolicyAgent(job_matcher=job_matcher, user_profile_manager=user_profile_manager)
+# 初始化用户画像管理器
+try:
+    user_profile_manager = UserProfileManager(job_matcher)
+except Exception as e:
+    logger.error(f"初始化用户画像管理器失败: {e}")
+    user_profile_manager = None
+# 初始化协调器 (单例)
+agent = Orchestrator()
 # 初始化历史记录管理器
 history_manager = HistoryManager()
 
@@ -111,38 +115,56 @@ async def chat_stream(request: ChatRequest):
     
     # 2. 保存用户消息
     history_manager.add_message(session_id, "user", request.message)
+    
+    # 3. 获取对话历史（在保存新消息之后）
+    session = history_manager.get_session(session_id)
+    conversation_history = session.get('messages', []) if session else []
 
     async def event_generator():
-        full_response = ""
         try:
             # 发送 session_id 给前端，以便后续使用
             yield f"event: session\ndata: {json.dumps({'session_id': session_id})}\n\n"
 
             # 获取流式生成器
-            stream = agent.process_stream_query(request.message)
+            stream = agent.process_stream_query(request.message, session_id, conversation_history)
             
-            # 第一个块是上下文数据
-            context_data = next(stream)
-            yield f"event: context\ndata: {context_data}\n\n"
-            
-            # 后续块是文本内容
+            # 处理流式响应
             for chunk in stream:
-                if isinstance(chunk, dict):
-                    # 处理特殊事件（如岗位推荐）
-                    if chunk.get("type") == "jobs":
-                        jobs_data = json.dumps({"recommended_jobs": chunk.get("data")}, ensure_ascii=False)
-                        yield f"event: context\ndata: {jobs_data}\n\n"
-                elif chunk:
-                    # 收集完整回复
-                    full_response += str(chunk)
-                    # 简单的文本块，需要转义换行符以便SSE传输
-                    # 使用JSON dump来安全处理字符串
-                    json_chunk = json.dumps({"content": chunk}, ensure_ascii=False)
-                    yield f"event: message\ndata: {json_chunk}\n\n"
-            
-            # 3. 保存 AI 消息
-            if full_response:
-                history_manager.add_message(session_id, "ai", full_response)
+                if chunk:
+                    # 解析JSON数据
+                    try:
+                        data = json.loads(chunk.strip())
+                        event_type = data.get("type", "message")
+                        
+                        # 根据事件类型发送不同的事件
+                        if event_type == "follow_up":
+                            # 追问事件
+                            yield f"event: follow_up\ndata: {chunk}\n\n"
+                            
+                            # 保存追问到历史记录
+                            history_manager.add_message(session_id, "ai", json.dumps(data, ensure_ascii=False))
+                        elif event_type == "analysis_start":
+                            # 分析开始事件
+                            yield f"event: analysis_start\ndata: {chunk}\n\n"
+                        elif event_type == "thinking":
+                            # 思考过程事件
+                            yield f"event: thinking\ndata: {chunk}\n\n"
+                        elif event_type == "analysis_result":
+                            # 分析结果事件
+                            yield f"event: analysis_result\ndata: {chunk}\n\n"
+                            
+                            # 保存分析结果到历史记录
+                            history_manager.add_message(session_id, "ai", json.dumps(data, ensure_ascii=False))
+                        elif event_type == "analysis_complete":
+                            # 分析完成事件
+                            yield f"event: analysis_complete\ndata: {chunk}\n\n"
+                        else:
+                            # 其他消息事件
+                            yield f"event: message\ndata: {chunk}\n\n"
+                    except json.JSONDecodeError:
+                        # 如果不是有效的JSON，作为普通消息处理
+                        json_chunk = json.dumps({"content": chunk}, ensure_ascii=False)
+                        yield f"event: message\ndata: {json_chunk}\n\n"
 
             yield "event: done\ndata: {}\n\n"
             

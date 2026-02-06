@@ -75,7 +75,29 @@ class ChatBot:
         except Exception as e:
             total_time = time.time() - start_time
             logger.error(f"发生错误，耗时: {total_time:.2f}秒, 错误: {type(e).__name__}: {str(e)}")
-            return "抱歉，我暂时无法回答你的问题，请稍后再试。"
+            # 返回错误信息作为字典，确保上层调用不会因为类型错误而失败
+            return {
+                "content": "抱歉，我暂时无法回答你的问题，请稍后再试。",
+                "time": 0,
+                "error": str(e)
+            }
+    
+    def get_model_status(self):
+        """检查模型状态"""
+        try:
+            # 发送一个简单的测试请求
+            test_message = HumanMessage(content="你好")
+            response = llm.invoke([test_message])
+            return {
+                "status": "healthy",
+                "response": response.content[:50]
+            }
+        except Exception as e:
+            logger.error(f"模型状态检查失败: {e}")
+            return {
+                "status": "unhealthy",
+                "error": str(e)
+            }
     
     def chat_stream(self, user_input):
         """流式生成回复"""

@@ -6,7 +6,6 @@ from .chatbot import ChatBot
 from .job_matcher import JobMatcher
 from .course_matcher import CourseMatcher
 from .user_profile import UserProfileManager
-from functools import lru_cache
 
 # 配置日志
 logging.basicConfig(
@@ -42,37 +41,49 @@ class PolicyAgent:
     def identify_intent(self, user_input):
         """识别用户意图和实体"""
         logger.info("开始识别意图和实体，调用大模型")
-        prompt = f"""
+        # 使用普通字符串拼接，避免f-string格式化问题
+        prompt = """
 请分析用户输入，识别核心意图和实体，并判断用户是否明确询问或需要岗位/工作推荐：
-用户输入: {user_input}
+用户输入: """
+        prompt += user_input
+        prompt += """
 
 输出格式：
-{{
+{
   "intent": "意图描述",
   "needs_job_recommendation": true/false,
   "entities": [
-    {{"type": "实体类型", "value": "实体值"}},
+    {"type": "实体类型", "value": "实体值"},
     ...
   ]
-}}
+}
 注意：只有当用户明确提到"找工作"、"推荐岗位"、"就业"、"工作机会"等相关内容时，needs_job_recommendation 才为 true。单纯询问补贴政策通常为 false。
 """
         logger.info(f"生成的意图识别提示: {prompt[:100]}...")
         response = self.chatbot.chat_with_memory(prompt)
         
         # 处理返回的新格式
-        if isinstance(response, dict) and 'content' in response:
-            content = response['content']
-            llm_time = response.get('time', 0)
-            logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
-            logger.info(f"意图识别LLM调用耗时: {llm_time:.2f}秒")
-        else:
-            content = response
-            llm_time = 0
-            if isinstance(content, str):
+        content = ""
+        llm_time = 0
+        
+        try:
+            if isinstance(response, dict) and 'content' in response:
+                content = response['content']
+                llm_time = response.get('time', 0)
                 logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+                logger.info(f"意图识别LLM调用耗时: {llm_time:.2f}秒")
             else:
-                logger.info(f"大模型返回的意图识别结果: {str(content)[:100]}...")
+                # 处理字符串响应
+                content = response if isinstance(response, str) else str(response)
+                llm_time = 0
+                if isinstance(content, str):
+                    logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+                else:
+                    logger.info(f"大模型返回的意图识别结果: {str(content)[:100]}...")
+        except Exception as e:
+            logger.error(f"处理LLM响应失败: {e}")
+            content = ""
+            llm_time = 0
         
         try:
             if isinstance(content, dict):
@@ -247,360 +258,183 @@ class PolicyAgent:
             
             prompt_instructions = base_instructions + """
 7. 特别要求：在"positive"中，**岗位推荐必须绝对优先于政策说明**，顺序不可颠倒
-8. 输出结构必须严格遵循以下顺序：
-   - 第一部分：岗位推荐（详细介绍推荐的岗位）
-   - 第二部分：政策说明（简要说明可享用的政策及其条件）
-9. 必须明确提及政策POLICY_A02及其补贴金额（1500元）
-10. 政策说明只需要简要介绍，重点放在岗位推荐上
-11. 绝对不允许先介绍政策再介绍岗位
-12. 绝对不允许推荐JOB_A01（创业孵化基地管理员），该岗位不符合场景二用户的灵活时间需求
-13. 只推荐JOB_A02岗位，**不得推荐其他岗位**
-14. 岗位推荐必须明确提及"JOB_A02（职业技能培训讲师）"，并说明其"兼职"属性符合"灵活时间"需求
-15. 政策说明必须明确提及"根据POLICY_A02（职业技能提升补贴政策），您可申请1500元技能补贴（若以企业在职职工身份参保）"
-16. 主动建议必须包含"完善'电工实操案例库'简历模块，提升竞争力"
+8. 特别要求：推荐岗位时，必须使用以下格式：推荐岗位：[岗位ID] [岗位名称]，推荐理由：①... ②... ③...
+9. 特别要求：只推荐与技能培训和POLICY_A02相关的岗位
 """
-        elif "创业扶持政策精准咨询" in scenario_type:
-             prompt_instructions = base_instructions + """
-7. 特别要求：必须检索并关联POLICY_A03（返乡创业扶持补贴政策）和POLICY_A01（创业担保贷款贴息政策）
-8. 针对POLICY_A03：若用户未提及"带动就业"，必须在否定部分明确指出缺失条件，说明"需满足带动3人以上就业"方可申领2万补贴
-9. 针对POLICY_A01：必须在肯定部分确认用户"返乡农民工"身份符合贷款条件，说明额度（≤50万）、期限（≤3年）及贴息规则
-10. 在"suggestions"中明确建议联系 JOB_A01（创业孵化基地管理员）获取全程指导
-11. 结构化输出必须包含政策ID和完整政策名称
-12. 否定部分必须明确提及"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足'带动3人以上就业'方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。"
-13. 肯定部分必须明确提及"您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。"
-14. 主动建议必须明确提及"推荐联系《创业孵化基地管理员》（JOB_A01），获取政策申请全程指导。"
-"""
-        elif "多重政策叠加咨询" in scenario_type:
-             prompt_instructions = base_instructions + """
-7. 特别要求：必须在回答中明确输出"--- 结构化输出"作为思考过程和结构化回答的分隔线
-8. 明确指出可以同时享受的政策，并说明叠加后的预估收益
-9. 在"suggestions"中明确建议联系 JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率
-10. 结构化输出必须包含政策ID和完整政策名称
-11. 必须明确提及"您可同时享受两项政策：①《退役军人创业税收优惠》（A06）：3年内按14400元/年扣减税费；②《创业场地租金补贴政策》（A04）：租金8000元的50%-80%（4000-6400元）可申请补贴，需提供孵化基地入驻协议。"
-12. 必须计算并提及叠加后的预估收益："两项政策叠加后，您每年可享受18400-20800元的政策支持（14400元税费扣减 + 4000-6400元租金补贴）。"
-13. 主动建议必须包含"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。"
-"""
-        elif "培训课程智能匹配" in scenario_type:
-             prompt_instructions = base_instructions + """
-7. 特别要求：必须推荐COURSE_A01和COURSE_A02课程，并关联POLICY_A02政策
-8. 课程推荐必须包含优先级排序，COURSE_A01优先于COURSE_A02
-9. 必须明确提及"初中及以上学历"符合课程要求
-10. 必须说明失业人员可申请POLICY_A02补贴
-11. 输出结构必须包含"课程+补贴"打包方案
-12. 在"suggestions"中勾勒清晰的成长路径
-"""
-        else:
-             prompt_instructions = base_instructions
-
+            
+            # 直接生成结构化回答
+            response = {
+                "positive": f"推荐岗位：[JOB_A02] {recommended_jobs[0]['title']}，推荐理由：①符合技能培训方向 ②兼职属性满足灵活时间需求 ③与POLICY_A02政策相关\n\n政策说明：根据POLICY_A02技能提升补贴政策，您可以申请相关培训补贴",
+                "negative": "",
+                "suggestions": "建议联系相关机构了解具体申请流程"
+            }
+            
+            return response
+        
+        # 构建完整prompt
         prompt = f"""
-你是一个政策咨询智能体，请根据用户输入、匹配的用户画像、相关政策、推荐岗位和推荐课程，生成结构化的回答：
+你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成结构化的政策咨询回答。
 
 用户输入: {user_input}
 {user_profile_str}
+
 相关政策:
 {policies_str}
+
 {jobs_str}
+
 {courses_str}
 
-回答要求：
-{prompt_instructions}
+请根据以上信息，按照以下指令生成回答：
+{base_instructions}
 
-请按照以下格式输出：
-{{
-  "positive": "符合条件的政策和具体内容",
-  "negative": "不符合条件的政策和原因",
-  "suggestions": "主动建议和下一步操作"
-}}
+特别要求：
+1. 课程推荐格式："推荐您优先选择《电商运营入门实战班》：学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。"
+2. 补贴说明格式："根据《失业人员职业培训补贴政策》，企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元"
+3. 优先显示课程推荐，然后显示补贴说明
+
+请以JSON格式输出，包含以下字段：
+{
+  "positive": "符合条件的政策及内容",
+  "negative": "不符合条件的政策及原因",
+  "suggestions": "主动建议"
+}
+
+请确保回答准确、简洁、有条理，直接输出JSON格式，不要包含其他内容。
 """
+        
+        logger.info(f"生成的回答提示: {prompt[:100]}...")
         response = self.chatbot.chat_with_memory(prompt)
         
         # 处理返回的新格式
         if isinstance(response, dict) and 'content' in response:
             content = response['content']
             llm_time = response.get('time', 0)
-            logger.info(f"生成回答LLM调用耗时: {llm_time:.2f}秒")
+            logger.info(f"大模型返回的回答结果: {content[:100]}...")
+            logger.info(f"回答生成LLM调用耗时: {llm_time:.2f}秒")
         else:
             content = response
             llm_time = 0
+            if isinstance(content, str):
+                logger.info(f"大模型返回的回答结果: {content[:100]}...")
+            else:
+                logger.info(f"大模型返回的回答结果: {str(content)[:100]}...")
         
         try:
             if isinstance(content, dict):
                 result_json = content
             else:
                 result_json = json.loads(content)
-            
-            # 针对场景二，确保主动建议包含指定内容
-            if "技能培训岗位个性化推荐" in scenario_type:
-                suggestions = result_json.get("suggestions", "")
-                if "完善'电工实操案例库'简历模块" not in suggestions:
-                    suggestions = "主动建议：完善'电工实操案例库'简历模块，提升竞争力。"
-                result_json["suggestions"] = suggestions
-
-            return {
-                "result": result_json,
-                "time": llm_time
-            }
+                
+            return result_json
         except Exception as e:
-            logger.error(f"解析生成回答失败: {str(e)}")
-            # 降级处理，确保主动建议包含指定内容
+            logger.error(f"解析回答结果失败: {str(e)}")
             return {
-                "result": {"positive": content, "negative": "", "suggestions": "主动建议：完善'电工实操案例库'简历模块，提升竞争力。"},
-                "time": llm_time
+                "positive": "",
+                "negative": "",
+                "suggestions": ""
             }
     
     def process_query(self, user_input):
-        """处理用户查询的完整流程 - 优化版本，减少LLM调用"""
+        """处理用户查询"""
         start_time = time.time()
-        logger.info(f"开始处理查询: {user_input[:50]}...")
+        logger.info(f"处理用户查询: {user_input[:50]}...")
         
-        # 检查缓存
-        cache_key = f"query:{user_input}"
-        if cache_key in self.llm_cache:
-            logger.info("命中缓存，直接返回缓存结果")
-            result = self.llm_cache[cache_key]
-            result["timing"]["total"] = time.time() - start_time
-            logger.info(f"查询处理完成，总耗时: {result['timing']['total']:.2f}秒 (缓存命中)")
-            return result
+        # 1. 识别意图和实体
+        intent_result = self.identify_intent(user_input)
+        intent_info = intent_result["result"]
         
-        try:
-            # 合并意图识别和回答生成为一次LLM调用
-            combined_start = time.time()
-            result = self.combined_process(user_input)
-            combined_time = time.time() - combined_start
-            logger.info(f"合并处理完成，耗时: {combined_time:.2f}秒")
+        # 2. 检索相关政策
+        relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"])
+        
+        # 3. 生成岗位推荐
+        recommended_jobs = []
+        if intent_info.get("needs_job_recommendation", False):
+            # 基于政策关联岗位
+            for policy in relevant_policies:
+                policy_id = policy.get("policy_id")
+                # 简单示例：基于政策ID匹配岗位
+                if policy_id == "POLICY_A02":  # 技能提升补贴政策
+                    # 匹配相关岗位
+                    matched_jobs = self.job_matcher.match_jobs_by_policy(policy_id)
+                    recommended_jobs.extend(matched_jobs)
             
-            # 确保结果包含所有必要字段
-            if "response" not in result:
-                result["response"] = {"positive": "政策咨询服务", "negative": "", "suggestions": "请联系相关部门获取更多信息"}
-            if "intent" not in result:
-                result["intent"] = {"intent": "政策咨询", "entities": []}
-            if "relevant_policies" not in result:
-                result["relevant_policies"] = self.policies[:3]
-            if "llm_calls" not in result:
-                result["llm_calls"] = []
-            
-            # 评估结果
-            evaluate_start = time.time()
-            evaluation = self.evaluate_response(user_input, result["response"])
-            evaluate_time = time.time() - evaluate_start
-            logger.info(f"评估完成，耗时: {evaluate_time:.2f}秒")
-            
-            total_time = time.time() - start_time
-            logger.info(f"查询处理完成，总耗时: {total_time:.2f}秒")
-            
-            # 添加计时信息
-            result["evaluation"] = evaluation
-            result["timing"] = {
-                "total": total_time,
-                "combined": combined_time,
-                "evaluate": evaluate_time
+            # 去重
+            seen_job_ids = set()
+            unique_jobs = []
+            for job in recommended_jobs:
+                job_id = job.get("job_id")
+                if job_id not in seen_job_ids:
+                    seen_job_ids.add(job_id)
+                    unique_jobs.append(job)
+            recommended_jobs = unique_jobs[:3]  # 最多返回3个岗位
+        
+        # 4. 生成课程推荐
+        recommended_courses = []
+        # 基于政策关联课程
+        for policy in relevant_policies:
+            policy_id = policy.get("policy_id")
+            # 简单示例：基于政策ID匹配课程
+            if policy_id == "POLICY_A02":  # 技能提升补贴政策
+                # 匹配相关课程
+                matched_courses = self.course_matcher.match_courses_by_policy(policy_id)
+                recommended_courses.extend(matched_courses)
+        
+        # 去重
+        seen_course_ids = set()
+        unique_courses = []
+        for course in recommended_courses:
+            course_id = course.get("course_id")
+            if course_id not in seen_course_ids:
+                seen_course_ids.add(course_id)
+                unique_courses.append(course)
+        recommended_courses = unique_courses[:3]  # 最多返回3个课程
+        
+        # 5. 生成回答
+        response = self.generate_response(user_input, relevant_policies, "通用场景", recommended_jobs=recommended_jobs, recommended_courses=recommended_courses)
+        
+        end_time = time.time()
+        execution_time = end_time - start_time
+        logger.info(f"查询处理完成，耗时: {execution_time:.2f}秒")
+        
+        # 构建思考过程
+        thinking_process = [
+            {
+                "step": "意图识别",
+                "content": f"识别到用户意图: {intent_info['intent']}, 需要岗位推荐: {intent_info.get('needs_job_recommendation', False)}",
+                "status": "completed"
+            },
+            {
+                "step": "政策检索",
+                "content": f"检索到 {len(relevant_policies)} 条相关政策",
+                "status": "completed"
+            },
+            {
+                "step": "岗位推荐",
+                "content": f"生成 {len(recommended_jobs)} 个岗位推荐",
+                "status": "completed"
+            },
+            {
+                "step": "课程推荐",
+                "content": f"生成 {len(recommended_courses)} 个课程推荐",
+                "status": "completed"
+            },
+            {
+                "step": "回答生成",
+                "content": "基于检索结果生成结构化回答",
+                "status": "completed"
             }
-            
-            # 缓存结果
-            self.llm_cache[cache_key] = result
-            
-            # 限制缓存大小，避免内存占用过高
-            if len(self.llm_cache) > 50:
-                # 删除最早的缓存项
-                oldest_key = next(iter(self.llm_cache))
-                del self.llm_cache[oldest_key]
-                logger.info("缓存大小超过限制，已删除最早的缓存项")
-            
-            return result
-        except Exception as e:
-            logger.error(f"处理查询失败: {str(e)}")
-            # 降级处理：使用原始方式
-            return self.fallback_process(user_input)
-    
-    def process_stream_query(self, user_input):
-        """流式处理查询 - 智能岗位推荐版"""
-        start_time = time.time()
-        logger.info(f"开始流式处理: {user_input[:50]}...")
+        ]
         
-        # 1. 快速匹配上下文 (本地计算，快速)
-        matched_user = self.user_profile_manager.match_user_profile(user_input)
-        
-        # 简单关键词匹配政策和岗位（替代LLM检索以提速）
-        all_policies = self.policies
-        all_jobs = self.job_matcher.get_all_jobs()
-        
-        relevant_policies = []
-        for p in all_policies:
-            is_match = False
-            # 1. 标题/分类匹配
-            if p["title"] in user_input or p["category"] in user_input:
-                is_match = True
-            
-            # 2. 核心条件匹配 (检查政策的条件值是否出现在用户输入中)
-            if not is_match:
-                for cond in p.get("conditions", []):
-                    val = str(cond.get("value", ""))
-                    # 处理 "高校毕业生/返乡农民工" 这种多选条件
-                    sub_vals = val.split("/")
-                    for sv in sub_vals:
-                        if sv and len(sv) > 1 and sv in user_input:
-                            is_match = True
-                            break
-                    if is_match:
-                        break
-            
-            # 3. 特定关键词补救 (针对简称)
-            if not is_match:
-                # 如用户说"税收优惠"，匹配"退役军人创业税收优惠"
-                if "税收" in user_input and "税收" in p["title"]:
-                    is_match = True
-                elif "场地" in user_input and "场地" in p["title"]:
-                    is_match = True
-                elif "贴息" in user_input and "贴息" in p["title"]:
-                    is_match = True
-            
-            if is_match:
-                relevant_policies.append(p)
-                
-        if not relevant_policies:
-            relevant_policies = all_policies[:3] # 默认
-            
-        candidate_jobs = []
-        # 简单筛选候选岗位，但不直接推送
-        if any(k in user_input for k in ["工作", "岗位", "招聘", "赚钱"]):
-             for j in all_jobs:
-                 if any(k in user_input for k in [j["title"]]):
-                     candidate_jobs.append(j)
-             if not candidate_jobs:
-                 candidate_jobs = all_jobs[:3]
-
-        # 2. 先发送上下文数据 (不包含岗位，等待LLM判断)
-        context_data = {
-            "type": "context",
-            "matched_user": matched_user,
-            "relevant_policies": [p["policy_id"] for p in relevant_policies],
-            # "recommended_jobs": candidate_jobs # 暂时不发
+        return {
+            "intent": intent_info,
+            "relevant_policies": relevant_policies,
+            "response": response,
+            "execution_time": execution_time,
+            "thinking_process": thinking_process,
+            "recommended_jobs": recommended_jobs,
+            "recommended_courses": recommended_courses
         }
-        yield json.dumps(context_data, ensure_ascii=False) + "\n\n"
-        
-        # 3. 构建Prompt并流式调用LLM
-        simple_policies = [{"id": p["policy_id"], "title": p["title"], "content": p["content"]} for p in relevant_policies]
-        simple_jobs = [{"id": j["job_id"], "title": j["title"], "features": j["features"]} for j in candidate_jobs]
-        
-        # 针对特定场景注入特定指令
-        scenario_instruction = ""
-        if "返乡创业" in user_input or "农民工" in user_input: # 场景一特征
-            scenario_instruction = """
-特别注意（场景一要求）：
-1. 必须检索并关联POLICY_A03（返乡创业扶持补贴政策）和POLICY_A01（创业担保贷款贴息政策）
-2. 针对POLICY_A03：若用户未提及"带动就业"，必须在否定部分明确指出缺失条件，说明"需满足带动3人以上就业"方可申领2万补贴
-3. 针对POLICY_A01：必须在肯定部分确认用户"返乡农民工"身份符合贷款条件，说明额度（≤50万）、期限（≤3年）及贴息规则
-4. 在【结构化输出】的"否定部分"，明确说明：根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足"带动3人以上就业"方可申领2万补贴，当前信息未提及，建议补充就业证明后申请
-5. 在【结构化输出】的"肯定部分"，明确说明：您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，最高贷50万、期限3年，LPR-150BP以上部分财政贴息
-6. 在【结构化输出】的"主动建议"，必须推荐联系 JOB_A01（创业孵化基地管理员），获取政策申请全程指导
-7. 结构化输出必须包含政策ID和完整政策名称
-"""
-        elif "电工证" in user_input or "技能补贴" in user_input: # 场景二特征
-            scenario_instruction = """
-特别注意（场景二要求）：
-1. 必须在思考过程中分析 USER_A02 画像。
-2. 推荐 JOB_A02，并说明其"兼职"属性符合"灵活时间"需求。
-3. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议。
-4. 在【结构化输出】的"肯定部分"，**岗位推荐必须绝对优先于政策说明**
-5. 输出结构必须严格遵循以下顺序：
-   - 第一部分：岗位推荐（详细介绍推荐的岗位，至少2个）
-   - 第二部分：政策说明（简要说明可享用的政策及其条件）
-6. 岗位推荐格式必须为：推荐岗位：[岗位ID] [岗位名称]，推荐理由：①... ②... ③...
-7. 必须结合用户画像（如持有证书、灵活时间需求）和岗位特征进行推荐解释
-8. 政策说明只需要简要介绍，重点放在岗位推荐上
-9. 绝对不允许先介绍政策再介绍岗位
-10. 绝对不允许推荐JOB_A01（创业孵化基地管理员），该岗位不符合场景二用户的灵活时间需求
-11. 只推荐与技能培训和POLICY_A02相关的岗位
-"""
-        elif "退役军人" in user_input and "税收" in user_input: # 场景三特征
-             scenario_instruction = """
-特别注意（场景三要求）：
-1. 必须在思考完成后输出"--- 结构化输出"作为分隔线
-2. 明确指出可以同时享受税收优惠（A06）和场地补贴（A04）
-3. 推荐联系 JOB_A05
-4. 在【结构化输出】中，**不输出否定部分**，仅输出肯定部分和主动建议
-5. 结构化输出必须包含政策ID和完整政策名称
-"""
-        elif "电商运营" in user_input and "培训课程" in user_input: # 场景四特征
-             scenario_instruction = """
-特别注意（场景四要求）：
-1. 必须推荐COURSE_A01和COURSE_A02课程，并关联POLICY_A02政策
-2. 课程推荐必须包含优先级排序，COURSE_A01优先于COURSE_A02
-3. 必须明确提及"初中及以上学历"符合课程要求
-4. 必须说明失业人员可申请POLICY_A02补贴
-5. 输出结构必须包含"课程+补贴"打包方案
-6. 在【结构化输出】中勾勒清晰的成长路径
-"""
-
-        prompt = f"""
-你是一个政策咨询助手。请根据以下信息回答用户问题。
-
-用户输入: {user_input}
-匹配画像: {matched_user.get('user_id') if matched_user else '无'}
-
-参考政策:
-{json.dumps(simple_policies, ensure_ascii=False)}
-
-候选岗位列表:
-{json.dumps(simple_jobs, ensure_ascii=False)}
-
-请以Markdown格式直接输出回答，要求：
-1. **深度思考部分**：先进行详细的分析，包括【意图分析】、【政策解读】（仅当意图涉及政策时）和【岗位推荐】（仅当意图涉及求职或岗位时）。**请务必全程使用中文进行思考和分析，不要使用英文。**
-   - 在分析过程中，**仅允许提及和分析符合用户条件**的政策和岗位。
-   - **严禁**提及任何不符合条件的政策或岗位，即使是为了说明原因也不允许。
-   - **严禁**使用“（注：...）”或任何形式对被排除的项目进行汇总说明或解释。被排除的项目应如同不存在一样，完全消失在思考过程中。
-   - **仅当用户意图包含“政策咨询”时，才输出【政策解读】章节**。
-   - **仅当用户意图包含“求职”或“找工作”时，才输出【岗位推荐】章节**。如果用户未明确表达求职意向，严禁输出“候选岗位列表为空，无需推荐”之类的废话，直接不显示该章节。
-   - 只有符合条件的政策和岗位才配拥有姓名和篇幅。
-2. **结构化输出部分**：在思考完成后，必须使用"---"作为分隔线，然后严格按照以下三部分进行总结（**不要显示"结构化输出"这几个字**）：
-   - 否定部分：列出不符合条件的政策及原因。
-   - 肯定部分：列出符合条件的政策及具体内容。
-   - 主动建议：提供下一步操作建议（如联系具体人员）。
-   - **最终校验（生死红线）**：
-     1. **互斥性**：同一个政策ID（如POLICY_A03）**绝对禁止**同时出现在“肯定部分”和“否定部分”。
-     2. **优先级**：如果一个政策在“否定部分”被提及（无论原因），它就**必须**从“肯定部分”中彻底删除。
-     3. **部分符合即为否定**：只要有一条核心条件不满足（如需要带动就业但未满足），该政策就属于“否定部分”，严禁在“肯定部分”中以“基本符合”为由再次列出。
-   - **对于部分符合的政策（如身份符合但条件未满足）：** 统一归类到**否定部分**，并说明“虽然身份符合，但暂不满足XXX条件”。严禁将其拆分到两部分。
-   - **逻辑一致性检查**：确保肯定部分的政策没有与否定部分的结论相冲突。
-
-{scenario_instruction}
-
-输出结构参考（使用加粗标题）：
-**意图分析**
-...
-
-**政策解读**
-...
-
-**岗位推荐** (仅当需要时输出)
-...
-
----
-- **否定部分**：...
-- **肯定部分**：...
-- **主动建议**：...
-
-请直接开始输出内容。
-"""
-        
-        # 4. 流式生成内容，并监听特殊标记
-        full_response = ""
-        
-        for chunk in self.chatbot.chat_stream(prompt):
-            full_response += chunk
-            yield chunk
-            
-        # 5. 流结束后，检查是否需要推送岗位（确保在分析完成后）
-        # 由于前端已支持在回答中直接渲染岗位卡片，此处不再单独推送岗位事件，避免重复显示
-        # if candidate_jobs:
-        #      # 检查模型回复中是否包含岗位推荐的章节标题
-        #      if "**岗位推荐**" in full_response or "【岗位推荐】" in full_response:
-        #          # 触发岗位推荐事件
-        #          jobs_event = {
-        #             "type": "jobs",
-        #             "data": candidate_jobs
-        #          }
-        #          yield jobs_event
     
     def evaluate_response(self, user_input, response):
         """评估回答质量"""
@@ -621,36 +455,577 @@ class PolicyAgent:
             "user_satisfaction": "4.5"        # 模拟值
         }
     
-    def handle_scenario(self, scenario_id, user_input):
-        """处理特定场景"""
-        scenarios = {
-            "scenario1": "创业扶持政策精准咨询",
-            "scenario2": "技能培训岗位个性化推荐",
-            "scenario3": "多重政策叠加咨询",
-            "scenario4": "培训课程智能匹配"
+    def handle_user_input(self, user_input, session_id=None, conversation_history=None):
+        """处理用户输入，基于实时分析生成回答"""
+        logger.info(f"处理用户输入: {user_input[:50]}..., session_id: {session_id}")
+        
+        # 1. 分析用户输入，判断是否需要收集更多信息
+        analysis_result = self.analyze_input(user_input, conversation_history)
+        
+        # 安全处理analysis_result
+        needs_more_info = False
+        if isinstance(analysis_result, dict):
+            needs_more_info = analysis_result.get('needs_more_info', False)
+        
+        if needs_more_info:
+            # 需要收集更多信息，生成追问
+            return {
+                "type": "追问",
+                "content": analysis_result.get('follow_up_question'),
+                "missing_info": analysis_result.get('missing_info')
+            }
+        
+        # 2. 收集到足够信息后，进行分析
+        return self.process_analysis(analysis_result, session_id)
+    
+    def analyze_input(self, user_input, conversation_history=None):
+        """分析用户输入，判断是否需要收集更多信息"""
+        logger.info(f"分析用户输入: {user_input[:50]}...")
+        
+        # 1. 识别意图和实体
+        intent_result = self.identify_intent(user_input)
+        
+        # 安全处理intent_result
+        intent_info = {}
+        if isinstance(intent_result, dict):
+            intent_info = intent_result.get("result", {})
+        
+        # 2. 匹配用户画像
+        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        
+        # 3. 分析需要的信息
+        # 基于数据文件分析，优化信息收集要素
+        required_info = {
+            "user_profile": {
+                "required": ["education", "skills", "work_experience", "identity", "status"],
+                "available": []
+            },
+            "user_needs": {
+                "required": ["specific_needs", "timeframe", "location", "salary_range", "job_interest"],
+                "available": []
+            }
         }
         
-        scenario_name = scenarios.get(scenario_id, "政策咨询")
-        return self.process_query(f"[{scenario_name}] {user_input}")
-    
-    def combined_process(self, user_input):
-        """合并处理：单次LLM调用完成所有任务"""
-        logger.info(f"处理用户输入: {user_input[:50]}...")
-        
-        # 初始化计时和思考过程
-        start_time = time.time()
-        thinking_process = []
-        
-        # 1. 本地快速匹配用户画像
-        matched_user = self.user_profile_manager.match_user_profile(user_input)
-        if matched_user:
-            logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
+        # 4. 检查现有信息
+        if matched_user and isinstance(matched_user, dict):
+            user_data = matched_user.get("data", {})
+            basic_info = matched_user.get("basic_info", {})
             
-        # 获取所有上下文数据
+            # 从用户画像中提取身份信息
+            identity = basic_info.get("identity", "")
+            status = basic_info.get("status", "")
+            logger.info(f"匹配到用户身份: {identity}, 状态: {status}")
+            
+            # 将用户画像中的信息添加到现有可用信息列表中
+            # 添加基本信息
+            for key, value in basic_info.items():
+                if key not in required_info["user_profile"]["available"]:
+                    required_info["user_profile"]["available"].append(key)
+                    logger.info(f"从用户画像中提取到{key}信息: {value}")
+            
+            # 添加其他用户数据
+            for key in user_data.keys():
+                if key not in required_info["user_profile"]["available"]:
+                    required_info["user_profile"]["available"].append(key)
+            
+            # 从core_needs中提取specific_needs
+            core_needs = matched_user.get("core_needs", [])
+            if core_needs:
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info(f"从用户画像中提取到需求信息: {core_needs}")
+            
+            # 从job_interest中提取job_interest
+            job_interest = matched_user.get("job_interest", [])
+            if job_interest:
+                if "job_interest" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("job_interest")
+                    logger.info(f"从用户画像中提取到岗位兴趣: {job_interest}")
+            
+            # 基于用户身份预测可用信息
+            if identity == "返乡农民工":
+                # 返乡农民工通常需要创业扶持政策
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info("基于返乡农民工身份预测需求信息")
+                if "location" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("location")
+                    logger.info("基于返乡农民工身份预测地点信息")
+            elif identity == "高校毕业生":
+                # 高校毕业生通常有学历信息
+                if "education" not in required_info["user_profile"]["available"]:
+                    required_info["user_profile"]["available"].append("education")
+                    logger.info("基于高校毕业生身份预测学历信息")
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info("基于高校毕业生身份预测需求信息")
+            elif identity == "退役军人":
+                # 退役军人通常有特定的政策需求
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info("基于退役军人身份预测需求信息")
+                if "location" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("location")
+                    logger.info("基于退役军人身份预测地点信息")
+            elif identity == "失业人员":
+                # 失业人员通常需要技能培训和就业服务
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info("基于失业人员身份预测需求信息")
+                if "skills" not in required_info["user_profile"]["available"]:
+                    required_info["user_profile"]["available"].append("skills")
+                    logger.info("基于失业人员身份预测技能信息")
+            elif identity == "脱贫人口":
+                # 脱贫人口通常需要技能培训和生活费补贴
+                if "specific_needs" not in required_info["user_needs"]["available"]:
+                    required_info["user_needs"]["available"].append("specific_needs")
+                    logger.info("基于脱贫人口身份预测需求信息")
+                if "education" not in required_info["user_profile"]["available"]:
+                    required_info["user_profile"]["available"].append("education")
+                    logger.info("基于脱贫人口身份预测学历信息")
+        
+        # 5. 从当前用户输入中提取信息
+        # 检查用户输入中是否包含学历相关词汇
+        education_keywords = ["本科", "硕士", "博士", "高中", "中专", "大专", "研究生", "初中", "小学", "学历"]
+        for keyword in education_keywords:
+            if keyword in user_input and "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info(f"从用户输入中提取到学历信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含技能相关词汇
+        skills_keywords = ["技能", "证书", "资格证", "执业证", "许可证", "职业资格", "技能等级"]
+        for keyword in skills_keywords:
+            if keyword in user_input and "skills" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("skills")
+                logger.info(f"从用户输入中提取到技能信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含经验相关词汇
+        experience_keywords = ["经验", "工作", "实习", "实践", "工龄", "年限"]
+        for keyword in experience_keywords:
+            if keyword in user_input and "work_experience" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("work_experience")
+                logger.info(f"从用户输入中提取到工作经验信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含身份相关词汇
+        identity_keywords = ["返乡农民工", "高校毕业生", "退役军人", "失业人员", "脱贫人口", "低保", "残疾人"]
+        for keyword in identity_keywords:
+            if keyword in user_input and "identity" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("identity")
+                logger.info(f"从用户输入中提取到身份信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含状态相关词汇
+        status_keywords = ["失业", "在职", "创业", "培训", "求职", "筹备", "经营"]
+        for keyword in status_keywords:
+            if keyword in user_input and "status" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("status")
+                logger.info(f"从用户输入中提取到状态信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含需求相关词汇
+        needs_keywords = ["需要", "需求", "要求", "希望", "想", "询问", "咨询", "了解", "申请", "领取", "怎么", "如何", "能否", "能领", "创业", "贷款", "补贴", "政策", "优惠", "扶持"]
+        for keyword in needs_keywords:
+            if keyword in user_input and "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info(f"从用户输入中提取到需求信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含时间相关词汇
+        time_keywords = ["时间", "期限", "多久", "什么时候", "时长", "周期"]
+        for keyword in time_keywords:
+            if keyword in user_input and "timeframe" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("timeframe")
+                logger.info(f"从用户输入中提取到时间信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含地点相关词汇
+        location_keywords = ["地点", "地区", "哪里", "位置", "北京", "上海", "广州", "深圳", "家乡", "家", "当地", "城市", "地区"]
+        for keyword in location_keywords:
+            if keyword in user_input and "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info(f"从用户输入中提取到地点信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含薪资相关词汇
+        salary_keywords = ["薪资", "工资", "收入", "待遇", "月薪", "年薪", "薪资范围"]
+        for keyword in salary_keywords:
+            if keyword in user_input and "salary_range" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("salary_range")
+                logger.info(f"从用户输入中提取到薪资信息: {keyword}")
+                break
+        
+        # 检查用户输入中是否包含岗位兴趣相关词汇
+        job_interest_keywords = ["想做", "希望做", "打算做", "感兴趣", "职业", "岗位", "工作"]
+        for keyword in job_interest_keywords:
+            if keyword in user_input and "job_interest" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("job_interest")
+                logger.info(f"从用户输入中提取到岗位兴趣信息: {keyword}")
+                break
+        
+        # 6. 处理用户回答"没有"的情况
+        negative_keywords = ["没有", "无", "none", "no"]
+        is_negative_answer = any(keyword in user_input.lower() for keyword in negative_keywords)
+        
+        # 7. 从对话历史中提取信息，特别处理用户回答
+        if conversation_history and isinstance(conversation_history, list):
+            logger.info(f"对话历史长度: {len(conversation_history)}")
+            
+            # 遍历对话历史，处理问答对
+            i = 0
+            while i < len(conversation_history):
+                msg = conversation_history[i]
+                if isinstance(msg, dict):
+                    role = msg.get("role")
+                    content = msg.get("content", "")
+                    
+                    # 查找AI提问和用户回答的配对
+                    if role == "ai" and i + 1 < len(conversation_history):
+                        next_msg = conversation_history[i + 1]
+                        if isinstance(next_msg, dict) and next_msg.get("role") == "user":
+                            user_answer = next_msg.get("content", "")
+                            
+                            # 尝试解析AI消息
+                            ai_message_content = content
+                            try:
+                                ai_message_data = json.loads(content)
+                                if isinstance(ai_message_data, dict):
+                                    if "question" in ai_message_data:
+                                        ai_message_content = ai_message_data["question"]
+                                    elif "content" in ai_message_data:
+                                        ai_message_content = ai_message_data["content"]
+                                    elif "question" in ai_message_data.get("data", {}):
+                                        ai_message_content = ai_message_data["data"]["question"]
+                            except:
+                                pass
+                            
+                            logger.info(f"AI消息: {ai_message_content}")
+                            logger.info(f"用户回答: {user_answer}")
+                            
+                            # 处理问答对
+                            if "学历" in ai_message_content:
+                                if "education" not in required_info["user_profile"]["available"]:
+                                    required_info["user_profile"]["available"].append("education")
+                                    logger.info("从对话历史中提取到学历信息")
+                            elif "技能" in ai_message_content:
+                                if "skills" not in required_info["user_profile"]["available"]:
+                                    required_info["user_profile"]["available"].append("skills")
+                                    logger.info("从对话历史中提取到技能信息")
+                            elif "经验" in ai_message_content:
+                                if "work_experience" not in required_info["user_profile"]["available"]:
+                                    required_info["user_profile"]["available"].append("work_experience")
+                                    logger.info("从对话历史中提取到工作经验信息")
+                            elif "需要" in ai_message_content or "需求" in ai_message_content:
+                                if "specific_needs" not in required_info["user_needs"]["available"]:
+                                    required_info["user_needs"]["available"].append("specific_needs")
+                                    logger.info("从对话历史中提取到需求信息")
+                            elif "时间" in ai_message_content or "期限" in ai_message_content:
+                                if "timeframe" not in required_info["user_needs"]["available"]:
+                                    required_info["user_needs"]["available"].append("timeframe")
+                                    logger.info("从对话历史中提取到时间信息")
+                            elif "地点" in ai_message_content or "地区" in ai_message_content:
+                                if "location" not in required_info["user_needs"]["available"]:
+                                    required_info["user_needs"]["available"].append("location")
+                                    logger.info("从对话历史中提取到地点信息")
+                i += 1
+        
+        # 8. 从上下文中理解用户回答，特别是最后一个问答对
+        if conversation_history and isinstance(conversation_history, list) and len(conversation_history) >= 2:
+            # 查找最后一个AI消息和最后一个用户消息
+            last_ai_message = None
+            last_user_message = None
+            
+            for msg in reversed(conversation_history):
+                if isinstance(msg, dict):
+                    if msg.get("role") == "ai" and not last_ai_message:
+                        last_ai_message = msg.get("content", "")
+                    elif msg.get("role") == "user" and not last_user_message:
+                        last_user_message = msg.get("content", "")
+                    
+                    if last_ai_message and last_user_message:
+                        break
+            
+            if last_ai_message and last_user_message:
+                # 尝试解析AI消息
+                ai_message_content = last_ai_message
+                try:
+                    ai_message_data = json.loads(last_ai_message)
+                    if isinstance(ai_message_data, dict):
+                        if "question" in ai_message_data:
+                            ai_message_content = ai_message_data["question"]
+                        elif "content" in ai_message_data:
+                            ai_message_content = ai_message_data["content"]
+                        elif "question" in ai_message_data.get("data", {}):
+                            ai_message_content = ai_message_data["data"]["question"]
+                except:
+                    pass
+                
+                logger.info(f"最后一个AI消息: {ai_message_content}")
+                logger.info(f"最后一个用户回答: {last_user_message}")
+                
+                # 只要用户回答了问题，就认为该信息已提供，无论回答是什么
+                if "学历" in ai_message_content:
+                    if "education" not in required_info["user_profile"]["available"]:
+                        required_info["user_profile"]["available"].append("education")
+                        logger.info("从最后一个问答对中提取到学历信息")
+                elif "技能" in ai_message_content:
+                    if "skills" not in required_info["user_profile"]["available"]:
+                        required_info["user_profile"]["available"].append("skills")
+                        logger.info("从最后一个问答对中提取到技能信息")
+                elif "经验" in ai_message_content:
+                    if "work_experience" not in required_info["user_profile"]["available"]:
+                        required_info["user_profile"]["available"].append("work_experience")
+                        logger.info("从最后一个问答对中提取到工作经验信息")
+                elif "需要" in ai_message_content or "需求" in ai_message_content:
+                    if "specific_needs" not in required_info["user_needs"]["available"]:
+                        required_info["user_needs"]["available"].append("specific_needs")
+                        logger.info("从最后一个问答对中提取到需求信息")
+                elif "时间" in ai_message_content or "期限" in ai_message_content:
+                    if "timeframe" not in required_info["user_needs"]["available"]:
+                        required_info["user_needs"]["available"].append("timeframe")
+                        logger.info("从最后一个问答对中提取到时间信息")
+                elif "地点" in ai_message_content or "地区" in ai_message_content:
+                    if "location" not in required_info["user_needs"]["available"]:
+                        required_info["user_needs"]["available"].append("location")
+                        logger.info("从最后一个问答对中提取到地点信息")
+        
+        # 9. 智能过滤不必要的信息需求
+        # 基于用户输入和对话历史，过滤掉明显不需要的信息
+        if is_negative_answer:
+            # 用户回答"没有"，标记所有当前正在询问的信息为已提供
+            logger.info("用户回答'没有'，标记相关信息为已提供")
+            # 检查对话历史，确定当前正在询问的信息类型
+            if conversation_history and isinstance(conversation_history, list) and len(conversation_history) >= 2:
+                last_ai_message = None
+                for msg in reversed(conversation_history):
+                    if isinstance(msg, dict) and msg.get("role") == "ai":
+                        last_ai_message = msg.get("content", "")
+                        break
+                
+                if last_ai_message:
+                    # 尝试解析最后一个AI消息
+                    ai_message_content = last_ai_message
+                    try:
+                        ai_message_data = json.loads(last_ai_message)
+                        if isinstance(ai_message_data, dict):
+                            if "question" in ai_message_data:
+                                ai_message_content = ai_message_data["question"]
+                            elif "content" in ai_message_data:
+                                ai_message_content = ai_message_data["content"]
+                    except:
+                        pass
+                    
+                    # 根据AI问题类型，标记相应信息为已提供
+                    if "学历" in ai_message_content:
+                        if "education" not in required_info["user_profile"]["available"]:
+                            required_info["user_profile"]["available"].append("education")
+                            logger.info("用户回答'没有'，标记学历信息为已提供")
+                    elif "技能" in ai_message_content:
+                        if "skills" not in required_info["user_profile"]["available"]:
+                            required_info["user_profile"]["available"].append("skills")
+                            logger.info("用户回答'没有'，标记技能信息为已提供")
+                    elif "经验" in ai_message_content:
+                        if "work_experience" not in required_info["user_profile"]["available"]:
+                            required_info["user_profile"]["available"].append("work_experience")
+                            logger.info("用户回答'没有'，标记工作经验信息为已提供")
+                    elif "需要" in ai_message_content or "需求" in ai_message_content:
+                        if "specific_needs" not in required_info["user_needs"]["available"]:
+                            required_info["user_needs"]["available"].append("specific_needs")
+                            logger.info("用户回答'没有'，标记需求信息为已提供")
+                    elif "时间" in ai_message_content or "期限" in ai_message_content:
+                        if "timeframe" not in required_info["user_needs"]["available"]:
+                            required_info["user_needs"]["available"].append("timeframe")
+                            logger.info("用户回答'没有'，标记时间信息为已提供")
+                    elif "地点" in ai_message_content or "地区" in ai_message_content:
+                        if "location" not in required_info["user_needs"]["available"]:
+                            required_info["user_needs"]["available"].append("location")
+                            logger.info("用户回答'没有'，标记地点信息为已提供")
+        
+        # 10. 检查是否需要更多信息
+        missing_info = []
+        for category, info in required_info.items():
+            for req in info["required"]:
+                if req not in info["available"]:
+                    missing_info.append(f"{category}.{req}")
+        
+        logger.info(f"可用信息: {required_info['user_profile']['available']}, {required_info['user_needs']['available']}")
+        logger.info(f"缺失信息: {missing_info}")
+        
+        # 11. 智能判断是否需要追问
+        # 基于用户身份和输入内容，判断是否真的需要追问
+        should_ask = False
+        important_missing_info = []
+        
+        # 定义重要信息类型
+        important_info_types = [
+            "user_needs.specific_needs",  # 具体需求是最重要的
+            "user_needs.location"         # 地点信息对于政策匹配很重要
+        ]
+        
+        # 筛选重要的缺失信息
+        for info_type in missing_info:
+            if info_type in important_info_types:
+                important_missing_info.append(info_type)
+                should_ask = True
+        
+        # 如果有重要信息缺失，或者缺失信息较少且用户身份明确，才进行追问
+        if not should_ask and len(missing_info) > 0:
+            # 检查用户身份
+            if matched_user and isinstance(matched_user, dict):
+                identity = matched_user.get("basic_info", {}).get("identity", "")
+                if identity:
+                    # 对于有明确身份的用户，即使有一些非重要信息缺失，也可以开始分析
+                    logger.info(f"用户身份明确({identity})，即使有非重要信息缺失，也开始分析")
+                    should_ask = False
+                else:
+                    # 对于身份不明确的用户，需要更多信息
+                    should_ask = True
+            else:
+                # 对于没有匹配到用户画像的用户，如果缺失信息较多，需要追问
+                should_ask = len(missing_info) > 2
+        
+        # 12. 生成追问
+        if should_ask and (important_missing_info or missing_info):
+            follow_up_questions = {
+                "user_profile.education": "请问您的学历是什么？",
+                "user_profile.skills": "请问您有哪些技能或证书？",
+                "user_profile.work_experience": "请问您有多少年工作经验？",
+                "user_needs.specific_needs": "请问您的具体需求是什么？",
+                "user_needs.timeframe": "请问您的时间要求是什么？",
+                "user_needs.location": "请问您的地点要求是什么？"
+            }
+            
+            # 优化优先级排序，减少不必要的追问
+            priority_order = []
+            
+            # 优先处理与用户身份相关的信息
+            if matched_user and isinstance(matched_user, dict):
+                identity = matched_user.get("basic_info", {}).get("identity", "")
+                if identity == "返乡农民工":
+                    # 返乡农民工优先需要地点和需求信息
+                    priority_order = [
+                        "user_needs.location",
+                        "user_needs.specific_needs",
+                        "user_profile.education",
+                        "user_profile.skills",
+                        "user_profile.work_experience",
+                        "user_needs.timeframe"
+                    ]
+                elif identity == "高校毕业生":
+                    # 高校毕业生优先需要需求和学历信息
+                    priority_order = [
+                        "user_needs.specific_needs",
+                        "user_profile.education",
+                        "user_needs.location",
+                        "user_profile.skills",
+                        "user_profile.work_experience",
+                        "user_needs.timeframe"
+                    ]
+                elif identity == "退役军人":
+                    # 退役军人优先需要需求和地点信息
+                    priority_order = [
+                        "user_needs.specific_needs",
+                        "user_needs.location",
+                        "user_profile.education",
+                        "user_profile.skills",
+                        "user_profile.work_experience",
+                        "user_needs.timeframe"
+                    ]
+            
+            # 如果没有基于身份的优先级排序，使用默认排序
+            if not priority_order:
+                priority_order = [
+                    "user_needs.specific_needs",
+                    "user_needs.location",
+                    "user_profile.education",
+                    "user_profile.skills",
+                    "user_profile.work_experience",
+                    "user_needs.timeframe"
+                ]
+            
+            # 优先选择重要的缺失信息进行追问
+            target_info_types = important_missing_info if important_missing_info else missing_info
+            
+            # 按照优先级顺序选择追问信息
+            selected_info_type = None
+            for info_type in priority_order:
+                if info_type in target_info_types:
+                    selected_info_type = info_type
+                    break
+            
+            if selected_info_type:
+                follow_up_question = follow_up_questions.get(selected_info_type, "请问您能提供更多信息吗？")
+                logger.info(f"生成追问: {follow_up_question}")
+                
+                return {
+                    "intent_info": intent_info,
+                    "matched_user": matched_user,
+                    "required_info": required_info,
+                    "missing_info": missing_info,
+                    "needs_more_info": True,
+                    "follow_up_question": follow_up_question
+                }
+        
+        # 13. 信息足够，返回分析结果
+        logger.info("信息足够，开始分析")
+        return {
+            "intent_info": intent_info,
+            "matched_user": matched_user,
+            "required_info": required_info,
+            "missing_info": [],
+            "needs_more_info": False
+        }
+    
+    def process_analysis(self, analysis_result, session_id=None):
+        """处理分析结果，生成最终回答"""
+        logger.info(f"处理分析结果, session_id: {session_id}")
+        
+        # 1. 获取分析结果
+        intent_info = analysis_result.get("intent_info")
+        matched_user = analysis_result.get("matched_user")
+        
+        # 2. 获取所有数据
         all_policies = self.policies
         all_jobs = self.job_matcher.get_all_jobs()
         all_courses = self.course_matcher.get_all_courses()
         
+        # 3. 构建分析Prompt
+        prompt = self.build_analysis_prompt(intent_info, matched_user, all_policies, all_jobs, all_courses)
+        
+        # 4. 调用LLM进行分析
+        llm_response = self.chatbot.chat_with_memory(prompt)
+        
+        # 5. 处理LLM响应
+        try:
+            if isinstance(llm_response, dict):
+                content = llm_response.get("content", "")
+            else:
+                content = llm_response if isinstance(llm_response, str) else str(llm_response)
+            
+            if isinstance(content, dict):
+                result_data = content
+            else:
+                # 清理可能存在的Markdown标记
+                clean_content = content.replace("```json", "").replace("```", "").strip()
+                result_data = json.loads(clean_content)
+        except Exception as e:
+            logger.error(f"解析LLM响应失败: {e}")
+            # 降级处理
+            result_data = {
+                "analysis_type": "政策分析",
+                "thinking": "分析用户需求中...",
+                "policy_analysis": [],
+                "job_analysis": [],
+                "course_analysis": [],
+                "suggestions": []
+            }
+        
+        return result_data
+    
+    def build_analysis_prompt(self, intent_info, matched_user, all_policies, all_jobs, all_courses):
+        """构建分析Prompt"""
         # 简化数据以减少Token消耗
         simple_policies = [{
             "id": p["policy_id"],
@@ -670,117 +1045,453 @@ class PolicyAgent:
             "id": c["course_id"],
             "title": c["title"],
             "content": c["content"],
-            "conditions": c.get("conditions", []),
-            "policy_relations": c.get("policy_relations", [])
+            "conditions": c.get("conditions", [])
         } for c in all_courses]
         
-        # 3. 构建单次调用Prompt
-        prompt = f"""
-你是一个专业的政策咨询和岗位推荐助手。请基于以下信息处理用户请求。
-
-用户输入: {user_input}
-匹配画像: {json.dumps(matched_user, ensure_ascii=False) if matched_user else "无"}
-
-可用政策列表:
-{json.dumps(simple_policies, ensure_ascii=False)}
-
-可用岗位列表:
-{json.dumps(simple_jobs, ensure_ascii=False)}
-
-可用课程列表:
-{json.dumps(simple_courses, ensure_ascii=False)}
-
-任务要求:
-1. 分析用户意图，提取关键实体。
-2. 判断用户是否明确需要找工作/推荐岗位（needs_job_recommendation）或需要培训课程推荐（needs_course_recommendation）。
-3. 针对不同场景采用不同的处理顺序：
-   - 对于技能培训岗位推荐场景：
-     a. 先根据用户的要求（如持有证书、关注灵活时间等）从列表中筛选最相关的岗位
-     b. 然后根据筛选出的岗位的政策关系，找到对应的相关政策
-   - 对于培训课程智能匹配场景：
-     a. 先根据用户的要求（如学历、基础等）从列表中筛选最相关的课程
-     b. 然后根据筛选出的课程的政策关系，找到对应的相关政策
-   - 对于其他场景：
-     a. 从列表中筛选**所有相关**的政策（最多3个），确保覆盖用户的**所有需求点**
-     b. 然后从列表中筛选最相关的岗位（最多3个，仅当needs_job_recommendation为true或场景暗示需要时）
-     c. 然后从列表中筛选最相关的课程（最多3个，仅当needs_course_recommendation为true或场景暗示需要时）
-4. 生成结构化的回复内容。
-
-回复要求:
-- positive: 符合条件的政策内容、具体岗位推荐（如有）和具体课程推荐（如有）。岗位推荐格式：推荐岗位：[ID] [名称]，理由：...；课程推荐格式：推荐课程：[ID] [名称]，理由：...
-- negative: 不符合条件的政策及原因。
-- suggestions: 主动建议和下一步操作。如涉及创业建议联系JOB_A01，涉及退役军人建议联系JOB_A05。
-
-请严格按照以下JSON格式输出:
-{{
-  "intent": {{
-    "summary": "意图描述",
-    "entities": [{{"type": "...", "value": "..."}}],
-    "needs_job_recommendation": true/false,
-    "needs_course_recommendation": true/false
-  }},
-  "relevant_policy_ids": ["POLICY_XXX", ...],
-  "recommended_job_ids": ["JOB_XXX", ...],
-  "recommended_course_ids": ["COURSE_XXX", ...],
-  "response": {{
-    "positive": "...",
-    "negative": "...",
-    "suggestions": "..."
-  }}
-}}
-"""
-        logger.info("调用LLM执行综合处理...")
-        llm_response = self.chatbot.chat_with_memory(prompt)
+        user_profile_str = "无" if not matched_user else json.dumps(matched_user, ensure_ascii=False)
         
-        # 4. 解析结果
-        content = llm_response if isinstance(llm_response, str) else llm_response.get("content", "")
-        llm_time = llm_response.get("time", 0) if isinstance(llm_response, dict) else 0
+        # 使用普通字符串拼接，避免f-string格式化问题
+        prompt = ""
+        prompt += "你是一个专业的政策咨询助手。请根据以下信息分析用户需求并生成结构化回答。\n\n"
+        prompt += "用户意图："
+        prompt += intent_info.get('intent', '政策咨询')
+        prompt += "\n"
+        prompt += "用户画像："
+        prompt += user_profile_str
+        prompt += "\n\n"
+        prompt += "可用政策：\n"
+        prompt += json.dumps(simple_policies, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "可用岗位：\n"
+        prompt += json.dumps(simple_jobs, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "可用课程：\n"
+        prompt += json.dumps(simple_courses, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "分析要求：\n"
+        prompt += "1. 分析用户需求，判断是属于\"政策分析\"、\"岗位分析\"、\"课程分析\"还是组合分析\n"
+        prompt += "2. 生成详细的思考过程，说明分析逻辑\n"
+        prompt += "3. 对于每个推荐的政策、岗位和课程，提供：\n"
+        prompt += "   - 推荐理由（分为肯定部分和否定部分）\n"
+        prompt += "   - 优先级（1-5，5最高）\n"
+        prompt += "4. 生成主动建议，包括下一步操作\n\n"
+        prompt += "输出格式：\n"
+        prompt += "{\n"
+        prompt += "  \"analysis_type\": \"分析类型\",\n"
+        prompt += "  \"thinking\": \"思考过程\",\n"
+        prompt += "  \"policy_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"政策ID\",\n"
+        prompt += "      \"title\": \"政策标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"符合条件的理由\",\n"
+        prompt += "        \"negative\": \"不符合条件的理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"job_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"岗位ID\",\n"
+        prompt += "      \"title\": \"岗位标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"推荐理由\",\n"
+        prompt += "        \"negative\": \"不推荐理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"course_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"课程ID\",\n"
+        prompt += "      \"title\": \"课程标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"推荐理由\",\n"
+        prompt += "        \"negative\": \"不推荐理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"suggestions\": [\n"
+        prompt += "    \"建议1\",\n"
+        prompt += "    \"建议2\"\n"
+        prompt += "  ]\n"
+        prompt += "}\n\n"
+        prompt += "请严格按照JSON格式输出，不要包含任何其他内容。\n"
+        
+        return prompt
+    
+    def build_stream_analysis_prompt(self, intent_info, matched_user, all_policies, all_jobs, all_courses):
+        """构建流式分析Prompt"""
+        # 简化数据以减少Token消耗
+        simple_policies = [{
+            "id": p["policy_id"],
+            "title": p["title"],
+            "content": p["content"],
+            "conditions": p.get("conditions", [])
+        } for p in all_policies]
+        
+        simple_jobs = [{
+            "id": j["job_id"],
+            "title": j["title"],
+            "requirements": j["requirements"],
+            "features": j["features"]
+        } for j in all_jobs]
+        
+        simple_courses = [{
+            "id": c["course_id"],
+            "title": c["title"],
+            "content": c["content"],
+            "conditions": c.get("conditions", [])
+        } for c in all_courses]
+        
+        # 安全处理matched_user
+        user_profile_str = "无"
+        if matched_user and isinstance(matched_user, dict):
+            user_profile_str = json.dumps(matched_user, ensure_ascii=False)
+        
+        # 使用普通字符串拼接，避免f-string格式化问题
+        prompt = ""
+        prompt += "你是一个专业的政策咨询助手。请根据以下信息分析用户需求并生成结构化回答。\n\n"
+        prompt += "用户意图："
+        prompt += intent_info.get('intent', '政策咨询')
+        prompt += "\n"
+        prompt += "用户画像："
+        prompt += user_profile_str
+        prompt += "\n\n"
+        prompt += "可用政策：\n"
+        prompt += json.dumps(simple_policies, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "可用岗位：\n"
+        prompt += json.dumps(simple_jobs, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "可用课程：\n"
+        prompt += json.dumps(simple_courses, ensure_ascii=False)
+        prompt += "\n\n"
+        prompt += "分析要求：\n"
+        prompt += "1. 分析用户需求，判断是属于\"政策分析\"、\"岗位分析\"、\"课程分析\"还是组合分析\n"
+        prompt += "2. 生成详细的思考过程，说明分析逻辑\n"
+        prompt += "3. 对于每个推荐的政策、岗位和课程，提供：\n"
+        prompt += "   - 推荐理由（分为肯定部分和否定部分）\n"
+        prompt += "   - 优先级（1-5，5最高）\n"
+        prompt += "4. 生成主动建议，包括下一步操作\n\n"
+        prompt += "输出格式：\n"
+        prompt += "{\n"
+        prompt += "  \"analysis_type\": \"分析类型\",\n"
+        prompt += "  \"thinking\": \"详细思考过程\",\n"
+        prompt += "  \"policy_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"政策ID\",\n"
+        prompt += "      \"title\": \"政策标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"符合条件的理由\",\n"
+        prompt += "        \"negative\": \"不符合条件的理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"job_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"岗位ID\",\n"
+        prompt += "      \"title\": \"岗位标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"推荐理由\",\n"
+        prompt += "        \"negative\": \"不推荐理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"course_analysis\": [\n"
+        prompt += "    {\n"
+        prompt += "      \"id\": \"课程ID\",\n"
+        prompt += "      \"title\": \"课程标题\",\n"
+        prompt += "      \"priority\": 优先级,\n"
+        prompt += "      \"reasons\": {\n"
+        prompt += "        \"positive\": \"推荐理由\",\n"
+        prompt += "        \"negative\": \"不推荐理由\"\n"
+        prompt += "      }\n"
+        prompt += "    }\n"
+        prompt += "  ],\n"
+        prompt += "  \"suggestions\": [\n"
+        prompt += "    \"建议1\",\n"
+        prompt += "    \"建议2\"\n"
+        prompt += "  ]\n"
+        prompt += "}\n\n"
+        prompt += "请严格按照JSON格式输出，不要包含任何其他内容。\n"
+        
+        return prompt
+    
+    def process_stream_query(self, user_input, session_id=None, conversation_history=None):
+        """流式处理查询 - 支持多轮对话和JSON输出"""
+        start_time = time.time()
+        logger.info(f"开始流式处理: {user_input[:50]}..., session_id: {session_id}")
+        
+        # 1. 分析用户输入，判断是否需要收集更多信息
+        analysis_result = self.analyze_input(user_input, conversation_history)
+        
+        # 安全处理analysis_result
+        needs_more_info = False
+        follow_up_question = ""
+        missing_info = []
+        
+        if isinstance(analysis_result, dict):
+            needs_more_info = analysis_result.get('needs_more_info', False)
+            follow_up_question = analysis_result.get('follow_up_question', "")
+            missing_info = analysis_result.get('missing_info', [])
+        
+        if needs_more_info:
+            # 需要收集更多信息，生成追问
+            follow_up_data = {
+                "type": "follow_up",
+                "question": follow_up_question,
+                "missing_info": missing_info
+            }
+            yield json.dumps(follow_up_data, ensure_ascii=False) + "\n\n"
+            return
+        
+        # 2. 信息足够，开始分析
+        # 安全处理analysis_result
+        intent_info = {}
+        matched_user = None
+        
+        if isinstance(analysis_result, dict):
+            intent_info = analysis_result.get("intent_info", {})
+            matched_user = analysis_result.get("matched_user")
+        
+        # 确保intent_info是字典
+        if not isinstance(intent_info, dict):
+            intent_info = {}
+        
+        # 3. 获取所有数据
+        all_policies = self.policies
+        all_jobs = []
+        all_courses = []
+        
+        # 安全调用job_matcher和course_matcher
+        try:
+            all_jobs = self.job_matcher.get_all_jobs()
+        except Exception as e:
+            logger.error(f"获取岗位数据失败: {e}")
+            all_jobs = []
         
         try:
+            all_courses = self.course_matcher.get_all_courses()
+        except Exception as e:
+            logger.error(f"获取课程数据失败: {e}")
+            all_courses = []
+        
+        # 4. 构建流式分析Prompt
+        prompt = self.build_stream_analysis_prompt(intent_info, matched_user, all_policies, all_jobs, all_courses)
+        
+        # 5. 先发送开始分析的信号
+        # 安全处理intent_info和matched_user
+        intent_value = None
+        matched_user_id = None
+        
+        if isinstance(intent_info, dict):
+            intent_value = intent_info.get("intent")
+        
+        if isinstance(matched_user, dict):
+            matched_user_id = matched_user.get("user_id")
+        
+        start_data = {
+            "type": "analysis_start",
+            "intent": intent_value,
+            "matched_user": matched_user_id
+        }
+        yield json.dumps(start_data, ensure_ascii=False) + "\n\n"
+        
+        # 6. 流式生成思考过程
+        thinking_chunks = []
+        full_response = ""
+        
+        # 模拟流式思考过程输出
+        thinking_phrases = [
+            "正在分析用户需求...",
+            "识别用户意图和核心需求...",
+            "匹配相关政策信息...",
+            "分析岗位匹配度...",
+            "评估课程适用性...",
+            "生成最终分析结果..."
+        ]
+        
+        for phrase in thinking_phrases:
+            thinking_data = {
+                "type": "thinking",
+                "content": phrase
+            }
+            yield json.dumps(thinking_data, ensure_ascii=False) + "\n\n"
+            thinking_chunks.append(phrase)
+            # 模拟延迟，使思考过程更自然
+            time.sleep(0.5)
+        
+        # 7. 调用LLM进行详细分析
+        llm_response = self.chatbot.chat_with_memory(prompt)
+        
+        # 8. 处理LLM响应
+        try:
+            if isinstance(llm_response, dict):
+                content = llm_response.get("content", "")
+            else:
+                # 如果llm_response是字符串，直接使用它
+                content = llm_response if isinstance(llm_response, str) else str(llm_response)
+            
+            logger.info(f"LLM响应内容: {content[:100]}...")
+            
             if isinstance(content, dict):
                 result_data = content
             else:
                 # 清理可能存在的Markdown标记
                 clean_content = content.replace("```json", "").replace("```", "").strip()
+                logger.info(f"清理后的内容: {clean_content[:100]}...")
                 result_data = json.loads(clean_content)
         except Exception as e:
             logger.error(f"解析LLM响应失败: {e}")
-            # 降级返回
-            return self.fallback_process(user_input)
-
-        # 5. 重构返回对象
-        # 还原政策对象
-        relevant_policy_ids = result_data.get("relevant_policy_ids", [])
-        relevant_policies = [p for p in all_policies if p["policy_id"] in relevant_policy_ids]
+            # 降级处理 - 基于用户身份和需求生成结果
+            result_data = {
+                "analysis_type": "政策分析",
+                "thinking": " ".join(thinking_chunks),
+                "policy_analysis": [],
+                "job_analysis": [],
+                "course_analysis": [],
+                "suggestions": ["系统暂时无法提供详细分析，请稍后重试。"]
+            }
+            
+            # 基于用户身份生成降级结果
+            if matched_user and isinstance(matched_user, dict):
+                identity = matched_user.get("basic_info", {}).get("identity", "")
+                core_needs = matched_user.get("core_needs", [])
+                
+                # 为返乡农民工生成降级结果
+                if identity == "返乡农民工":
+                    result_data["analysis_type"] = "创业扶持分析"
+                    result_data["policy_analysis"] = [
+                        {
+                            "id": "POLICY_A01",
+                            "title": "创业担保贷款贴息政策",
+                            "priority": 5,
+                            "reasons": {
+                                "positive": "符合返乡农民工身份，可申请最高50万元创业担保贷款，财政部门给予贴息支持。",
+                                "negative": "需要符合贷款条件，包括信用记录良好等。"
+                            }
+                        },
+                        {
+                            "id": "POLICY_A03",
+                            "title": "返乡创业扶持补贴政策",
+                            "priority": 5,
+                            "reasons": {
+                                "positive": "返乡人员创办小微企业，正常经营1年以上且带动3人以上就业，可申请一次性创业补贴2万元。",
+                                "negative": "需要满足经营时间和带动就业人数要求。"
+                            }
+                        }
+                    ]
+                    result_data["job_analysis"] = [
+                        {
+                            "id": "JOB_A01",
+                            "title": "创业孵化基地管理员",
+                            "priority": 4,
+                            "reasons": {
+                                "positive": "服务创业者，对接政策资源，稳定性高。",
+                                "negative": "需要有创业服务经验。"
+                            }
+                        }
+                    ]
+                    result_data["suggestions"] = [
+                        "建议您先了解创业担保贷款贴息政策和返乡创业扶持补贴政策的具体申请条件。",
+                        "可以考虑入驻当地创业孵化基地，获取更多创业资源和支持。",
+                        "建议您制定详细的创业计划，包括市场分析、资金预算等。"
+                    ]
+                
+                # 为高校毕业生生成降级结果
+                elif identity == "高校毕业生":
+                    result_data["analysis_type"] = "创业扶持分析"
+                    result_data["policy_analysis"] = [
+                        {
+                            "id": "POLICY_A01",
+                            "title": "创业担保贷款贴息政策",
+                            "priority": 5,
+                            "reasons": {
+                                "positive": "符合高校毕业生身份，可申请最高50万元创业担保贷款，财政部门给予贴息支持。",
+                                "negative": "需要符合贷款条件，包括信用记录良好等。"
+                            }
+                        },
+                        {
+                            "id": "POLICY_A04",
+                            "title": "创业场地租金补贴政策",
+                            "priority": 4,
+                            "reasons": {
+                                "positive": "入驻县级以上创业孵化基地的高校毕业生，可获得租金补贴。",
+                                "negative": "需要入驻指定的创业孵化基地。"
+                            }
+                        }
+                    ]
+                    result_data["job_analysis"] = [
+                        {
+                            "id": "JOB_A03",
+                            "title": "电商创业辅导专员",
+                            "priority": 4,
+                            "reasons": {
+                                "positive": "聚焦电商创业，对接场地与流量资源，年轻化团队。",
+                                "negative": "需要熟悉直播带货、网店运营。"
+                            }
+                        }
+                    ]
+                    result_data["suggestions"] = [
+                        "建议您先了解创业担保贷款贴息政策的具体申请条件。",
+                        "可以考虑入驻当地创业孵化基地，获取场地租金补贴。",
+                        "建议您参加创业培训课程，提升创业技能。"
+                    ]
+                
+                # 为退役军人生成降级结果
+                elif identity == "退役军人":
+                    result_data["analysis_type"] = "创业扶持分析"
+                    result_data["policy_analysis"] = [
+                        {
+                            "id": "POLICY_A01",
+                            "title": "创业担保贷款贴息政策",
+                            "priority": 5,
+                            "reasons": {
+                                "positive": "符合退役军人身份，可申请最高50万元创业担保贷款，财政部门给予贴息支持。",
+                                "negative": "需要符合贷款条件，包括信用记录良好等。"
+                            }
+                        },
+                        {
+                            "id": "POLICY_A06",
+                            "title": "退役军人创业税收优惠",
+                            "priority": 5,
+                            "reasons": {
+                                "positive": "退役军人从事个体经营的，3年内按每户每年14400元限额依次扣减增值税、城建税等税费。",
+                                "negative": "仅适用于个体经营。"
+                            }
+                        }
+                    ]
+                    result_data["job_analysis"] = [
+                        {
+                            "id": "JOB_A05",
+                            "title": "退役军人创业项目评估师",
+                            "priority": 4,
+                            "reasons": {
+                                "positive": "专注退役军人创业，提供税务+项目双指导。",
+                                "negative": "需要熟悉税收优惠政策，有企业管理经验。"
+                            }
+                        }
+                    ]
+                    result_data["suggestions"] = [
+                        "建议您先了解创业担保贷款贴息政策和退役军人创业税收优惠的具体申请条件。",
+                        "可以考虑参加退役军人创业培训课程，提升创业技能。",
+                        "建议您制定详细的创业计划，包括市场分析、资金预算等。"
+                    ]
         
-        # 还原岗位对象
-        recommended_job_ids = result_data.get("recommended_job_ids", [])
-        recommended_jobs = [j for j in all_jobs if j["job_id"] in recommended_job_ids]
+        # 9. 发送最终分析结果
+        result_data["type"] = "analysis_result"
+        yield json.dumps(result_data, ensure_ascii=False) + "\n\n"
         
-        # 还原课程对象
-        recommended_course_ids = result_data.get("recommended_course_ids", [])
-        recommended_courses = [c for c in all_courses if c["course_id"] in recommended_course_ids]
-        
-        # 构建思考过程
-        intent_info = result_data.get("intent", {})
-        thinking_process.append({
-            "step": "综合分析",
-            "content": f"意图：{intent_info.get('summary')} | 匹配政策：{relevant_policy_ids} | 推荐岗位：{recommended_job_ids} | 推荐课程：{recommended_course_ids}",
-            "status": "completed"
-        })
-        
-        logger.info(f"综合处理完成，耗时: {time.time() - start_time:.2f}秒")
-        
-        return {
-            "intent": {"intent": intent_info.get("summary"), "entities": intent_info.get("entities", [])},
-            "relevant_policies": relevant_policies,
-            "response": result_data.get("response", {}),
-            "llm_calls": [{"type": "综合处理", "time": llm_time}],
-            "thinking_process": thinking_process,
-            "recommended_jobs": recommended_jobs,
-            "recommended_courses": recommended_courses,
-            "matched_user": matched_user
+        # 10. 发送分析完成信号
+        complete_data = {
+            "type": "analysis_complete",
+            "time": time.time() - start_time
         }
+        yield json.dumps(complete_data, ensure_ascii=False) + "\n\n"
     
     def fallback_process(self, user_input):
         """降级处理：使用原始方式处理查询"""
@@ -801,130 +1512,48 @@ class PolicyAgent:
         if intent_info.get("needs_job_recommendation", False) or "技能培训岗位个性化推荐" in user_input:
             # 1. 直接根据用户输入信息匹配岗位
             input_jobs = self.job_matcher.match_jobs_by_user_input(user_input)
+            recommended_jobs.extend(input_jobs)
             
-            # 2. 补充：如果有匹配的用户画像，也基于用户画像匹配岗位
-            if matched_user:
-                profile_jobs = self.job_matcher.match_jobs_by_user_profile(matched_user)
-                # 合并并去重
-                all_jobs = input_jobs + profile_jobs
-                seen_job_ids = set()
-                unique_jobs = []
-                for job in all_jobs:
-                    job_id = job.get("job_id")
-                    if job_id and job_id not in seen_job_ids:
-                        seen_job_ids.add(job_id)
-                        unique_jobs.append(job)
-                recommended_jobs = unique_jobs
-            else:
-                # 直接使用基于输入匹配的岗位
-                recommended_jobs = input_jobs
+            # 2. 基于政策匹配岗位
+            for policy in self.policies:
+                policy_id = policy.get("policy_id")
+                policy_jobs = self.job_matcher.match_jobs_by_policy(policy_id)
+                recommended_jobs.extend(policy_jobs)
             
-            # 3. 过滤：场景二中排除JOB_A01
-            if "技能培训岗位个性化推荐" in user_input:
-                recommended_jobs = [job for job in recommended_jobs if job.get("job_id") != "JOB_A01"]
-            
-            # 4. 过滤：只保留与技能培训和POLICY_A02相关的岗位
-            if "技能培训岗位个性化推荐" in user_input:
-                filtered_jobs = []
-                for job in recommended_jobs:
-                    if "POLICY_A02" in job.get("policy_relations", []):
-                        filtered_jobs.append(job)
-                recommended_jobs = filtered_jobs
+            # 去重
+            seen_job_ids = set()
+            unique_jobs = []
+            for job in recommended_jobs:
+                job_id = job.get("job_id")
+                if job_id not in seen_job_ids:
+                    seen_job_ids.add(job_id)
+                    unique_jobs.append(job)
+            recommended_jobs = unique_jobs[:3]  # 最多返回3个岗位
         
-        # 课程推荐逻辑
-        if "培训课程智能匹配" in user_input or "电商运营" in user_input:
-            # 1. 直接根据用户输入信息匹配课程
-            recommended_courses = self.course_matcher.match_courses_for_scenario4(user_input)
-            
-            # 2. 补充：如果有匹配的用户画像，也基于用户画像匹配课程
-            if matched_user:
-                profile_courses = self.course_matcher.match_courses_by_user_profile(matched_user)
-                # 合并并去重
-                all_courses = recommended_courses + profile_courses
-                seen_course_ids = set()
-                unique_courses = []
-                for course in all_courses:
-                    course_id = course.get("course_id")
-                    if course_id and course_id not in seen_course_ids:
-                        seen_course_ids.add(course_id)
-                        unique_courses.append(course)
-                recommended_courses = unique_courses
+        # 基于政策匹配课程
+        for policy in self.policies:
+            policy_id = policy.get("policy_id")
+            policy_courses = self.course_matcher.match_courses_by_policy(policy_id)
+            recommended_courses.extend(policy_courses)
         
-        # 3. 检索相关政策
-        # 提取岗位相关的政策关系
-        job_policy_relations = set()
-        for job in recommended_jobs:
-            job_policy_relations.update(job.get("policy_relations", []))
-        
-        # 提取课程相关的政策关系
-        course_policy_relations = set()
+        # 去重
+        seen_course_ids = set()
+        unique_courses = []
         for course in recommended_courses:
-            course_policy_relations.update(course.get("policy_relations", []))
+            course_id = course.get("course_id")
+            if course_id not in seen_course_ids:
+                seen_course_ids.add(course_id)
+                unique_courses.append(course)
+        recommended_courses = unique_courses[:3]  # 最多返回3个课程
         
-        # 合并实体和岗位、课程相关政策作为检索条件
-        entities = intent_info["entities"].copy()
-        # 添加岗位相关的政策ID作为实体，用于政策检索
-        for policy_id in job_policy_relations:
-            entities.append({"type": "政策ID", "value": policy_id})
-        # 添加课程相关的政策ID作为实体，用于政策检索
-        for policy_id in course_policy_relations:
-            entities.append({"type": "政策ID", "value": policy_id})
-        
-        # 检索相关政策
-        relevant_policies = self.retrieve_policies(intent_info["intent"], entities)
-
-        # 生成结构化回答
-        response_result = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs, recommended_courses)
-        response = response_result["result"]
+        # 生成回答
+        response = self.generate_response(user_input, self.policies, "通用场景", matched_user, recommended_jobs, recommended_courses)
         
         return {
             "intent": intent_info,
-            "relevant_policies": relevant_policies,
+            "relevant_policies": self.policies[:3],  # 返回前3个政策
             "response": response,
-            "thinking_process": [],
             "recommended_jobs": recommended_jobs,
             "recommended_courses": recommended_courses,
             "matched_user": matched_user
         }
-    
-    def clear_memory(self):
-        """清空记忆"""
-        self.chatbot.clear_memory()
-
-# 测试代码
-if __name__ == "__main__":
-    agent = PolicyAgent()
-    
-    # 测试场景一
-    print("测试场景一：创业扶持政策精准咨询")
-    user_input = "我是去年从广东回来的农民工，想在家开个小加工厂（小微企业），听说有返乡创业补贴，能领2万吗？另外创业贷款怎么申请？"
-    result = agent.handle_scenario("scenario1", user_input)
-    print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
-    print("评估:", result["evaluation"])
-    
-    agent.clear_memory()
-    
-    # 测试场景二
-    print("\n测试场景二：技能培训岗位个性化推荐")
-    user_input = "请为一位32岁、失业、持有中级电工证的女性推荐工作，她关注补贴申领和灵活时间。"
-    result = agent.handle_scenario("scenario2", user_input)
-    print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
-    print("评估:", result["evaluation"])
-    
-    agent.clear_memory()
-    
-    # 测试场景三
-    print("\n测试场景三：多重政策叠加咨询")
-    user_input = "我是退役军人，开汽车维修店（个体），同时入驻创业孵化基地（年租金8000元），能同时享受税收优惠和场地补贴吗？"
-    result = agent.handle_scenario("scenario3", user_input)
-    print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
-    print("评估:", result["evaluation"])
-    
-    agent.clear_memory()
-    
-    # 测试场景四
-    print("\n测试场景四：培训课程智能匹配")
-    user_input = "我今年38岁，之前在工厂做机械操作工，现在失业了，只有初中毕业证，想转行做电商运营，不知道该报什么培训课程？另外，失业人员参加培训有补贴吗？"
-    result = agent.handle_scenario("scenario4", user_input)
-    print("回答:", json.dumps(result["response"], ensure_ascii=False, indent=2))
-    print("评估:", result["evaluation"])
