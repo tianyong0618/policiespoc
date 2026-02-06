@@ -20,19 +20,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 初始化事件监听
 function initEventListeners() {
+    console.log('初始化事件监听');
+    
     // 发送按钮
-    document.getElementById('send-btn').addEventListener('click', () => sendMessage());
+    const sendBtn = document.getElementById('send-btn');
+    console.log('发送按钮元素:', sendBtn);
+    if (sendBtn) {
+        sendBtn.addEventListener('click', () => {
+            console.log('发送按钮被点击');
+            sendMessage();
+        });
+    }
     
     // 输入框回车发送
-    document.getElementById('user-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
+    const userInput = document.getElementById('user-input');
+    console.log('用户输入框元素:', userInput);
+    if (userInput) {
+        userInput.addEventListener('keypress', function(e) {
+            console.log('输入框按键:', e.key);
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                console.log('回车发送');
+                sendMessage();
+            }
+        });
+    }
 
     // 新建对话
-    document.getElementById('new-chat-btn').addEventListener('click', startNewChat);
+    const newChatBtn = document.getElementById('new-chat-btn');
+    console.log('新建对话按钮元素:', newChatBtn);
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', startNewChat);
+    }
 
     // 模态框关闭
     document.querySelectorAll('.close-btn, .close-btn-action').forEach(btn => {
@@ -40,30 +59,38 @@ function initEventListeners() {
     });
 
     // 评估结果关闭
-    document.querySelector('.toast-close').addEventListener('click', hideEvaluation);
+    const toastClose = document.querySelector('.toast-close');
+    console.log('评估结果关闭按钮元素:', toastClose);
+    if (toastClose) {
+        toastClose.addEventListener('click', hideEvaluation);
+    }
 
     // 历史记录列表事件委托
-    document.querySelector('.history-list').addEventListener('click', function(e) {
-        // 处理删除按钮点击
-        const deleteBtn = e.target.closest('.delete-icon');
-        if (deleteBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            const sessionId = deleteBtn.dataset.sessionId;
-            deleteSession(sessionId);
-            return;
-        }
+    const historyList = document.querySelector('.history-list');
+    console.log('历史记录列表元素:', historyList);
+    if (historyList) {
+        historyList.addEventListener('click', function(e) {
+            // 处理删除按钮点击
+            const deleteBtn = e.target.closest('.delete-icon');
+            if (deleteBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const sessionId = deleteBtn.dataset.sessionId;
+                deleteSession(sessionId);
+                return;
+            }
 
-        // 处理会话项点击
-        const historyItem = e.target.closest('.history-item');
-        if (historyItem) {
-            // 如果点击的是删除按钮，不处理（理论上上面的 deleteBtn 判断已经拦截了，双重保险）
-            if (e.target.closest('.delete-icon')) return;
+            // 处理会话项点击
+            const historyItem = e.target.closest('.history-item');
+            if (historyItem) {
+                // 如果点击的是删除按钮，不处理（理论上上面的 deleteBtn 判断已经拦截了，双重保险）
+                if (e.target.closest('.delete-icon')) return;
 
-            const sessionId = historyItem.dataset.sessionId;
-            loadSession(sessionId);
-        }
-    });
+                const sessionId = historyItem.dataset.sessionId;
+                loadSession(sessionId);
+            }
+        });
+    }
 }
 
 // 加载历史会话列表
@@ -260,7 +287,9 @@ function updateChatTitle(title) {
 
 // 发送消息
 async function sendMessage() {
+    console.log('发送消息函数被调用');
     const userInput = document.getElementById('user-input').value.trim();
+    console.log('用户输入:', userInput);
     if (!userInput) return;
     
     // 隐藏欢迎页
@@ -285,6 +314,8 @@ async function sendMessage() {
         if (currentSessionId) {
             requestBody.session_id = currentSessionId;
         }
+        console.log('发送请求到:', `${API_BASE_URL}/chat/stream`);
+        console.log('请求体:', requestBody);
         const response = await fetch(`${API_BASE_URL}/chat/stream`, {
             method: 'POST',
             headers: {
@@ -293,6 +324,7 @@ async function sendMessage() {
             body: JSON.stringify(requestBody)
         });
         
+        console.log('响应状态:', response.status);
         if (!response.ok) {
             throw new Error('API请求失败');
         }
@@ -315,9 +347,11 @@ async function sendMessage() {
             if (done) break;
             
             buffer += decoder.decode(value, { stream: true });
+            console.log('收到流数据:', buffer);
             
             // 处理完整的事件
             const lines = buffer.split('\n\n');
+            console.log('分割后的行:', lines);
             for (let i = 0; i < lines.length - 1; i++) {
                 const line = lines[i];
                 if (!line) continue;
@@ -327,9 +361,14 @@ async function sendMessage() {
                     const eventMatch = line.match(/^event: (\w+)$/m);
                     const dataMatch = line.match(/^data: (.*)$/ms);
                     
+                    console.log('事件匹配:', eventMatch);
+                    console.log('数据匹配:', dataMatch);
+                    
                     if (eventMatch && dataMatch) {
                         const eventType = eventMatch[1];
                         const data = JSON.parse(dataMatch[1]);
+                        
+                        console.log('收到事件:', eventType, data);
                         
                         // 处理不同类型的事件
                         switch (eventType) {
@@ -395,6 +434,16 @@ async function sendMessage() {
                                 
                             case 'analysis_result':
                                 // 显示分析结果，移除之前的简单思考过程容器，只保留详细的思考过程
+                                console.log('渲染分析结果:', data);
+                                // 检查data是否是字符串，如果是则解析为JSON
+                                if (typeof data === 'string') {
+                                    try {
+                                        data = JSON.parse(data);
+                                        console.log('解析后的data:', data);
+                                    } catch (error) {
+                                        console.error('解析data失败:', error);
+                                    }
+                                }
                                 renderAnalysisResult(data, aiMessageDiv);
                                 break;
                                 
@@ -423,6 +472,7 @@ async function sendMessage() {
                     }
                 } catch (error) {
                     console.error('处理流式事件失败:', error);
+                    console.error('出错的行:', line);
                     // 继续处理下一个事件
                 }
             }
@@ -493,6 +543,16 @@ function renderAnalysisResult(data, container) {
     let thinkingProcess = [];
     let recommendedJobs = [];
     let recommendedCourses = [];
+    let answerContent = '';
+    let intentData = null;
+    
+    console.log('分析结果数据:', data);
+    
+    // 处理SSE事件格式（从历史记录加载时）
+    if (data.type === 'analysis_result') {
+        console.log('处理analysis_result格式数据:', data);
+        // 保持data不变，因为thinking_process等字段在根级别
+    }
     
     // 处理后端返回的格式
     if (data.content) {
@@ -500,28 +560,50 @@ function renderAnalysisResult(data, container) {
         positiveContent = data.content.positive || '';
         negativeContent = data.content.negative || '';
         suggestionsContent = data.content.suggestions || '';
+        answerContent = data.content.answer || '';
+        intentData = data.content.intent || data.intent || null;
         relevantPolicies = data.relevant_policies || [];
         thinkingProcess = data.thinking_process || [];
         recommendedJobs = data.recommended_jobs || [];
         recommendedCourses = data.recommended_courses || [];
-    } else if (data.positive || data.negative || data.suggestions) {
+    } else if (data.positive !== undefined || data.negative !== undefined || data.suggestions !== undefined || data.answer !== undefined) {
         // 直接返回的分析结果格式
         positiveContent = data.positive || '';
         negativeContent = data.negative || '';
         suggestionsContent = data.suggestions || '';
+        answerContent = data.answer || '';
+        intentData = data.intent || null;
+        relevantPolicies = data.relevant_policies || [];
         thinkingProcess = data.thinking_process || [];
         recommendedJobs = data.recommended_jobs || [];
         recommendedCourses = data.recommended_courses || [];
     }
     
+    // 处理空数组情况
+    if (Array.isArray(positiveContent)) positiveContent = '';
+    if (Array.isArray(negativeContent)) negativeContent = '';
+    if (Array.isArray(suggestionsContent)) suggestionsContent = '';
+    
+    console.log('处理后的数据:', {
+        positiveContent,
+        negativeContent,
+        suggestionsContent,
+        answerContent,
+        intentData,
+        relevantPolicies,
+        thinkingProcess,
+        recommendedJobs,
+        recommendedCourses
+    });
+    
     // 构建思考过程HTML
     let thinkingProcessHtml = '';
     if (thinkingProcess.length > 0) {
         thinkingProcessHtml = `
-        <div class="thinking-container finished active">
+        <div class="thinking-container finished">
             <div class="thinking-header" onclick="toggleThinking(this)">
                 <span class="thinking-title">思考过程</span>
-                <span class="thinking-toggle-icon" style="transform: rotate(180deg);"></span>
+                <span class="thinking-toggle-icon"></span>
             </div>
             <div class="thinking-content has-content">
         `;
@@ -543,16 +625,16 @@ function renderAnalysisResult(data, container) {
             </div>
         </div>
         `;
-    } else if (data.intent) {
-        // 兼容旧格式
+    } else if (intentData) {
+        // 兼容意图数据格式
         thinkingProcessHtml = `
-        <div class="thinking-container finished active">
+        <div class="thinking-container finished">
             <div class="thinking-header" onclick="toggleThinking(this)">
                 <span class="thinking-title">思考过程</span>
-                <span class="thinking-toggle-icon" style="transform: rotate(180deg);"></span>
+                <span class="thinking-toggle-icon"></span>
             </div>
             <div class="thinking-content has-content">
-                <div class="thinking-step"><strong>意图与实体识别:</strong> 核心意图 "${data.intent.intent}"，提取实体: ${data.intent.entities.map(entity => `${entity.value}(${entity.type})`).join(', ')}${!data.intent.entities.some(e => e.value.includes('就业')) ? ', 带动就业（未提及）' : ''}</div>
+                <div class="thinking-step"><strong>意图与实体识别:</strong> 核心意图 "${intentData.intent}"，提取实体: ${intentData.entities && intentData.entities.length > 0 ? intentData.entities.map(entity => `${entity.value}(${entity.type})`).join(', ') : '无'}${!intentData.entities || !intentData.entities.some(e => e.value && e.value.includes('就业')) ? ', 带动就业（未提及）' : ''}</div>
                 ${relevantPolicies.length > 0 ? `
                 <div class="thinking-step"><strong>精准检索与推理:</strong></div>
                 <div class="thinking-substeps">
@@ -562,7 +644,7 @@ function renderAnalysisResult(data, container) {
                         } else if (policy.policy_id === 'POLICY_A01') {
                             return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 确认其"返乡农民工"身份符合贷款申请条件，说明额度（≤50万）、期限（≤3年）及贴息规则</div>`;
                         } else {
-                            return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 分析${policy.title}的适用条件</div>`;
+                            return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 分析${policy.title || '政策'}的适用条件</div>`;
                         }
                     }).join('')}
                 </div>
@@ -572,11 +654,20 @@ function renderAnalysisResult(data, container) {
         `;
     }
     
-    container.innerHTML = `
+    // 构建HTML
+    let html = `
         <div class="message-avatar">🤖</div>
         <div class="message-content">
             <div class="analysis-result">
                 ${thinkingProcessHtml}
+                
+                ${answerContent && typeof answerContent === 'string' && answerContent.trim() !== '' ? `
+                <div class="card-section">
+                    <div class="answer-card">
+                        <div class="answer-content">${answerContent}</div>
+                    </div>
+                </div>
+                ` : ''}
                 
                 ${recommendedJobs.length > 0 ? `
                 <div class="card-section">
@@ -586,10 +677,10 @@ function renderAnalysisResult(data, container) {
                         <div class="job-item">
                             <div class="job-title">${job.title} <span class="job-id">(${job.job_id || 'ID未提供'})</span> <span class="job-priority">优先级: ${index + 1}</span></div>
                             <div class="job-requirements">
-                                <strong>要求:</strong> ${job.requirements.join(', ')}
+                                <strong>要求:</strong> ${job.requirements && job.requirements.length > 0 ? job.requirements.join(', ') : '无具体要求'}
                             </div>
                             <div class="job-features">
-                                <strong>特点:</strong> ${job.features}
+                                <strong>特点:</strong> ${job.features || '无具体特点'}
                             </div>
                         </div>
                         `).join('')}
@@ -616,7 +707,7 @@ function renderAnalysisResult(data, container) {
                 </div>
                 ` : ''}
                 
-                ${positiveContent && positiveContent.trim() !== '' && positiveContent.trim() !== '无' ? `
+                ${typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无' ? `
                 <div class="card-section">
                     <h3>✅ 符合条件的政策</h3>
                     <div class="policy-card">
@@ -631,7 +722,7 @@ function renderAnalysisResult(data, container) {
                 </div>
                 ` : ''}
                 
-                ${negativeContent && negativeContent.trim() !== '' && negativeContent.trim() !== '无' ? `
+                ${typeof negativeContent === 'string' && negativeContent.trim() !== '' && negativeContent.trim() !== '无' ? `
                 <div class="card-section">
                     <h3>❌ 不符合条件的政策</h3>
                     <div class="policy-card">
@@ -646,7 +737,7 @@ function renderAnalysisResult(data, container) {
                 </div>
                 ` : ''}
                 
-                ${suggestionsContent && suggestionsContent.trim() !== '' && suggestionsContent.trim() !== '无' ? `
+                ${typeof suggestionsContent === 'string' && suggestionsContent.trim() !== '' && suggestionsContent.trim() !== '无' ? `
                 <div class="card-section">
                     <h3>💡 主动建议</h3>
                     <div class="suggestions-card">
@@ -657,6 +748,10 @@ function renderAnalysisResult(data, container) {
             </div>
         </div>
     `;
+    
+    console.log('生成的HTML:', html);
+    
+    container.innerHTML = html;
     
     scrollToBottom();
 }

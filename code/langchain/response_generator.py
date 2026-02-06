@@ -105,39 +105,80 @@ class ResponseGenerator:
         # 检查用户是否为退役军人
         is_veteran = "退役军人" in user_input or any("退役军人" in str(job) for job in recommended_jobs) if recommended_jobs else False
         
+        # 检查用户输入是否包含个人信息
+        has_user_info = any(keyword in user_input for keyword in ["我是", "我今年", "我是返乡", "我是退役", "我是高校", "我是失业", "我是脱贫", "我有", "我的", "年龄", "学历", "技能", "证书", "经验"])  # 移除了"我想"，因为它不表示个人信息
+        
         # 构建完整prompt
         # 使用普通字符串拼接，避免f-string格式化问题
         prompt = ""
-        prompt += "你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成结构化的政策咨询回答。\n"
-        prompt += "\n"
-        prompt += "用户输入: "
-        prompt += user_input
-        prompt += "\n"
-        prompt += user_profile_str
-        prompt += "\n"
-        prompt += "相关政策:\n"
-        prompt += policies_str
-        prompt += "\n"
-        prompt += jobs_str
-        prompt += "\n"
-        prompt += courses_str
-        prompt += "\n"
-        prompt += "请根据以上信息，按照以下指令生成回答：\n"
-        prompt += base_instructions
-        prompt += "\n"
-        prompt += "请以JSON格式输出，包含以下字段：\n"
-        prompt += "{\n"
-        prompt += "  \"positive\": \"符合条件的政策及内容\",\n"
-        prompt += "  \"negative\": \"不符合条件的政策及原因\",\n"
-        prompt += "  \"suggestions\": \"主动建议\"\n"
-        prompt += "}\n"
-        prompt += "\n"
-        prompt += "格式要求：\n"
-        prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
-        prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：作为返乡农民工，最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。\"\n"
-        prompt += "3. 主动建议：\n"
-        prompt += "   - 如果用户是退役军人，必须输出：\"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。\"\n"
-        prompt += "   - 否则，必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
+        
+        # 根据是否有用户信息调整回答模式
+        if has_user_info:
+            prompt += "你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成结构化的政策咨询回答。\n"
+            prompt += "\n"
+            prompt += "用户输入: "
+            prompt += user_input
+            prompt += "\n"
+            prompt += user_profile_str
+            prompt += "\n"
+            prompt += "相关政策:\n"
+            prompt += policies_str
+            prompt += "\n"
+            prompt += jobs_str
+            prompt += "\n"
+            prompt += courses_str
+            prompt += "\n"
+            prompt += "请根据以上信息，按照以下指令生成回答：\n"
+            prompt += base_instructions
+            prompt += "\n"
+            prompt += "请以JSON格式输出，包含以下字段：\n"
+            prompt += "{\n"
+            prompt += "  \"positive\": \"符合条件的政策及内容\",\n"
+            prompt += "  \"negative\": \"不符合条件的政策及原因\",\n"
+            prompt += "  \"suggestions\": \"主动建议\"\n"
+            prompt += "}\n"
+            prompt += "\n"
+            prompt += "格式要求：\n"
+            prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
+            prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。\"\n"
+            prompt += "3. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
+            prompt += "4. 主动建议：\n"
+            prompt += "   - 如果用户是退役军人，必须输出：\"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。\"\n"
+            prompt += "   - 否则，必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
+        else:
+            prompt += "你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成详细的政策分析。\n"
+            prompt += "\n"
+            prompt += "用户输入: "
+            prompt += user_input
+            prompt += "\n"
+            prompt += user_profile_str
+            prompt += "\n"
+            prompt += "相关政策:\n"
+            prompt += policies_str
+            prompt += "\n"
+            prompt += jobs_str
+            prompt += "\n"
+            prompt += courses_str
+            prompt += "\n"
+            prompt += "请根据以上信息，按照以下指令生成回答：\n"
+            prompt += "1. 由于用户没有提供个人信息，无法判断是否符合政策条件，因此只需要提供详细的政策分析。\n"
+            prompt += "2. 对于每个相关政策，都要提供详细的分析，包括政策内容、申请条件和申请路径。\n"
+            prompt += "3. 不要进行符合或不符合条件的判断，只提供客观的政策信息。\n"
+            prompt += "4. 语言简洁明了，使用中文。\n"
+            prompt += "\n"
+            prompt += "请以JSON格式输出，包含以下字段：\n"
+            prompt += "{\n"
+            prompt += "  \"positive\": \"相关政策分析\",\n"
+            prompt += "  \"negative\": \"\",\n"
+            prompt += "  \"suggestions\": \"主动建议\"\n"
+            prompt += "}\n"
+            prompt += "\n"
+            prompt += "格式要求：\n"
+            prompt += "1. 政策分析部分：必须严格按照格式输出：\"《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。\"\n"
+            prompt += "2. 对于每个相关政策，都要提供类似的详细分析，包括政策内容、申请条件和申请路径。\n"
+            prompt += "3. 不要包含符合或不符合条件的判断，只提供客观的政策信息。\n"
+            prompt += "4. 主动建议：必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
+        
         prompt += "\n"
         prompt += "重要提示：请严格按照上述格式要求输出，不要修改任何内容，确保与格式要求完全一致。\n"
         prompt += "\n"

@@ -315,99 +315,99 @@ class Orchestrator:
         """处理流式查询"""
         logger.info(f"处理流式查询: {user_input[:50]}..., session_id: {session_id}")
         
-        # 1. 分析用户输入
-        analysis_result = self.policy_retriever.analyze_input(user_input, conversation_history)
+        # 1. 识别意图
+        intent_result = self.intent_recognizer.identify_intent(user_input)
+        intent_info = intent_result["result"]
         
-        # 2. 处理分析结果
-        if analysis_result.get('needs_more_info', False):
-            # 需要追问
-            yield json.dumps({
-                "type": "follow_up",
-                "content": analysis_result.get('follow_up_question'),
-                "missing_info": analysis_result.get('missing_info')
-            }, ensure_ascii=False)
-        else:
-            # 开始分析
-            yield json.dumps({
-                "type": "analysis_start",
-                "content": "开始分析用户需求..."
-            }, ensure_ascii=False)
+        # 提取实体信息用于流式显示
+        entities_info = intent_info.get('entities', [])
+        entity_descriptions = []
+        for entity in entities_info:
+            entity_type = entity.get('type', '')
+            entity_value = entity.get('value', '')
+            entity_descriptions.append(f"{entity_value}({entity_type})")
+        
+        # 检查是否提及带动就业
+        mentions_employment = any('就业' in entity.get('value', '') for entity in entities_info)
+        if not mentions_employment:
+            entity_descriptions.append("带动就业（未提及）")
+        
+        # 构建详细的意图与实体识别内容
+        intent_content = f"意图与实体识别: 核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}"
+        
+        # 发送详细的意图识别思考过程
+        yield json.dumps({
+            "type": "thinking",
+            "content": intent_content
+        }, ensure_ascii=False)
+        
+        # 2. 验证意图是否在服务范围内
+        needs_job = intent_info.get("needs_job_recommendation", False)
+        needs_course = intent_info.get("needs_course_recommendation", False)
+        needs_policy = intent_info.get("needs_policy_recommendation", False)
+        
+        # 检查是否有至少一项服务需求
+        if not (needs_job or needs_course or needs_policy):
+            # 生成超出范围的提示
+            response = {
+                "positive": [],
+                "negative": [],
+                "suggestions": [],
+                "answer": f"您的意图为{intent_info.get('intent', '未知')}，我暂时无法实现"
+            }
             
-            # 3. 识别意图
-            intent_result = self.intent_recognizer.identify_intent(user_input)
-            intent_info = intent_result["result"]
-            
-            # 提取实体信息用于流式显示
-            entities_info = intent_info.get('entities', [])
-            entity_descriptions = []
-            for entity in entities_info:
-                entity_type = entity.get('type', '')
-                entity_value = entity.get('value', '')
-                entity_descriptions.append(f"{entity_value}({entity_type})")
-            
-            # 检查是否提及带动就业
-            mentions_employment = any('就业' in entity.get('value', '') for entity in entities_info)
-            if not mentions_employment:
-                entity_descriptions.append("带动就业（未提及）")
-            
-            # 构建详细的意图与实体识别内容
-            intent_content = f"意图与实体识别: 核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}"
-            
-            # 发送详细的意图识别思考过程
+            # 发送意图验证结果
             yield json.dumps({
                 "type": "thinking",
-                "content": intent_content
+                "content": "意图验证: 您的意图超出了系统可提供的服务范围"
             }, ensure_ascii=False)
             
-            # 4. 验证意图是否在服务范围内
-            needs_job = intent_info.get("needs_job_recommendation", False)
-            needs_course = intent_info.get("needs_course_recommendation", False)
-            needs_policy = intent_info.get("needs_policy_recommendation", False)
+            # 返回分析结果
+            yield json.dumps({
+                "type": "analysis_result",
+                "content": response,
+                "intent": intent_info,
+                "relevant_policies": [],
+                "recommended_jobs": [],
+                "recommended_courses": [],
+                "thinking_process": [
+                    {
+                        "step": "意图与实体识别",
+                        "content": f"核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}",
+                        "status": "completed"
+                    },
+                    {
+                        "step": "意图验证",
+                        "content": "您的意图超出了系统可提供的服务范围",
+                        "status": "completed"
+                    }
+                ]
+            }, ensure_ascii=False)
             
-            # 检查是否有至少一项服务需求
-            if not (needs_job or needs_course or needs_policy):
-                # 生成超出范围的提示
-                response = {
-                    "positive": [],
-                    "negative": [],
-                    "suggestions": [],
-                    "answer": f"您的意图为{intent_info.get('intent', '未知')}，我暂时无法实现"
-                }
-                
-                # 发送意图验证结果
+            # 分析完成
+            yield json.dumps({
+                "type": "analysis_complete",
+                "content": "分析完成"
+            }, ensure_ascii=False)
+        else:
+            # 3. 分析用户输入
+            analysis_result = self.policy_retriever.analyze_input(user_input, conversation_history)
+            
+            # 4. 处理分析结果
+            if analysis_result.get('needs_more_info', False):
+                # 需要追问
                 yield json.dumps({
-                    "type": "thinking",
-                    "content": "意图验证: 您的意图超出了系统可提供的服务范围"
-                }, ensure_ascii=False)
-                
-                # 返回分析结果
-                yield json.dumps({
-                    "type": "analysis_result",
-                    "content": response,
-                    "intent": intent_info,
-                    "relevant_policies": [],
-                    "recommended_jobs": [],
-                    "recommended_courses": [],
-                    "thinking_process": [
-                        {
-                            "step": "意图与实体识别",
-                            "content": f"核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}",
-                            "status": "completed"
-                        },
-                        {
-                            "step": "意图验证",
-                            "content": "您的意图超出了系统可提供的服务范围",
-                            "status": "completed"
-                        }
-                    ]
-                }, ensure_ascii=False)
-                
-                # 分析完成
-                yield json.dumps({
-                    "type": "analysis_complete",
-                    "content": "分析完成"
+                    "type": "follow_up",
+                    "content": analysis_result.get('follow_up_question'),
+                    "missing_info": analysis_result.get('missing_info')
                 }, ensure_ascii=False)
             else:
+                # 开始分析
+                yield json.dumps({
+                    "type": "analysis_start",
+                    "content": "开始分析用户需求..."
+                }, ensure_ascii=False)
+                
                 # 5. 检索政策和推荐（仅对需要的服务）
                 retrieve_result = self.policy_retriever.process_query(user_input, intent_info)
                 relevant_policies = retrieve_result["relevant_policies"]

@@ -585,6 +585,21 @@ body {
     /* AI回答不需要额外背景 */
 }
 
+/* 回答卡片样式 */
+.answer-card {
+    border: 2px solid var(--primary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    background-color: rgba(59, 130, 246, 0.05);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.answer-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
 /* 输入区域 - 悬浮卡片风格 */
 .input-area {
     padding: 20px;
