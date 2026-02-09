@@ -626,13 +626,22 @@ function renderAnalysisResult(data, container) {
             const indentClass = level === 0 ? 'thinking-step' : level === 1 ? 'thinking-substep' : 'thinking-subsubstep';
             
             steps.forEach(step => {
-                html += `<div class="${indentClass}"><strong>${step.step}:</strong> ${step.content}</div>`;
+                if (level === 0) {
+                    // 主步骤 - 使用标题和内容分离的结构
+                    html += `<div class="${indentClass}">
+                        <div class="thinking-step-title">${step.step}</div>
+                        <div class="thinking-step-content">${step.content}</div>
+                    </div>`;
+                } else {
+                    // 子步骤和子子步骤
+                    html += `<div class="${indentClass}">
+                        <strong>${step.step}:</strong> ${step.content}
+                    </div>`;
+                }
                 
                 // 递归处理子步骤
                 if (step.substeps && step.substeps.length > 0) {
-                    html += `<div class="thinking-substeps">`;
                     html += renderSteps(step.substeps, level + 1);
-                    html += `</div>`;
                 }
             });
             
@@ -795,16 +804,16 @@ function renderAnalysisResult(data, container) {
     
     // 根据符合条件的政策生成建议
     if (typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无') {
-        suggestions.push('根据您的情况，您符合相关政策条件，建议及时准备材料申请，以获取政策支持。');
+        suggestions.push('符合政策条件，建议及时准备材料申请。');
         
         // 无论是否有相关岗位，都显示岗位信息
         if (jobsData.length > 0) {
             // 优先显示相关岗位，如果没有则显示所有岗位
             const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
             const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
-            suggestions.push(`建议您联系以下岗位的人员获取政策支持：${jobInfo}。这些岗位的工作人员熟悉相关政策，可以为您提供专业的指导和帮助。`);
+            suggestions.push(`建议联系以下岗位获取政策支持：${jobInfo}`);
         } else {
-            suggestions.push('建议您联系当地人力资源和社会保障部门或就业服务中心，咨询具体政策申请流程和所需材料。');
+            suggestions.push('建议联系当地人力资源和社会保障部门咨询政策申请流程。');
         }
     }
     
@@ -812,16 +821,16 @@ function renderAnalysisResult(data, container) {
     if (recommendedJobs.length > 0) {
         const topJobs = recommendedJobs.slice(0, 2); // 取前两个推荐岗位
         const jobTitles = topJobs.map(job => job.title).join('、');
-        suggestions.push(`我们为您推荐了 ${recommendedJobs.length} 个适合的岗位，其中 ${jobTitles} 等岗位与您的技能和需求匹配度较高，建议优先考虑。`);
-        suggestions.push('建议您联系对应岗位的招聘负责人，了解岗位详情和入职流程，同时咨询企业是否提供政策支持相关服务。');
+        suggestions.push(`推荐岗位：${jobTitles}，建议优先考虑。`);
+        suggestions.push('建议联系招聘负责人了解详情及政策支持服务。');
     }
     
     // 根据推荐课程生成建议
     if (recommendedCourses.length > 0) {
         const topCourses = recommendedCourses.slice(0, 2); // 取前两个推荐课程
         const courseTitles = topCourses.map(course => course.title).join('、');
-        suggestions.push(`针对您的学习需求，我们推荐了 ${recommendedCourses.length} 门课程，其中 ${courseTitles} 等课程可以帮助您提升相关技能，增加就业竞争力。`);
-        suggestions.push('建议您联系课程提供方，了解课程详情、报名流程以及是否有相关政策支持的培训补贴。');
+        suggestions.push(`推荐课程：${courseTitles}，可提升相关技能。`);
+        suggestions.push('建议联系课程提供方了解详情及培训补贴。');
     }
     
     // 如果有建议，组合成主动建议内容
