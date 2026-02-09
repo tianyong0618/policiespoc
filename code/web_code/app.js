@@ -529,7 +529,7 @@ function renderFollowUp(data, container) {
                     需要更多信息
                 </div>
                 <div class="follow-up-content">
-                    ${data.question}
+                    ${data.content || data.question || '请提供更多信息'}
                 </div>
             </div>
         </div>

@@ -882,8 +882,7 @@ class PolicyAgent:
         
         # 定义重要信息类型
         important_info_types = [
-            "user_needs.specific_needs",  # 具体需求是最重要的
-            "user_needs.location"         # 地点信息对于政策匹配很重要
+            "user_needs.specific_needs"  # 具体需求是最重要的
         ]
         
         # 筛选重要的缺失信息
@@ -926,9 +925,8 @@ class PolicyAgent:
             if matched_user and isinstance(matched_user, dict):
                 identity = matched_user.get("basic_info", {}).get("identity", "")
                 if identity == "返乡农民工":
-                    # 返乡农民工优先需要地点和需求信息
+                    # 返乡农民工优先需要需求信息
                     priority_order = [
-                        "user_needs.location",
                         "user_needs.specific_needs",
                         "user_profile.education",
                         "user_profile.skills",
@@ -940,7 +938,6 @@ class PolicyAgent:
                     priority_order = [
                         "user_needs.specific_needs",
                         "user_profile.education",
-                        "user_needs.location",
                         "user_profile.skills",
                         "user_profile.work_experience",
                         "user_needs.timeframe"
@@ -948,19 +945,17 @@ class PolicyAgent:
                 elif identity == "退役军人":
                     # 退役军人优先需要需求和地点信息
                     priority_order = [
-                        "user_needs.specific_needs",
-                        "user_needs.location",
-                        "user_profile.education",
-                        "user_profile.skills",
-                        "user_profile.work_experience",
-                        "user_needs.timeframe"
-                    ]
+                "user_needs.specific_needs",
+                "user_profile.education",
+                "user_profile.skills",
+                "user_profile.work_experience",
+                "user_needs.timeframe"
+            ]
             
             # 如果没有基于身份的优先级排序，使用默认排序
             if not priority_order:
                 priority_order = [
                     "user_needs.specific_needs",
-                    "user_needs.location",
                     "user_profile.education",
                     "user_profile.skills",
                     "user_profile.work_experience",

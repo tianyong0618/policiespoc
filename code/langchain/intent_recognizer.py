@@ -48,6 +48,7 @@ class IntentRecognizer:
 请仔细识别以下实体类型：
 - age: 年龄
 - gender: 性别
+- education_level: 教育水平（如初中毕业、高中毕业、大学本科等）
 - employment_status: 就业状态（如退役军人、返乡农民工等）
 - certificate: 证书/资格证
 - concern: 关注点（如税收优惠、场地补贴等）

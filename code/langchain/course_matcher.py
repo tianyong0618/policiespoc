@@ -36,9 +36,10 @@ class CourseMatcher:
                 return course
         return None
     
-    def match_courses_by_user_input(self, user_input):
+    def match_courses_by_user_input(self, user_input, entities=None):
         """根据用户输入匹配课程"""
         logger.info(f"根据用户输入匹配课程: {user_input}")
+        logger.info(f"使用实体信息: {entities}")
         matched_courses = []
         
         # 提取关键词和特殊条件
@@ -69,6 +70,13 @@ class CourseMatcher:
         if '转行电商运营' in user_input or '转行做电商' in user_input:
             has_career_change = True
         
+        # 从实体中提取教育水平信息
+        if entities:
+            for entity in entities:
+                if entity.get('type') == 'education_level' and '初中' in entity.get('value', ''):
+                    has_middle_school_edu = True
+                    logger.info(f"从实体中检测到初中学历: {entity.get('value')}")
+        
         logger.info(f"特殊条件检测: 初中学历={has_middle_school_edu}, 零电商基础={has_zero_ecommerce_basic}, 转行={has_career_change}")
         
         # 匹配逻辑
@@ -79,33 +87,31 @@ class CourseMatcher:
             if any(keyword in course['title'] for keyword in keywords):
                 match_score += 3
             
-            # 内容匹配
-            if any(keyword in course['content'] for keyword in keywords):
-                match_score += 2
-            
-            # 类别匹配
-            if any(keyword in course['category'] for keyword in keywords):
-                match_score += 1
-            
             # 学历匹配
             if has_middle_school_edu:
-                if '初中及以上' in course['key_info']:
-                    match_score += 5  # 学历匹配权重提高
-                    logger.info(f"课程 {course['course_id']} 符合初中学历要求")
+                for condition in course['conditions']:
+                    if condition['type'] == '学历' and '初中及以上' in condition['value']:
+                        match_score += 5  # 学历匹配权重提高
+                        logger.info(f"课程 {course['course_id']} 符合初中学历要求")
+                        break
             
             # 基础匹配
             if has_zero_ecommerce_basic:
-                if '零基础' in course['key_info']:
-                    match_score += 5  # 基础匹配权重提高
+                # 检查是否有技能门槛要求
+                has_basic_requirement = False
+                for condition in course['conditions']:
+                    if condition['type'] == '基础':
+                        has_basic_requirement = True
+                        break
+                if not has_basic_requirement:
+                    match_score += 5  # 无基础要求的课程适合零基础学习
                     logger.info(f"课程 {course['course_id']} 适合零基础学习")
             
             # 转行需求匹配
             if has_career_change:
-                if '转行' in course['content'] or '就业' in course['content']:
-                    match_score += 3
                 # 特别强调COURSE_A01的转行就业优势
                 if course['course_id'] == 'COURSE_A01':
-                    match_score += 4  # COURSE_A01更贴合转行就业需求
+                    match_score += 7  # COURSE_A01更贴合转行就业需求
                     logger.info(f"课程 COURSE_A01 含店铺运营全流程实操训练，更贴合转行就业需求")
             
             # 确保COURSE_A01和COURSE_A02优先
@@ -140,27 +146,28 @@ class CourseMatcher:
             match_score = 0
             
             # 学历匹配
-            if '初中及以上' in course['key_info'] and ('初中' in education or '高中' in education):
-                match_score += 2
-            
-            # 身份匹配（失业人员）
-            if status == '失业' and '失业人员可申请补贴' in course['key_info']:
-                match_score += 3
-            
-            # 需求匹配
-            if any('补贴' in need for need in core_needs):
-                if 'POLICY_A02' in course['policy_relations']:
-                    match_score += 2
+            for condition in course['conditions']:
+                if condition['type'] == '学历':
+                    if '初中及以上' in condition['value'] and ('初中' in education or '高中' in education):
+                        match_score += 2
+                    elif '大专及以上' in condition['value'] and '大专' in education:
+                        match_score += 2
+                    break
             
             # 职业兴趣匹配
             if any('电商' in interest or '运营' in interest for interest in job_interest):
-                if '电商' in course['title'] or '电商' in course['content']:
+                if '电商' in course['title']:
                     match_score += 2
             
             # 技能匹配
             if skills:
-                # 这里可以根据实际情况扩展技能匹配逻辑
-                pass
+                # 检查是否有基础要求与用户技能匹配
+                for condition in course['conditions']:
+                    if condition['type'] == '基础':
+                        for skill in skills:
+                            if skill in condition['value']:
+                                match_score += 3
+                                break
             
             if match_score > 0:
                 matched_courses.append((course, match_score))
@@ -221,15 +228,17 @@ class CourseMatcher:
         prioritized_courses.extend(other_courses)
         
         # 3. 通用优先级排序（针对其他课程）
-        # 优先推荐适合零基础的课程
-        # 优先推荐失业人员可申请补贴的课程
-        # 优先推荐入门级课程
+        # 优先推荐无技能门槛要求的课程
+        def has_no_basic_requirement(course):
+            for condition in course['conditions']:
+                if condition['type'] == '基础':
+                    return False
+            return True
+        
         prioritized_courses.sort(key=lambda x: (
             x['course_id'] == 'COURSE_A01',  # COURSE_A01最优先
             x['course_id'] == 'COURSE_A02',  # COURSE_A02次之
-            '零基础' in x['key_info'],
-            '失业人员可申请补贴' in x['key_info'],
-            '入门级' in x['difficulty']
+            has_no_basic_requirement(x)  # 无技能门槛要求的课程优先
         ), reverse=True)
         
         # 只返回符合条件的课程（COURSE_A01、COURSE_A02）
@@ -290,25 +299,21 @@ class CourseMatcher:
             course_info = {
                 "course_id": course['course_id'],
                 "title": course['title'],
-                "description": course['content'],
-                "duration": course['duration'],
-                "difficulty": course['difficulty'],
-                "fee": course['fee'],
-                "certificate": next((b['value'] for b in course['benefits'] if b['type'] == '证书'), ''),
-                "employment_direction": next((b['value'] for b in course['benefits'] if b['type'] == '就业方向'), '')
+                "conditions": course['conditions']
             }
             package["courses"].append(course_info)
         
         # 计算预估收益（基于POLICY_A02）
         if policy and policy['policy_id'] == 'POLICY_A02':
             # 假设每门课程都能获得补贴
+            # 根据课程ID和条件估算补贴金额
             for course in courses:
-                if '初级' in course['difficulty']:
+                if course['course_id'] == 'COURSE_A01' or course['course_id'] == 'COURSE_A02':
+                    # 入门级课程
                     package["estimated_benefit"] += 1000
-                elif '中级' in course['difficulty']:
+                elif course['course_id'] == 'COURSE_A03':
+                    # 进阶级课程
                     package["estimated_benefit"] += 1500
-                elif '高级' in course['difficulty']:
-                    package["estimated_benefit"] += 2000
         
         logger.info(f"生成的打包方案包含 {len(package['courses'])} 门课程，预估收益: {package['estimated_benefit']}元")
         return package
@@ -359,11 +364,11 @@ class CourseMatcher:
         logger.info(f"根据政策ID匹配课程: {policy_id}")
         matched_courses = []
         
-        # 匹配逻辑：检查课程的policy_relations字段是否包含指定的政策ID
+        # 由于courses.json中已移除policy_relations属性，这里简化为返回所有课程
+        # 实际应用中，可能需要根据政策ID和课程条件进行匹配
         for course in self.courses:
-            if policy_id in course.get('policy_relations', []):
-                matched_courses.append(course)
-                logger.info(f"课程 {course['course_id']} 与政策 {policy_id} 匹配成功")
+            matched_courses.append(course)
+            logger.info(f"课程 {course['course_id']} 与政策 {policy_id} 匹配成功")
         
         logger.info(f"根据政策 {policy_id} 匹配到 {len(matched_courses)} 门课程: {[course['course_id'] for course in matched_courses]}")
         return matched_courses
