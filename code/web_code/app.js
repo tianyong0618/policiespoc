@@ -123,6 +123,8 @@ async function loadHistoryList() {
         }
     } catch (error) {
         console.error('加载历史记录失败:', error);
+        const historyList = document.querySelector('.history-list');
+        historyList.innerHTML = '<div style="padding: 10px; color: #94a3b8; font-size: 13px; text-align: center;">暂无历史记录</div>';
     }
 }
 

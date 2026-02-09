@@ -73,21 +73,7 @@ class JobMatcher:
             if interest in job_title:
                 score += 2
         
-        # 薪资范围匹配
-        user_salary_ranges = user_profile.get("preferences", {}).get("salary_range", [])
-        job_salary = job.get("salary", "")
-        
-        for salary_range in user_salary_ranges:
-            if self.is_salary_match(job_salary, salary_range):
-                score += 2
-        
-        # 工作地点匹配
-        user_locations = user_profile.get("preferences", {}).get("work_location", [])
-        job_location = job.get("location", "")
-        
-        for location in user_locations:
-            if location in job_location:
-                score += 1
+
         
         # 政策兴趣匹配
         user_policy_interests = user_profile.get("policy_interest", [])
@@ -102,30 +88,7 @@ class JobMatcher:
         
         return score
     
-    def is_salary_match(self, job_salary, user_salary_range):
-        """判断薪资是否匹配"""
-        try:
-            # 解析岗位薪资范围
-            job_min, job_max = self.parse_salary_range(job_salary)
-            # 解析用户期望薪资范围
-            user_min, user_max = self.parse_salary_range(user_salary_range)
-            
-            # 检查是否有重叠
-            return not (job_max < user_min or job_min > user_max)
-        except:
-            return False
-    
-    def parse_salary_range(self, salary_str):
-        """解析薪资范围字符串"""
-        import re
-        # 提取数字
-        numbers = re.findall(r'\d+', salary_str)
-        if len(numbers) >= 2:
-            return int(numbers[0]), int(numbers[1])
-        elif len(numbers) == 1:
-            return int(numbers[0]), int(numbers[0])
-        else:
-            return 0, 0
+
     
     def get_all_jobs(self):
         """获取所有岗位信息"""
