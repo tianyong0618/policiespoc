@@ -65,26 +65,15 @@ class JobMatcher:
                 if skill in requirement:
                     score += 3
         
-        # 工作兴趣匹配
-        user_job_interests = user_profile.get("job_interest", [])
+        # 基于用户描述的匹配
+        user_description = user_profile.get("description", "")
         job_title = job.get("title", "")
         
-        for interest in user_job_interests:
-            if interest in job_title:
+        # 简单的关键词匹配
+        job_keywords = job_title.split(" ")
+        for keyword in job_keywords:
+            if keyword in user_description:
                 score += 2
-        
-
-        
-        # 政策兴趣匹配
-        user_policy_interests = user_profile.get("policy_interest", [])
-        job_policy_relations = job.get("policy_relations", [])
-        
-        # 这里简化处理，实际应该根据政策ID映射到政策类别
-        for interest in user_policy_interests:
-            if interest in ["就业服务", "技能培训"] and "POLICY_A02" in job_policy_relations:
-                score += 1
-            elif interest in ["创业扶持"] and ("POLICY_A01" in job_policy_relations or "POLICY_A03" in job_policy_relations):
-                score += 1
         
         return score
     

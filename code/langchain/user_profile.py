@@ -67,20 +67,12 @@ class UserProfileManager:
         # 这里简化处理，实际应该使用NLP技术从用户输入中提取信息
         # 目前返回一个默认的用户画像模板
         return {
-            "basic_info": {
-                "age": 30,
-                "gender": "未知",
-                "education": "未知",
-                "work_experience": "未知"
-            },
             "skills": [],
             "preferences": {
                 "salary_range": [],
                 "work_location": [],
                 "work_type": []
-            },
-            "policy_interest": [],
-            "job_interest": []
+            }
         }
     
     def get_personalized_recommendations(self, user_id):
@@ -115,11 +107,8 @@ class UserProfileManager:
         if not user_profile:
             return None
         
-        if policy_interest:
-            user_profile["policy_interest"] = policy_interest
-        
-        if job_interest:
-            user_profile["job_interest"] = job_interest
+        # 由于已删除 policy_interest 和 job_interest 属性，此方法不再更新这些属性
+        # 仅保留方法接口以保持兼容性
         
         self.save_user_profiles()
         return user_profile
@@ -131,24 +120,6 @@ class UserProfileManager:
         
         for profile in self.user_profiles:
             score = 0
-            # 匹配基本信息
-            basic_info = profile.get("basic_info", {})
-            identity = basic_info.get("identity", "")
-            if identity and identity in user_input:
-                score += 3
-            
-            gender = basic_info.get("gender", "")
-            if gender and gender in user_input:
-                score += 1
-                
-            age = str(basic_info.get("age", ""))
-            if age and age in user_input:
-                score += 1
-            
-            # 匹配技能
-            for skill in profile.get("skills", []):
-                if skill in user_input:
-                    score += 2
             
             # 匹配描述关键词
             description = profile.get("description", "")

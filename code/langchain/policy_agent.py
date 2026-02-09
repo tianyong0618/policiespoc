@@ -531,21 +531,12 @@ class PolicyAgent:
         # 4. 检查现有信息
         if matched_user and isinstance(matched_user, dict):
             user_data = matched_user.get("data", {})
-            basic_info = matched_user.get("basic_info", {})
             
-            # 从用户画像中提取身份信息
-            identity = basic_info.get("identity", "")
-            status = basic_info.get("status", "")
-            logger.info(f"匹配到用户身份: {identity}, 状态: {status}")
+            # 从用户画像中提取信息
+            logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
             
             # 将用户画像中的信息添加到现有可用信息列表中
-            # 添加基本信息
-            for key, value in basic_info.items():
-                if key not in required_info["user_profile"]["available"]:
-                    required_info["user_profile"]["available"].append(key)
-                    logger.info(f"从用户画像中提取到{key}信息: {value}")
-            
-            # 添加其他用户数据
+            # 添加用户数据
             for key in user_data.keys():
                 if key not in required_info["user_profile"]["available"]:
                     required_info["user_profile"]["available"].append(key)
@@ -557,54 +548,48 @@ class PolicyAgent:
                     required_info["user_needs"]["available"].append("specific_needs")
                     logger.info(f"从用户画像中提取到需求信息: {core_needs}")
             
-            # 从job_interest中提取job_interest
-            job_interest = matched_user.get("job_interest", [])
-            if job_interest:
-                if "job_interest" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("job_interest")
-                    logger.info(f"从用户画像中提取到岗位兴趣: {job_interest}")
-            
-            # 基于用户身份预测可用信息
-            if identity == "返乡农民工":
+            # 基于用户描述预测可用信息
+            description = matched_user.get("description", "")
+            if "返乡" in description or "农民工" in description:
                 # 返乡农民工通常需要创业扶持政策
                 if "specific_needs" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于返乡农民工身份预测需求信息")
+                    logger.info("基于返乡农民工描述预测需求信息")
                 if "location" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("location")
-                    logger.info("基于返乡农民工身份预测地点信息")
-            elif identity == "高校毕业生":
+                    logger.info("基于返乡农民工描述预测地点信息")
+            elif "高校毕业生" in description:
                 # 高校毕业生通常有学历信息
                 if "education" not in required_info["user_profile"]["available"]:
                     required_info["user_profile"]["available"].append("education")
-                    logger.info("基于高校毕业生身份预测学历信息")
+                    logger.info("基于高校毕业生描述预测学历信息")
                 if "specific_needs" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于高校毕业生身份预测需求信息")
-            elif identity == "退役军人":
+                    logger.info("基于高校毕业生描述预测需求信息")
+            elif "退役军人" in description:
                 # 退役军人通常有特定的政策需求
                 if "specific_needs" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于退役军人身份预测需求信息")
+                    logger.info("基于退役军人描述预测需求信息")
                 if "location" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("location")
-                    logger.info("基于退役军人身份预测地点信息")
-            elif identity == "失业人员":
+                    logger.info("基于退役军人描述预测地点信息")
+            elif "失业" in description:
                 # 失业人员通常需要技能培训和就业服务
                 if "specific_needs" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于失业人员身份预测需求信息")
+                    logger.info("基于失业人员描述预测需求信息")
                 if "skills" not in required_info["user_profile"]["available"]:
                     required_info["user_profile"]["available"].append("skills")
-                    logger.info("基于失业人员身份预测技能信息")
-            elif identity == "脱贫人口":
+                    logger.info("基于失业人员描述预测技能信息")
+            elif "脱贫" in description:
                 # 脱贫人口通常需要技能培训和生活费补贴
                 if "specific_needs" not in required_info["user_needs"]["available"]:
                     required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于脱贫人口身份预测需求信息")
+                    logger.info("基于脱贫人口描述预测需求信息")
                 if "education" not in required_info["user_profile"]["available"]:
                     required_info["user_profile"]["available"].append("education")
-                    logger.info("基于脱贫人口身份预测学历信息")
+                    logger.info("基于脱贫人口描述预测学历信息")
         
         # 5. 从当前用户输入中提取信息
         # 检查用户输入中是否包含学历相关词汇

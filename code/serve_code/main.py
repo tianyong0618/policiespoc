@@ -93,11 +93,9 @@ class JobsResponse(BaseModel):
 
 class UserProfileResponse(BaseModel):
     user_id: str
-    basic_info: dict
-    skills: list
-    preferences: dict
-    policy_interest: list
-    job_interest: list
+    description: str
+    core_needs: list
+    associated_relations: list
 
 class RecommendationsResponse(BaseModel):
     policies: list
