@@ -310,21 +310,6 @@ class Orchestrator:
         if needs_policy_recommendation and relevant_policies:
             retrieval_content += f"\n- 政策检索：分析了{len(relevant_policies)}条相关政策，重点检查申请条件和补贴标准"
         
-        # 构建完整的思考过程
-        thinking_process = [
-            {
-                "step": "意图与实体识别",
-                "content": f"核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}",
-                "status": "completed"
-            },
-            {
-                "step": "精准检索与推理",
-                "content": retrieval_content,
-                "status": "completed",
-                "substeps": substeps
-            }
-        ]
-        
         # 为精准检索与推理步骤的政策检索子步骤添加详细政策分析
         policy_substeps = []
         # 检查用户是否提到带动就业
@@ -368,10 +353,49 @@ class Orchestrator:
                     })
             elif policy_id == "POLICY_A01":
                 # 创业担保贷款贴息政策
-                has_veteran = "退役军人" in user_input_str
-                has_migrant = "返乡农民工" in user_input_str
+                # 从实体中提取信息
+                has_veteran_entity = False
+                has_migrant_entity = False
+                has_business_entity = False
+                
+                # 详细日志：打印实体信息
+                logger.info(f"分析实体信息: {json.dumps(intent_info.get('entities', []), ensure_ascii=False)}")
+                
+                for entity in intent_info.get('entities', []):
+                    entity_type = entity.get('type', '')
+                    entity_value = entity.get('value', '')
+                    logger.info(f"检查实体: 类型={entity_type}, 值={entity_value}")
+                    
+                    if entity_type == 'employment_status' and ('退役军人' in entity_value):
+                        has_veteran_entity = True
+                        logger.info("识别到退役军人实体")
+                    elif entity_type == 'employment_status' and ('返乡农民工' in entity_value or '农民工' in entity_value or '返乡' in entity_value):
+                        has_migrant_entity = True
+                        logger.info("识别到返乡农民工实体")
+                    elif entity_type == 'business_type' and ('小微企业' in entity_value or '小加工厂' in entity_value):
+                        has_business_entity = True
+                        logger.info("识别到小微企业实体")
+                    elif entity_type == 'concern' and ('创业' in entity_value or '创业贷款' in entity_value):
+                        has_business_entity = True
+                        logger.info("识别到创业相关实体")
+                
+                # 从用户输入中提取信息（作为备用）
+                has_veteran_input = "退役军人" in user_input_str
+                has_migrant_input = ("返乡农民工" in user_input_str or 
+                                   ("回来" in user_input_str and "农民工" in user_input_str) or
+                                   ("返乡" in user_input_str and "农民工" in user_input_str))
+                has_business_input = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "小微企业" in user_input_str or "小加工厂" in user_input_str
+                
+                # 综合判断
+                has_veteran = has_veteran_entity or has_veteran_input
+                has_migrant = has_migrant_entity or has_migrant_input
                 has_identity = has_veteran or has_migrant
-                has_business = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str
+                has_business = has_business_entity or has_business_input
+                
+                # 详细日志：打印判断结果
+                logger.info(f"实体判断结果: 退役军人实体={has_veteran_entity}, 返乡农民工实体={has_migrant_entity}, 创业实体={has_business_entity}")
+                logger.info(f"用户输入判断结果: 退役军人={has_veteran_input}, 返乡农民工={has_migrant_input}, 创业={has_business_input}")
+                logger.info(f"综合判断结果: 身份={has_identity}, 创业={has_business}")
                 
                 if has_identity and has_business:
                     identity_type = "退役军人" if has_veteran else "返乡农民工"
@@ -479,6 +503,21 @@ class Orchestrator:
                     "step": f"检索{policy_id}",
                     "content": f"分析{policy_title}的适用条件"
                 })
+        
+        # 构建完整的思考过程
+        thinking_process = [
+            {
+                "step": "意图与实体识别",
+                "content": f"核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}",
+                "status": "completed"
+            },
+            {
+                "step": "精准检索与推理",
+                "content": retrieval_content,
+                "status": "completed",
+                "substeps": substeps
+            }
+        ]
         
         if policy_substeps:
             # 找到政策检索子步骤并添加详细分析
@@ -832,10 +871,35 @@ class Orchestrator:
                                 })
                         elif policy_id == "POLICY_A01":
                             # 创业担保贷款贴息政策
-                            has_veteran = "退役军人" in user_input_str
-                            has_migrant = "返乡农民工" in user_input_str
+                            # 从实体中提取信息
+                            has_veteran_entity = False
+                            has_migrant_entity = False
+                            has_business_entity = False
+                            
+                            for entity in intent_info.get('entities', []):
+                                entity_type = entity.get('type', '')
+                                entity_value = entity.get('value', '')
+                                if entity_type == 'employment_status' and ('退役军人' in entity_value):
+                                    has_veteran_entity = True
+                                elif entity_type == 'employment_status' and ('返乡农民工' in entity_value or '农民工' in entity_value or '返乡' in entity_value):
+                                    has_migrant_entity = True
+                                elif entity_type == 'business_type' and ('小微企业' in entity_value or '小加工厂' in entity_value):
+                                    has_business_entity = True
+                                elif entity_type == 'concern' and ('创业' in entity_value or '创业贷款' in entity_value):
+                                    has_business_entity = True
+                            
+                            # 从用户输入中提取信息（作为备用）
+                            has_veteran_input = "退役军人" in user_input_str
+                            has_migrant_input = ("返乡农民工" in user_input_str or 
+                                               ("回来" in user_input_str and "农民工" in user_input_str) or
+                                               ("返乡" in user_input_str and "农民工" in user_input_str))
+                            has_business_input = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "小微企业" in user_input_str or "小加工厂" in user_input_str
+                            
+                            # 综合判断
+                            has_veteran = has_veteran_entity or has_veteran_input
+                            has_migrant = has_migrant_entity or has_migrant_input
                             has_identity = has_veteran or has_migrant
-                            has_business = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str
+                            has_business = has_business_entity or has_business_input
                             
                             if has_identity and has_business:
                                 identity_type = "退役军人" if has_veteran else "返乡农民工"

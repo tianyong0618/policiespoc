@@ -57,12 +57,32 @@ class PolicyRetriever:
         user_input_str = original_input if original_input else entity_input_str
         logger.info(f"使用的用户输入字符串: {user_input_str}")
         
+        # 从实体中提取信息
+        has_veteran_entity = False
+        has_migrant_entity = False
+        for entity in entities:
+            entity_type = entity.get('type', '')
+            entity_value = entity.get('value', '')
+            if entity_type == 'employment_status' and ('退役军人' in entity_value):
+                has_veteran_entity = True
+            elif entity_type == 'employment_status' and ('返乡农民工' in entity_value or '农民工' in entity_value or '返乡' in entity_value):
+                has_migrant_entity = True
+        
         has_certificate = "电工证" in user_input_str or "证书" in user_input_str
         is_unemployed = "失业" in user_input_str
-        has_return_home = "返乡" in user_input_str or "农民工" in user_input_str
+        # 检查用户是否明确提到自己是返乡农民工
+        has_return_home = ("返乡农民工" in user_input_str or 
+                         ("我是" in user_input_str and ("返乡" in user_input_str or "农民工" in user_input_str)) or
+                         ("是" in user_input_str and ("返乡" in user_input_str or "农民工" in user_input_str)) or
+                         ("返乡" in user_input_str and "农民工" in user_input_str) or
+                         ("回来" in user_input_str and "农民工" in user_input_str) or
+                         has_migrant_entity)
         has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str
         has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
-        has_veteran = "退役军人" in user_input_str
+        has_veteran = ("退役军人" in user_input_str or 
+                      ("我是" in user_input_str and "退役军人" in user_input_str) or
+                      ("是" in user_input_str and "退役军人" in user_input_str) or
+                      has_veteran_entity)
         has_individual_business = "个体经营" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "维修店" in user_input_str or "经营" in user_input_str
         
         logger.info(f"用户条件检测: 证书={has_certificate}, 失业={is_unemployed}, 返乡={has_return_home}, 创业={has_entrepreneurship}, 孵化基地={has_incubator}, 退役军人={has_veteran}, 个体经营={has_individual_business}")
@@ -108,6 +128,18 @@ class PolicyRetriever:
                 if has_return_home or has_veteran:
                     is_eligible = True
                     logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人")
+                else:
+                    # 检查实体中是否有返乡农民工或退役军人
+                    has_relevant_entity = False
+                    for entity in entities:
+                        if entity.get('type') == 'employment_status' and ('返乡农民工' in entity.get('value', '') or '退役军人' in entity.get('value', '')):
+                            has_relevant_entity = True
+                            break
+                    if has_relevant_entity:
+                        is_eligible = True
+                        logger.info(f"用户符合 {policy_id} 条件: 实体中包含返乡农民工或退役军人")
+                    else:
+                        logger.info(f"用户不符合 {policy_id} 条件: 未提及返乡农民工或退役军人身份")
             
             elif policy_id == "POLICY_A05":  # 技能培训生活费补贴政策
                 # 条件：脱贫人口、低保家庭成员、残疾人等
