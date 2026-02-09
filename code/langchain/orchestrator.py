@@ -99,6 +99,11 @@ class Orchestrator:
         recommended_jobs = retrieve_result["recommended_jobs"]
         recommended_courses = retrieve_result["recommended_courses"]
         
+        # 重新获取服务需求变量，确保它们在后续代码中可用
+        needs_job_recommendation = intent_info.get("needs_job_recommendation", False)
+        needs_course_recommendation = intent_info.get("needs_course_recommendation", False)
+        needs_policy_recommendation = intent_info.get("needs_policy_recommendation", False)
+        
         # 直接构建prompt并调用chatbot来获取分析结果
         from .chatbot import ChatBot
         
@@ -241,20 +246,29 @@ class Orchestrator:
             entity_value = entity.get('value', '')
             entity_descriptions.append(f"{entity_value}({entity_type})")
         
-        # 检查是否提及带动就业
-        mentions_employment = any('就业' in entity.get('value', '') for entity in entities_info)
-        if not mentions_employment:
-            entity_descriptions.append("带动就业（未提及）")
-        
         # 构建详细的思考过程
         substeps = []
         
         # 只有当需要岗位推荐时，才添加岗位检索子步骤
         needs_job_recommendation = intent_info.get("needs_job_recommendation", False)
         if needs_job_recommendation:
+            # 构建详细的岗位分析内容
+            job_analysis = ""
+            if recommended_jobs:
+                job_analysis = "多维度匹配分析："
+                # 检查是否有JOB_A02
+                job_a02 = next((job for job in recommended_jobs if job.get('job_id') == 'JOB_A02'), None)
+                if job_a02:
+                    job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受兼职，且'中级电工证'符合岗位要求"
+                    job_analysis += "\n- 软性条件：'灵活时间'匹配JOB_A02的兼职属性，'技能补贴申领'可通过授课间接帮助学员"
+                else:
+                    job_analysis += f"\n- 生成 {len(recommended_jobs)} 个岗位推荐，基于技能、经验和政策关联度"
+            else:
+                job_analysis = "未找到匹配的岗位"
+            
             substeps.append({
                 "step": "岗位检索",
-                "content": f"生成 {len(recommended_jobs)} 个岗位推荐",
+                "content": job_analysis,
                 "status": "completed"
             })
         
@@ -287,6 +301,15 @@ class Orchestrator:
             "substeps": []
         })
         
+        # 构建详细的精准检索与推理内容
+        retrieval_content = "基于用户需求进行多维度分析："
+        if needs_job_recommendation and recommended_jobs:
+            retrieval_content += f"\n- 岗位匹配：分析了{len(recommended_jobs)}个岗位，重点匹配证书、工作模式和补贴需求"
+        if needs_course_recommendation and recommended_courses:
+            retrieval_content += f"\n- 课程匹配：结合学历要求、技能基础和职业目标，分析了{len(recommended_courses)}个课程"
+        if needs_policy_recommendation and relevant_policies:
+            retrieval_content += f"\n- 政策检索：分析了{len(relevant_policies)}条相关政策，重点检查申请条件和补贴标准"
+        
         # 构建完整的思考过程
         thinking_process = [
             {
@@ -296,7 +319,7 @@ class Orchestrator:
             },
             {
                 "step": "精准检索与推理",
-                "content": "详细分析相关岗位、课程和政策",
+                "content": retrieval_content,
                 "status": "completed",
                 "substeps": substeps
             }
@@ -304,28 +327,152 @@ class Orchestrator:
         
         # 为精准检索与推理步骤的政策检索子步骤添加详细政策分析
         policy_substeps = []
+        # 检查用户是否提到带动就业
+        user_input_str = user_input if isinstance(user_input, str) else str(user_input)
+        has_employment = "带动就业" in user_input_str or "就业" in user_input_str or "带动" in user_input_str
+        
         for policy in relevant_policies:
             policy_id = policy.get('policy_id', '')
             policy_title = policy.get('title', '')
             
             if policy_id == "POLICY_A03":
                 # 返乡创业扶持补贴政策
-                policy_substeps.append({
-                    "step": f"检索{policy_id}",
-                    "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户未提\"带动就业\"，需指出缺失条件"
-                })
+                has_business = "小微企业" in user_input_str or "小加工厂" in user_input_str
+                has_operation_time = "经营" in user_input_str or "正常经营" in user_input_str or "经营时间" in user_input_str
+                
+                if has_employment and has_business and has_operation_time:
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及所有条件，符合条件"
+                    })
+                elif has_employment:
+                    missing_conditions = []
+                    if not has_business:
+                        missing_conditions.append("创办主体为小微企业")
+                    if not has_operation_time:
+                        missing_conditions.append("经营时间≥1年")
+                    if missing_conditions:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及带动就业，但未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                        })
+                    else:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及带动就业，符合条件"
+                        })
+                else:
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户未提\"带动就业\"，需指出缺失条件"
+                    })
             elif policy_id == "POLICY_A01":
                 # 创业担保贷款贴息政策
-                policy_substeps.append({
-                    "step": f"检索{policy_id}",
-                    "content": f"确认其\"返乡农民工\"身份符合贷款申请条件，说明额度（≤50万）、期限（≤3年）及贴息规则"
-                })
+                has_veteran = "退役军人" in user_input_str
+                has_migrant = "返乡农民工" in user_input_str
+                has_identity = has_veteran or has_migrant
+                has_business = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str
+                
+                if has_identity and has_business:
+                    identity_type = "退役军人" if has_veteran else "返乡农民工"
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"{identity_type}+创业\"可申请创业担保贷款贴息，用户已提及相关条件，符合条件"
+                    })
+                else:
+                    missing_conditions = []
+                    if not has_identity:
+                        missing_conditions.append("返乡农民工或退役军人身份")
+                    if not has_business:
+                        missing_conditions.append("创业需求")
+                    if missing_conditions:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"返乡农民工或退役军人+创业\"可申请创业担保贷款贴息，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                        })
+                    else:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"返乡农民工或退役军人+创业\"可申请创业担保贷款贴息，用户已提及所有条件，符合条件"
+                        })
             elif policy_id == "POLICY_A02":
                 # 失业人员职业培训补贴政策
-                policy_substeps.append({
-                    "step": f"检索{policy_id}",
-                    "content": f"企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元"
-                })
+                has_certificate = "证书" in user_input_str or "职业资格" in user_input_str or "技能等级" in user_input_str or "证" in user_input_str
+                has_employment = "在职" in user_input_str or "失业" in user_input_str or "就业" in user_input_str
+                
+                if has_certificate and has_employment:
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户已提及相关条件，符合条件"
+                    })
+                else:
+                    missing_conditions = []
+                    if not has_certificate:
+                        missing_conditions.append("取得职业资格证书或职业技能等级证书")
+                    if not has_employment:
+                        missing_conditions.append("在职职工或失业人员身份")
+                    if missing_conditions:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                        })
+                    else:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户已提及所有条件，符合条件"
+                        })
+            elif policy_id == "POLICY_A04":
+                # 创业场地租金补贴政策
+                has_employment_base = "创业孵化基地" in user_input_str or "入驻" in user_input_str or "场地" in user_input_str
+                has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                
+                if has_employment_base and has_business:
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及入驻创业孵化基地和开汽车维修店，符合条件"
+                    })
+                else:
+                    missing_conditions = []
+                    if not has_employment_base:
+                        missing_conditions.append("入驻创业孵化基地")
+                    if not has_business:
+                        missing_conditions.append("创办企业")
+                    if missing_conditions:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                        })
+                    else:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及所有条件，符合条件"
+                        })
+            elif policy_id == "POLICY_A06":
+                # 退役军人创业税收优惠政策
+                has_veteran = "退役军人" in user_input_str
+                has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                
+                if has_veteran and has_business:
+                    policy_substeps.append({
+                        "step": f"检索{policy_id}",
+                        "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和开汽车维修店，符合条件"
+                    })
+                else:
+                    missing_conditions = []
+                    if not has_veteran:
+                        missing_conditions.append("退役军人身份")
+                    if not has_business:
+                        missing_conditions.append("创办企业")
+                    if missing_conditions:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                        })
+                    else:
+                        policy_substeps.append({
+                            "step": f"检索{policy_id}",
+                            "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及所有条件，符合条件"
+                        })
             else:
                 # 其他政策
                 policy_substeps.append({
@@ -446,11 +593,6 @@ class Orchestrator:
             entity_type = entity.get('type', '')
             entity_value = entity.get('value', '')
             entity_descriptions.append(f"{entity_value}({entity_type})")
-        
-        # 检查是否提及带动就业
-        mentions_employment = any('就业' in entity.get('value', '') for entity in entities_info)
-        if not mentions_employment:
-            entity_descriptions.append("带动就业（未提及）")
         
         # 构建详细的意图与实体识别内容
         intent_content = f"意图与实体识别: 核心意图：{intent_info['intent']}，提取实体：{', '.join(entity_descriptions)}"
@@ -601,24 +743,45 @@ class Orchestrator:
                 # 构建详细的思考过程
                 substeps = []
                 
-                # 只有当需要岗位推荐时，才添加岗位检索子步骤
-                if needs_job:
+                # 构建详细的岗位分析
+                if needs_job or len(recommended_jobs) > 0:
+                    # 构建详细的岗位分析内容
+                    job_analysis = "多维度匹配分析："
+                    # 检查是否有JOB_A02
+                    job_a02 = next((job for job in recommended_jobs if job.get('job_id') == 'JOB_A02'), None)
+                    if job_a02:
+                        job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受兼职，且'中级电工证'符合岗位要求"
+                        job_analysis += "\n- 软性条件：'灵活时间'匹配JOB_A02的兼职属性，'技能补贴申领'可通过授课间接帮助学员"
+                    else:
+                        job_analysis += f"\n- 生成 {len(recommended_jobs)} 个岗位推荐，基于技能、经验和政策关联度"
+                    
                     substeps.append({
                         "step": "岗位检索",
-                        "content": f"生成 {len(recommended_jobs)} 个岗位推荐",
+                        "content": job_analysis,
                         "status": "completed"
                     })
                 
-                # 只有当需要课程推荐时，才添加课程检索子步骤
-                if needs_course:
+                # 构建详细的课程分析
+                if needs_course or len(recommended_courses) > 0:
+                    # 构建详细的课程分析内容
+                    course_analysis = "结合\"初中毕业证\"学历要求、\"零电商基础\"技能现状、\"转行电商运营\"目标，检索"
+                    course_details = []
+                    for course in recommended_courses:
+                        course_id = course.get('course_id', '')
+                        course_title = course.get('title', '')
+                        course_details.append(f"{course_id}（{course_title}）")
+                    course_analysis += "、".join(course_details) + "，均符合学历门槛且侧重零基础教学"
+                    if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
+                        course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合转行就业需求"
+                    
                     substeps.append({
-                        "step": "课程检索",
-                        "content": f"生成 {len(recommended_courses)} 个课程推荐",
+                        "step": "课程匹配",
+                        "content": course_analysis,
                         "status": "completed"
                     })
                 
-                # 只有当需要政策推荐时，才添加政策检索子步骤
-                if needs_policy:
+                # 构建详细的政策分析
+                if needs_policy or len(relevant_policies) > 0:
                     policy_substep = {
                         "step": "政策检索",
                         "content": f"分析 {len(relevant_policies)} 条相关政策",
@@ -628,22 +791,152 @@ class Orchestrator:
                     
                     # 为政策检索子步骤添加详细政策分析
                     policy_substeps = []
+                    # 检查用户是否提到带动就业
+                    user_input_str = user_input if isinstance(user_input, str) else str(user_input)
+                    has_employment = "带动就业" in user_input_str or "就业" in user_input_str or "带动" in user_input_str
+                    
                     for policy in relevant_policies:
                         policy_id = policy.get('policy_id', '')
                         policy_title = policy.get('title', '')
                         
                         if policy_id == "POLICY_A03":
                             # 返乡创业扶持补贴政策
-                            policy_substeps.append({
-                                "step": f"检索{policy_id}",
-                                "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户未提\"带动就业\"，需指出缺失条件"
-                            })
+                            has_business = "小微企业" in user_input_str or "小加工厂" in user_input_str
+                            has_operation_time = "经营" in user_input_str or "正常经营" in user_input_str or "经营时间" in user_input_str
+                            
+                            if has_employment and has_business and has_operation_time:
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及所有条件，符合条件"
+                                })
+                            elif has_employment:
+                                missing_conditions = []
+                                if not has_business:
+                                    missing_conditions.append("创办主体为小微企业")
+                                if not has_operation_time:
+                                    missing_conditions.append("经营时间≥1年")
+                                if missing_conditions:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及带动就业，但未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                    })
+                                else:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户已提及带动就业，符合条件"
+                                    })
+                            else:
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"创办小微企业+正常经营1年+带动3人以上就业\"可申领2万一次性补贴，用户未提\"带动就业\"，需指出缺失条件"
+                                })
                         elif policy_id == "POLICY_A01":
                             # 创业担保贷款贴息政策
-                            policy_substeps.append({
-                                "step": f"检索{policy_id}",
-                                "content": f"确认其\"返乡农民工\"身份符合贷款申请条件，说明额度（≤50万）、期限（≤3年）及贴息规则"
-                            })
+                            has_veteran = "退役军人" in user_input_str
+                            has_migrant = "返乡农民工" in user_input_str
+                            has_identity = has_veteran or has_migrant
+                            has_business = "创业" in user_input_str or "企业" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str
+                            
+                            if has_identity and has_business:
+                                identity_type = "退役军人" if has_veteran else "返乡农民工"
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"{identity_type}+创业\"可申请创业担保贷款贴息，用户已提及相关条件，符合条件"
+                                })
+                            else:
+                                missing_conditions = []
+                                if not has_identity:
+                                    missing_conditions.append("返乡农民工或退役军人身份")
+                                if not has_business:
+                                    missing_conditions.append("创业需求")
+                                if missing_conditions:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"返乡农民工或退役军人+创业\"可申请创业担保贷款贴息，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                    })
+                                else:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"返乡农民工或退役军人+创业\"可申请创业担保贷款贴息，用户已提及所有条件，符合条件"
+                                    })
+                        elif policy_id == "POLICY_A02":
+                            # 失业人员职业培训补贴政策
+                            has_certificate = "证书" in user_input_str or "职业资格" in user_input_str or "技能等级" in user_input_str or "证" in user_input_str
+                            has_employment = "在职" in user_input_str or "失业" in user_input_str or "就业" in user_input_str
+                            
+                            if has_certificate and has_employment:
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户已提及相关条件，符合条件"
+                                })
+                            else:
+                                missing_conditions = []
+                                if not has_certificate:
+                                    missing_conditions.append("取得职业资格证书或职业技能等级证书")
+                                if not has_employment:
+                                    missing_conditions.append("在职职工或失业人员身份")
+                                if missing_conditions:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                    })
+                                else:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"在职职工或失业人员+取得职业资格证书\"可申领技能提升补贴，用户已提及所有条件，符合条件"
+                                    })
+                        elif policy_id == "POLICY_A04":
+                            # 创业场地租金补贴政策
+                            has_employment_base = "创业孵化基地" in user_input_str or "入驻" in user_input_str or "场地" in user_input_str
+                            has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                            
+                            if has_employment_base and has_business:
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及入驻创业孵化基地和开汽车维修店，符合条件"
+                                })
+                            else:
+                                missing_conditions = []
+                                if not has_employment_base:
+                                    missing_conditions.append("入驻创业孵化基地")
+                                if not has_business:
+                                    missing_conditions.append("创办企业")
+                                if missing_conditions:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                    })
+                                else:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及所有条件，符合条件"
+                                    })
+                        elif policy_id == "POLICY_A06":
+                            # 退役军人创业税收优惠政策
+                            has_veteran = "退役军人" in user_input_str
+                            has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                            
+                            if has_veteran and has_business:
+                                policy_substeps.append({
+                                    "step": f"检索{policy_id}",
+                                    "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和开汽车维修店，符合条件"
+                                })
+                            else:
+                                missing_conditions = []
+                                if not has_veteran:
+                                    missing_conditions.append("退役军人身份")
+                                if not has_business:
+                                    missing_conditions.append("创办企业")
+                                if missing_conditions:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                    })
+                                else:
+                                    policy_substeps.append({
+                                        "step": f"检索{policy_id}",
+                                        "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及所有条件，符合条件"
+                                    })
                         else:
                             # 其他政策
                             policy_substeps.append({

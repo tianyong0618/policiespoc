@@ -87,9 +87,15 @@ class PolicyRetriever:
             elif policy_id == "POLICY_A03":  # 返乡创业扶持补贴政策
                 # 条件：返乡人员，创办小微企业，经营满1年，带动3人以上就业
                 if has_return_home and has_entrepreneurship:
-                    # 这里简化处理，实际需要更多条件验证
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 返乡创业")
+                    # 检查是否提到带动就业
+                    has_employment = "带动就业" in user_input_str or "就业" in user_input_str
+                    if has_employment:
+                        is_eligible = True
+                        logger.info(f"用户符合 {policy_id} 条件: 返乡创业且提到带动就业")
+                    else:
+                        # 用户未提带动就业，但仍将政策加入相关列表，后续在展示时指出缺失条件
+                        is_eligible = True
+                        logger.info(f"用户符合 {policy_id} 基本条件，但未提带动就业，需指出缺失条件")
             
             elif policy_id == "POLICY_A04":  # 创业场地租金补贴政策
                 # 条件：入驻创业孵化基地
@@ -216,11 +222,12 @@ class PolicyRetriever:
         """分析用户输入，判断是否需要收集更多信息"""
         logger.info(f"分析用户输入: {user_input[:50]}...")
         
-        # 1. 快速检查是否为政策咨询相关输入
+        # 1. 快速检查是否为政策咨询或岗位推荐相关输入
         policy_keywords = ["政策", "补贴", "贷款", "申请", "返乡", "创业", "小微企业"]
-        if any(keyword in user_input for keyword in policy_keywords):
-            # 政策咨询不需要收集详细个人信息
-            logger.info("识别到政策咨询输入，跳过详细信息收集")
+        job_keywords = ["找工作", "推荐岗位", "就业", "工作机会", "推荐工作", "兼职", "工作"]
+        if any(keyword in user_input for keyword in policy_keywords) or any(keyword in user_input for keyword in job_keywords):
+            # 政策咨询或岗位推荐不需要收集详细个人信息
+            logger.info("识别到政策咨询或岗位推荐输入，跳过详细信息收集")
             return {
                 "matched_user": None,
                 "required_info": {},

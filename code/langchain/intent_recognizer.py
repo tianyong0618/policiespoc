@@ -51,7 +51,8 @@ class IntentRecognizer:
 - employment_status: 就业状态（如退役军人、返乡农民工等）
 - certificate: 证书/资格证
 - concern: 关注点（如税收优惠、场地补贴等）
-- business_type: 经营类型（如个体经营、小微企业等）
+- business_type: 经营类型（如个体经营、小微企业等，注意：小加工厂属于小微企业）
+- employment_impact: 就业影响（如带动X人就业、带动就业等）
 - location: 场地信息（如入驻孵化基地等）
 - investment: 投资信息（如租金、投资额等）
 """

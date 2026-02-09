@@ -148,10 +148,19 @@ class ResponseGenerator:
             prompt += "格式要求：\n"
             prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
             prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。\"\n"
-            prompt += "3. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
-            prompt += "4. 重要提示：只根据提供的相关政策生成回答，不要提及未在相关政策中列出的政策。\n"
-            prompt += "5. 重要提示：如果相关政策列表为空，请在positive中说明\"未找到符合条件的政策\"，不要提及任何具体政策。\n"
-            prompt += "6. 主动建议：\n"
+            prompt += "5. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
+            prompt += "6. 重要提示：只根据提供的相关政策生成回答，不要提及未在相关政策中列出的政策。\n"
+            prompt += "7. 重要提示：如果相关政策列表为空，请在positive中说明\"未找到符合条件的政策\"，不要提及任何具体政策。\n"
+            prompt += "8. 重要提示：对于POLICY_A01（创业担保贷款贴息政策），只要用户是返乡农民工或退役军人就满足申请条件，贷款额度（≤50万）、期限（≤3年）是政策内容，不是申请条件，不要将它们作为判断用户是否符合条件的依据。\n"
+            prompt += "9. 重要提示：对于POLICY_A03（返乡创业扶持补贴政策），如果用户在输入中提到了'带动就业'、'带动X人就业'、'就业'等相关内容，就认为用户已经满足'带动3人以上就业'的条件，不要在否定部分要求用户补充就业证明。\n"
+            prompt += "10. 重要提示：如果有多个符合条件的政策，必须在'positive'部分全部列出，每个政策单独一行，确保不遗漏任何符合条件的政策。\n"
+            prompt += "11. 重要提示：只有当确实有不符合条件的政策时，才在'negative'部分显示内容。如果所有政策都符合条件，'negative'部分必须为空字符串，不要显示任何内容。\n"
+            prompt += "12. 重要提示：对于POLICY_A01（创业担保贷款贴息政策），只要用户是返乡农民工或退役军人就满足申请条件，必须在'positive'部分显示为符合条件的政策，不要遗漏。\n"
+            prompt += "13. 重要提示：如果用户在输入中提到了'退役军人'身份，并且提到了'创业'、'开店'、'创办企业'等相关内容，就认为用户符合POLICY_A01的申请条件，必须在'positive'部分显示为符合条件的政策。\n"
+            prompt += "14. 重要提示：对于POLICY_A03（返乡创业扶持补贴政策），如果用户在输入中提到了'带动就业'、'带动X人就业'、'就业'等相关内容，就认为用户已经满足'带动3人以上就业'的条件，必须在'positive'部分显示为符合条件的政策。\n"
+            prompt += "15. 重要提示：对于POLICY_A06（退役军人创业税收优惠政策），如果用户在输入中提到了'退役军人'身份和'创办企业'（如开汽车维修店），就认为用户已经满足条件，必须在'positive'部分显示为符合条件的政策。\n"
+            prompt += "16. 重要提示：必须根据用户的实际情况和政策的实际条件来判断是否符合，只列出真正符合条件的政策，不要遗漏任何符合条件的政策，也不要包含不符合条件的政策。\n"
+            prompt += "17. 主动建议：\n"
             prompt += "   - 如果用户是退役军人，必须输出：\"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。\"\n"
             prompt += "   - 否则，必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
         else:
@@ -215,7 +224,51 @@ class ResponseGenerator:
                 result_json = content
             else:
                 result_json = json.loads(content)
-                
+            
+            # 后处理逻辑：确保响应符合要求
+            # 1. 检查是否有符合条件的政策
+            has_positive = bool(result_json.get('positive', ''))
+            
+            # 2. 检查是否有不符合条件的政策
+            has_negative = bool(result_json.get('negative', ''))
+            
+            # 3. 如果所有政策都符合条件，确保negative部分为空
+            if has_positive and not has_negative:
+                result_json['negative'] = ''
+            
+            # 4. 确保suggestions部分不为空
+            if not result_json.get('suggestions', ''):
+                if '退役军人' in user_input:
+                    result_json['suggestions'] = "推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。"
+                else:
+                    result_json['suggestions'] = "推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。"
+            
+            # 5. 确保包含所有符合条件的政策，特别是POLICY_A01
+            positive_content = result_json.get('positive', '')
+            # 检查positive_content中是否包含所有相关政策
+            missing_policies = []
+            for policy in relevant_policies:
+                policy_id = policy.get('policy_id', '')
+                if policy_id not in positive_content:
+                    missing_policies.append(policy)
+            
+            # 如果有遗漏的政策，添加到positive_content中
+            if missing_policies:
+                for policy in missing_policies:
+                    policy_id = policy.get('policy_id', '')
+                    policy_title = policy.get('title', '')
+                    policy_key_info = policy.get('key_info', '')
+                    if policy_id == "POLICY_A01":
+                        # 创业担保贷款贴息政策
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。申请路径：[XX人社局官网-创业服务专栏]。"
+                    elif policy_id == "POLICY_A04":
+                        # 创业场地租金补贴政策
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
+                    elif policy_id == "POLICY_A06":
+                        # 退役军人创业税收优惠政策
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
+                result_json['positive'] = positive_content
+            
             return result_json
         except Exception as e:
             logger.error(f"解析回答结果失败: {str(e)}")

@@ -620,18 +620,27 @@ function renderAnalysisResult(data, container) {
             <div class="thinking-content has-content">
         `;
         
-        thinkingProcess.forEach(step => {
-            thinkingProcessHtml += `<div class="thinking-step"><strong>${step.step}:</strong> ${step.content}</div>`;
+        // 递归函数处理步骤和子步骤
+        function renderSteps(steps, level = 0) {
+            let html = '';
+            const indentClass = level === 0 ? 'thinking-step' : level === 1 ? 'thinking-substep' : 'thinking-subsubstep';
             
-            // 处理子步骤
-            if (step.substeps && step.substeps.length > 0) {
-                thinkingProcessHtml += `<div class="thinking-substeps">`;
-                step.substeps.forEach(substep => {
-                    thinkingProcessHtml += `<div class="thinking-substep"><strong>${substep.step}:</strong> ${substep.content}</div>`;
-                });
-                thinkingProcessHtml += `</div>`;
-            }
-        });
+            steps.forEach(step => {
+                html += `<div class="${indentClass}"><strong>${step.step}:</strong> ${step.content}</div>`;
+                
+                // 递归处理子步骤
+                if (step.substeps && step.substeps.length > 0) {
+                    html += `<div class="thinking-substeps">`;
+                    html += renderSteps(step.substeps, level + 1);
+                    html += `</div>`;
+                }
+            });
+            
+            return html;
+        }
+        
+        // 使用递归函数渲染所有步骤
+        thinkingProcessHtml += renderSteps(thinkingProcess);
         
         thinkingProcessHtml += `
             </div>
