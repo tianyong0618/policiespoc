@@ -2,24 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-测试 ResponseGenerator 的不同场景主动建议生成
+测试不同场景的主动建议生成
 """
 
 import sys
 import os
 
 # 添加代码目录到 Python 路径
-current_dir = os.path.dirname(__file__)
-code_dir = os.path.join(current_dir, 'code')
-sys.path.append(code_dir)
-
-# 打印路径信息以便调试
-print(f"当前目录: {current_dir}")
-print(f"代码目录: {code_dir}")
-
-# 检查文件是否存在
-response_generator_path = os.path.join(code_dir, 'langchain', 'response_generator.py')
-print(f"ResponseGenerator 文件是否存在: {os.path.exists(response_generator_path)}")
+sys.path.append(os.path.join(os.path.dirname(__file__), 'code'))
 
 # 模拟 ResponseGenerator 类的关键功能，只测试主动建议生成逻辑
 class MockResponseGenerator:
@@ -159,6 +149,7 @@ def test_policy_scenario():
     )
     
     print(f"主动建议: {response.get('suggestions', '')}")
+    print(f"是否包含'申请路径': {'申请路径' in response.get('suggestions', '')}")
     print()
 
 
@@ -188,6 +179,7 @@ def test_job_scenario():
     )
     
     print(f"主动建议: {response.get('suggestions', '')}")
+    print(f"是否包含'简历优化方案': {'简历优化方案' in response.get('suggestions', '')}")
     print()
 
 
@@ -220,6 +212,7 @@ def test_course_scenario():
     )
     
     print(f"主动建议: {response.get('suggestions', '')}")
+    print(f"是否包含'勾勒清晰成长路径': {'勾勒清晰成长路径' in response.get('suggestions', '')}")
     print()
 
 
@@ -266,6 +259,7 @@ def test_mixed_scenario():
     )
     
     print(f"主动建议: {response.get('suggestions', '')}")
+    print(f"是否包含'勾勒清晰成长路径': {'勾勒清晰成长路径' in response.get('suggestions', '')}")
     print()
 
 if __name__ == "__main__":

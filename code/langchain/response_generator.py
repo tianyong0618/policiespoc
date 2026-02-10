@@ -223,12 +223,40 @@ class ResponseGenerator:
             else:
                 logger.info(f"大模型返回的回答结果: {str(content)[:100]}...")
         
-        # 无论如何都生成基于推荐岗位的简历优化建议
-        # 生成简历优化方案作为主动建议
-        suggestions = "简历优化方案："
+        # 根据不同场景生成相应的主动建议
+        # 1. 如果有推荐课程，生成成长路径建议
+        if recommended_courses:
+            suggestions = "勾勒清晰成长路径："
+            # 分析推荐课程的信息
+            course_info = []
+            for course in recommended_courses:
+                course_title = course.get('title', '')
+                course_category = course.get('category', '')
+                course_duration = course.get('duration', '')
+                course_benefits = course.get('benefits', [])
+                
+                # 生成学习内容
+                suggestions += f"1. 学习内容：{course_title}（{course_category}），"
+                if course_duration:
+                    suggestions += f"学习时长{course_duration}，"
+                if course_benefits:
+                    suggestions += "主要收获："
+                    for benefit in course_benefits[:2]:
+                        suggestions += f"{benefit}、"
+                    suggestions = suggestions.rstrip('、') + "；"
+                else:
+                    suggestions += "系统学习相关专业知识和技能；"
+                
+                # 生成就业前景
+                suggestions += "2. 就业前景：通过该课程学习后，可从事相关领域的专业岗位，如与课程内容相关的技术或管理岗位；"
+                
+                # 生成最高成就
+                suggestions += "3. 最高成就：获得相关专业认证或资格证书，提升职业竞争力，实现职业发展目标。"
+                break  # 只使用第一个推荐课程生成建议
         
-        # 基于用户输入和推荐岗位生成个性化简历优化建议
-        if recommended_jobs:
+        # 2. 如果有推荐岗位，生成简历优化方案建议（优先于政策推荐）
+        elif recommended_jobs:
+            suggestions = "简历优化方案："
             # 分析推荐岗位的要求和特点
             job_requirements = []
             job_features = []
@@ -276,18 +304,16 @@ class ResponseGenerator:
             
             suggestions += "3. 针对推荐岗位的特点，调整简历内容和重点；"
             suggestions += "4. 确保简历格式清晰，重点突出，与岗位要求高度匹配。"
+        
+        # 3. 如果有推荐政策但没有推荐课程和岗位，生成申请路径建议
+        elif relevant_policies:
+            suggestions = "申请路径："
+            # 推荐联系相关岗位获取政策申请指导
+            suggestions += "推荐联系政策咨询岗位（JOB_A01），获取政策申请全程指导。"
+        
+        # 4. 其他情况的通用建议
         else:
-            # 没有推荐岗位时的通用建议
-            if '退役军人' in user_input:
-                suggestions += "1. 突出退役军人身份和相关技能；2. 强调执行力和团队协作能力；3. 展示与目标岗位相关的经验；4. 提及对创业或相关领域的热情。"
-            elif '创业' in user_input:
-                suggestions += "1. 突出创业经历和项目管理能力；2. 强调市场分析和资源整合能力；3. 展示与目标岗位相关的技能；4. 提及对政策的了解和应用能力。"
-            elif '电商' in user_input or '直播' in user_input:
-                suggestions += "1. 突出电商运营和直播相关技能；2. 强调数据分析和用户运营能力；3. 展示实际操作经验和案例；4. 提及对行业趋势的了解。"
-            elif '技能' in user_input or '证书' in user_input:
-                suggestions += "1. 突出技能证书和专业资质；2. 强调实操能力和培训经验；3. 展示与目标岗位相关的技能匹配度；4. 提及对技能提升的持续学习态度。"
-            else:
-                suggestions += "1. 突出与目标岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。"
+            suggestions = "建议：请提供更多个人信息，以便为您提供更精准的政策咨询和个性化建议。"
         
         # 尝试解析LLM响应
         try:

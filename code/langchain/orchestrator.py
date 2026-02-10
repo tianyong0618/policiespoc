@@ -1852,8 +1852,9 @@ class Orchestrator:
                         "suggestions": suggestions
                     }
                 else:
-                    # 确保suggestions字段不为空
-                    response['suggestions'] = suggestions
+                    # 只在suggestions字段为空时才设置默认值
+                    if not response.get('suggestions', ''):
+                        response['suggestions'] = suggestions
                 
                 # 生成分析结果事件
                 yield json.dumps({
