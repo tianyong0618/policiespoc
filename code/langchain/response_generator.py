@@ -352,37 +352,49 @@ class ResponseGenerator:
             if not result_json.get('suggestions', ''):
                 result_json['suggestions'] = suggestions
             
-            # 5. 移除positive部分中的申请路径信息
-            positive_content = result_json.get('positive', '')
-            # 移除"申请路径：未提及。"或类似的申请路径信息
-            import re
-            positive_content = re.sub(r'申请路径：[^。]+。', '', positive_content)
-            result_json['positive'] = positive_content
-            
-            # 6. 确保包含所有符合条件的政策，特别是POLICY_A01
-            # 检查positive_content中是否包含所有相关政策
-            missing_policies = []
-            for policy in relevant_policies:
-                policy_id = policy.get('policy_id', '')
-                if policy_id not in positive_content:
-                    missing_policies.append(policy)
-            
-            # 如果有遗漏的政策，添加到positive_content中
-            if missing_policies:
-                for policy in missing_policies:
+            # 5. 检查是否有符合条件的政策
+            if not relevant_policies:
+                # 没有符合条件的政策，清空positive部分
+                positive_content = ''
+            else:
+                # 有符合条件的政策，处理positive部分
+                positive_content = result_json.get('positive', '')
+                # 移除"申请路径：未提及。"或类似的申请路径信息
+                import re
+                positive_content = re.sub(r'申请路径：[^。]+。', '', positive_content)
+                # 移除positive部分中可能存在的"未查询到相关政策信息"等提示语
+                policy_not_found_patterns = ['未查询到相关政策信息', '未找到符合条件的政策', '未找到与推荐岗位相关的政策信息', '目前未查询到相关政策信息', '未找到相关政策信息', '未查询到与推荐岗位相关的政策信息']
+                for pattern in policy_not_found_patterns:
+                    if pattern in positive_content:
+                        positive_content = ''
+                        break
+                
+                # 确保包含所有符合条件的政策，特别是POLICY_A01
+                # 检查positive_content中是否包含所有相关政策
+                missing_policies = []
+                for policy in relevant_policies:
                     policy_id = policy.get('policy_id', '')
-                    policy_title = policy.get('title', '')
-                    policy_key_info = policy.get('key_info', '')
-                    if policy_id == "POLICY_A01":
-                        # 创业担保贷款贴息政策
-                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。"
-                    elif policy_id == "POLICY_A04":
-                        # 创业场地租金补贴政策
-                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
-                    elif policy_id == "POLICY_A06":
-                        # 退役军人创业税收优惠政策
-                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
-                result_json['positive'] = positive_content
+                    if policy_id not in positive_content:
+                        missing_policies.append(policy)
+                
+                # 如果有遗漏的政策，添加到positive_content中
+                if missing_policies:
+                    for policy in missing_policies:
+                        policy_id = policy.get('policy_id', '')
+                        policy_title = policy.get('title', '')
+                        policy_key_info = policy.get('key_info', '')
+                        if policy_id == "POLICY_A01":
+                            # 创业担保贷款贴息政策
+                            positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。"
+                        elif policy_id == "POLICY_A04":
+                            # 创业场地租金补贴政策
+                            positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
+                        elif policy_id == "POLICY_A06":
+                            # 退役军人创业税收优惠政策
+                            positive_content += f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
+            
+            # 更新positive部分
+            result_json['positive'] = positive_content
             
             return result_json
         except Exception as e:

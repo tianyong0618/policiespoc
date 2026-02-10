@@ -120,7 +120,7 @@ class PolicyAgent:
         has_certificate = "电工证" in user_input_str or "证书" in user_input_str
         is_unemployed = "失业" in user_input_str
         has_return_home = "返乡" in user_input_str or "农民工" in user_input_str
-        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str
+        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str or "创业税收优惠" in user_input_str
         has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
         has_veteran = "退役军人" in user_input_str
         has_individual_business = "个体经营" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "维修店" in user_input_str or "开店" in user_input_str
@@ -170,10 +170,10 @@ class PolicyAgent:
                     logger.info(f"用户符合 {policy_id} 条件: 特殊群体")
             
             elif policy_id == "POLICY_A06":  # 退役军人创业税收优惠
-                # 条件：退役军人且从事个体经营
-                if has_veteran and has_individual_business:
+                # 条件：退役军人且有创业相关需求
+                if has_veteran and (has_individual_business or has_entrepreneurship):
                     is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 退役军人且从事个体经营")
+                    logger.info(f"用户符合 {policy_id} 条件: 退役军人且有创业需求")
             
             # 如果符合条件，添加到相关政策列表
             if is_eligible:
@@ -294,21 +294,33 @@ class PolicyAgent:
             return response
         
         # 构建完整prompt
-        prompt = f"""
+        prompt = """
 你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成结构化的政策咨询回答。
 
-用户输入: {user_input}
-{user_profile_str}
+用户输入: """
+        prompt += user_input
+        prompt += """
+"""
+        prompt += user_profile_str
+        prompt += """
 
 相关政策:
-{policies_str}
+"""
+        prompt += policies_str
+        prompt += """
 
-{jobs_str}
+"""
+        prompt += jobs_str
+        prompt += """
 
-{courses_str}
+"""
+        prompt += courses_str
+        prompt += """
 
 请根据以上信息，按照以下指令生成回答：
-{base_instructions}
+"""
+        prompt += base_instructions
+        prompt += """
 
 特别要求：
 1. 课程推荐格式："推荐您优先选择《电商运营入门实战班》：学历要求匹配（初中及以上），零基础可学，课程涵盖店铺搭建、产品上架、流量运营等核心技能，贴合您转行电商运营的需求。"
@@ -319,11 +331,7 @@ class PolicyAgent:
 6. 主动建议必须包含可咨询的岗位或部门，如人力资源部门、职业培训中心、就业服务机构等
 
 请以JSON格式输出，包含以下字段：
-{
-  "positive": "符合条件的政策及内容（只包含政策讲解，不包含课程信息）",
-  "negative": "不符合条件的政策及原因",
-  "suggestions": "主动建议，包含可咨询的岗位或部门"
-}
+{"positive": "符合条件的政策及内容（只包含政策讲解，不包含课程信息）", "negative": "不符合条件的政策及原因", "suggestions": "主动建议，包含可咨询的岗位或部门"}
 
 请确保回答准确、简洁、有条理，直接输出JSON格式，不要包含其他内容。
 """
