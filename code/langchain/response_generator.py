@@ -147,7 +147,7 @@ class ResponseGenerator:
             prompt += "\n"
             prompt += "格式要求：\n"
             prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
-            prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：线上[当地人社局官网-创业服务专栏]，线下[当地人社局创业服务窗口]。\"\n"
+            prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。\"\n"
             prompt += "3. 重要提示：在'positive'部分只包含政策和补贴信息，绝对不包含任何课程或岗位信息。\n"
             prompt += "4. 重要提示：课程和岗位信息只在其他部分显示，不包含在'positive'部分的政策讲解中。\n"
             prompt += "5. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
@@ -352,8 +352,14 @@ class ResponseGenerator:
             if not result_json.get('suggestions', ''):
                 result_json['suggestions'] = suggestions
             
-            # 5. 确保包含所有符合条件的政策，特别是POLICY_A01
+            # 5. 移除positive部分中的申请路径信息
             positive_content = result_json.get('positive', '')
+            # 移除"申请路径：未提及。"或类似的申请路径信息
+            import re
+            positive_content = re.sub(r'申请路径：[^。]+。', '', positive_content)
+            result_json['positive'] = positive_content
+            
+            # 6. 确保包含所有符合条件的政策，特别是POLICY_A01
             # 检查positive_content中是否包含所有相关政策
             missing_policies = []
             for policy in relevant_policies:
@@ -369,7 +375,7 @@ class ResponseGenerator:
                     policy_key_info = policy.get('key_info', '')
                     if policy_id == "POLICY_A01":
                         # 创业担保贷款贴息政策
-                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。申请路径：[人社局官网-创业服务专栏]。"
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。"
                     elif policy_id == "POLICY_A04":
                         # 创业场地租金补贴政策
                         positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
