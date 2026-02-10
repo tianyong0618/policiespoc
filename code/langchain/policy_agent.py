@@ -158,10 +158,10 @@ class PolicyAgent:
                     logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地")
             
             elif policy_id == "POLICY_A01":  # 创业担保贷款贴息政策
-                # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）
-                if has_return_home or has_veteran:
+                # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）+ 创业需求
+                if (has_return_home or has_veteran) and has_entrepreneurship:
                     is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人")
+                    logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人且有创业需求")
             
             elif policy_id == "POLICY_A05":  # 技能培训生活费补贴政策
                 # 条件：脱贫人口、低保家庭成员、残疾人等

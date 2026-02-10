@@ -1517,28 +1517,28 @@ class Orchestrator:
                         elif policy_id == "POLICY_A06":
                             # 退役军人创业税收优惠政策
                             has_veteran = "退役军人" in user_input_str
-                            has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                            has_individual_business = "个体经营" in user_input_str or "汽车维修店" in user_input_str or "开店" in user_input_str or "维修店" in user_input_str
                             
-                            if has_veteran and has_business:
+                            if has_veteran and has_individual_business:
                                 policy_substeps.append({
                                     "step": f"检索{policy_id}",
-                                    "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和开汽车维修店，符合条件"
+                                    "content": f"判断\"退役军人+从事个体经营\"可享受税收优惠政策，用户已提及退役军人身份和从事个体经营，符合条件"
                                 })
                             else:
                                 missing_conditions = []
                                 if not has_veteran:
                                     missing_conditions.append("退役军人身份")
-                                if not has_business:
-                                    missing_conditions.append("创办企业")
+                                if not has_individual_business:
+                                    missing_conditions.append("从事个体经营")
                                 if missing_conditions:
                                     policy_substeps.append({
                                         "step": f"检索{policy_id}",
-                                        "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
+                                        "content": f"判断\"退役军人+从事个体经营\"可享受税收优惠政策，用户未提及{', '.join(missing_conditions)}，需指出缺失条件"
                                     })
                                 else:
                                     policy_substeps.append({
                                         "step": f"检索{policy_id}",
-                                        "content": f"判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及所有条件，符合条件"
+                                        "content": f"判断\"退役军人+从事个体经营\"可享受税收优惠政策，用户已提及所有条件，符合条件"
                                     })
                         else:
                             # 其他政策
