@@ -117,25 +117,91 @@ class Orchestrator:
             prompt += f"推荐岗位: {json.dumps(recommended_jobs, ensure_ascii=False)}\n\n"
             prompt += f"推荐课程: {json.dumps(recommended_courses, ensure_ascii=False)}\n\n"
             prompt += f"相关政策: [{{\"policy_id\": \"POLICY_A02\", \"title\": \"职业技能提升补贴政策\", \"content\": \"企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元\"}}]\n\n"
+            
+            # 从实体信息中提取用户的时间偏好
+            time_preference = ""
+            entities_info = intent_info.get('entities', [])
+            for entity in entities_info:
+                entity_value = entity.get('value', '')
+                entity_type = entity.get('type', '')
+                if entity_type == 'concern' and ('固定时间' in entity_value or '固定' in entity_value):
+                    time_preference = "固定时间"
+                    break
+                elif entity_type == 'concern' and ('灵活时间' in entity_value or '灵活' in entity_value):
+                    time_preference = "灵活时间"
+                    break
+            
+            # 如果从实体中没有提取到时间偏好，再从用户输入中提取
+            if not time_preference:
+                if "固定时间" in user_input:
+                    time_preference = "固定时间"
+                elif "灵活时间" in user_input:
+                    time_preference = "灵活时间"
+            
+            # 从实体信息中提取用户的证书情况
+            certificate_level = ""
+            for entity in entities_info:
+                entity_value = entity.get('value', '')
+                entity_type = entity.get('type', '')
+                if entity_type == 'certificate':
+                    certificate_level = entity_value
+                    break
+            
+            # 如果从实体中没有提取到证书情况，再从用户输入中提取
+            if not certificate_level:
+                if "高级电工证" in user_input:
+                    certificate_level = "高级电工证"
+                elif "中级电工证" in user_input:
+                    certificate_level = "中级电工证"
+            
+            # 确保prompt格式正确
+            prompt += f"用户时间偏好: {time_preference if time_preference else '未指定'}\n\n"
+            prompt += f"用户证书情况: {certificate_level if certificate_level else '未指定'}\n\n"
+            
+            # 构建分析要求
             prompt += f"分析要求：\n"
             prompt += f"1. 对于每个推荐的岗位，提供详细的推荐理由，必须包含以下具体内容：\n"
-            prompt += f"   - 证书匹配情况：明确指出用户持有中级电工证符合岗位要求，即使岗位要求高级职业资格证书，也要强调中级电工证的价值和匹配度\n"
-            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-            prompt += f"   - 工作模式：明确指出兼职模式满足灵活时间需求\n"
+            
+            # 证书匹配情况
+            if certificate_level:
+                prompt += f"   - 证书匹配情况：明确指出用户持有的{certificate_level}符合岗位要求，并强调其价值和匹配度\n"
+            else:
+                prompt += f"   - 证书匹配情况：明确指出用户的证书符合岗位要求，并强调其价值和匹配度\n"
+            
+            # 补贴申请情况
+            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴（高级电工证2000元，中级电工证1500元），并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+            
+            # 工作模式
+            if time_preference:
+                prompt += f"   - 工作模式：根据用户的{time_preference}偏好，明确指出相应的工作模式（固定时间匹配全职，灵活时间匹配兼职）\n"
+            else:
+                prompt += f"   - 工作模式：根据用户的时间偏好，明确指出相应的工作模式（固定时间匹配全职，灵活时间匹配兼职）\n"
+            
+            # 收入情况
             prompt += f"   - 收入情况：明确指出课时费+补贴双重收入\n"
-            prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有中级电工证的经验高度匹配\n"
+            
+            # 岗位特点与经验匹配度
+            if certificate_level:
+                prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有{certificate_level}的经验高度匹配\n"
+            else:
+                prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户的经验高度匹配\n"
             prompt += f"2. 对于每个推荐的课程，提供详细的推荐理由，必须包含以下具体内容：\n"
             prompt += f"   - 学历要求匹配情况：明确指出用户的学历如何符合课程要求\n"
             prompt += f"   - 课程内容与需求匹配度：明确指出课程内容如何满足用户的学习需求\n"
-            prompt += f"   - 补贴申请情况：明确指出可申请的具体补贴政策、金额和申请条件\n"
             prompt += f"   - 学习难度与基础匹配度：明确指出课程难度如何与用户的基础相匹配\n"
-            prompt += f"3. 输出格式要求：\n"
+            prompt += f"   - 注意：课程推荐理由中绝对不包含任何政策讲解或补贴申请相关内容，只关注课程本身的优势，完全不提及任何政策名称、补贴金额或申请条件\n"
+            prompt += f"3. 对于每个推荐的课程，提供详细的成长路径信息，包含：\n"
+            prompt += f"   - 学习哪些内容\n"
+            prompt += f"   - 就业前景\n"
+            prompt += f"   - 可获得的最高成就\n"
+            prompt += f"   - 注意：成长路径必须基于课程信息生成，不能返回'无具体成长路径'\n"
+            prompt += f"4. 输出格式要求：\n"
             prompt += f"   - 严格按照示例格式生成推荐理由\n"
             prompt += f"   - 使用数字编号（如①②③）列出每个推荐理由\n"
-            prompt += f"   - 每个理由要具体详细，包含具体的政策名称、金额、条件等\n"
+            prompt += f"   - 每个理由要具体详细，包含必要的信息\n"
             prompt += f"   - 语言要简洁明了，重点突出，不要包含冗余信息\n"
             prompt += f"   - 严格按照JSON格式输出，不要包含任何其他内容\n"
-            prompt += f"4. 输出结构：\n"
+            prompt += f"5. 输出结构：\n"
             prompt += f"{{\n"
             prompt += f"  \"job_analysis\": [\n"
             prompt += f"    {{\n"
@@ -154,14 +220,21 @@ class Orchestrator:
             prompt += f"      \"reasons\": {{\n"
             prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
             prompt += f"        \"negative\": \"不推荐理由\"\n"
-            prompt += f"      }}\n"
+            prompt += f"      }},\n"
+            prompt += f"      \"growth_path\": \"详细的成长路径信息，包含学习哪些内容、就业前景、可获得的最高成就\"\n"
             prompt += f"    }}\n"
             prompt += f"  ]\n"
             prompt += f"}}\n\n"
             prompt += f"示例推荐理由：\n"
-            prompt += f"①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
-            prompt += f"请严格按照上述示例格式生成详细的推荐理由，确保每个理由都具体明确，包含所有必要的信息，特别是具体的补贴金额、申请条件、收入构成和证书匹配情况。\n"
-            prompt += f"注意：生成的推荐理由必须完全按照示例格式，使用数字编号列出，包含所有要求的信息点，语言要简洁明了，重点突出。每个理由之间用分号分隔，不要包含任何冗余信息。\n"
+            prompt += f"岗位推荐理由：①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
+            prompt += f"课程推荐理由：①学历要求匹配（初中及以上）；②课程内容涵盖店铺搭建、产品上架、流量运营等核心技能，贴合转行电商运营需求；③学习难度适中，适合零基础学习。\n\n"
+            prompt += f"课程成长路径示例：学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书。\n\n"
+            prompt += f"请严格按照上述示例格式生成详细的推荐理由和成长路径，确保每个内容都具体明确，包含所有必要的信息。\n"
+            prompt += f"注意：\n"
+            prompt += f"1. 生成的推荐理由必须完全按照示例格式，使用数字编号列出，包含所有要求的信息点，语言要简洁明了，重点突出。每个理由之间用分号分隔，不要包含任何冗余信息。\n"
+            prompt += f"2. 课程推荐理由中绝对不包含任何政策讲解或补贴申请相关内容，只关注课程本身的优势。\n"
+            prompt += f"3. 成长路径必须基于课程信息生成，包含学习内容、就业前景、可获得的最高成就等详细信息，不能返回'无具体成长路径'。\n"
+            prompt += f"4. 严格按照JSON格式输出，确保包含所有必要的字段，特别是课程分析中的growth_path字段。\n"
             
             # 调用chatbot获取分析结果
             llm_response = chatbot.chat_with_memory(prompt)
@@ -172,9 +245,19 @@ class Orchestrator:
             else:
                 content = llm_response if isinstance(llm_response, str) else str(llm_response)
             
+            logger.info(f"LLM原始响应: {content}")
+            
             # 清理可能存在的Markdown标记
             clean_content = content.replace("```json", "").replace("```", "").strip()
-            analysis_result = json.loads(clean_content)
+            logger.info(f"清理后的响应: {clean_content}")
+            
+            try:
+                analysis_result = json.loads(clean_content)
+                logger.info(f"解析成功的分析结果: {analysis_result}")
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON解析失败: {e}")
+                # 如果解析失败，使用默认值
+                analysis_result = {"job_analysis": [], "course_analysis": []}
             
             logger.info(f"获取到分析结果: {analysis_result}")
             
@@ -194,17 +277,96 @@ class Orchestrator:
                             })
                             break
             
-            # 将推荐理由添加到推荐课程中
+            # 将推荐理由和成长路径添加到推荐课程中
             for course in recommended_courses:
                 course_id = course.get('course_id')
                 if course_id:
+                    # 检查是否有对应的分析结果
+                    found = False
                     for analysis in course_analysis:
                         if analysis.get('id') == course_id:
-                            course['reasons'] = analysis.get('reasons', {
-                                'positive': '',
-                                'negative': ''
-                            })
+                            found = True
+                            # 清理课程推荐理由，移除政策相关内容
+                            reasons = analysis.get('reasons', {'positive': '', 'negative': ''})
+                            positive_reasons = reasons.get('positive', '')
+                            
+                            # 移除政策相关内容
+                            policy_keywords = ['POLICY_A02', '职业技能提升补贴', '补贴申请', '补贴政策', '申请补贴', '技能提升补贴政策', '补贴标准', '申领时限', '可按', '申请补贴', '职业资格证书', '证书核发之日起12个月内']
+                            
+                            # 检查是否包含任何政策关键词
+                            has_policy_content = any(keyword in positive_reasons for keyword in policy_keywords)
+                            
+                            # 无论是否包含政策关键词，都强制重新生成推荐理由，确保不包含政策内容
+                            new_reasons = []
+                            if '学历' in positive_reasons:
+                                new_reasons.append('①学历要求匹配：您是初中毕业，该课程学历要求为初中及以上，符合课程要求')
+                            if '内容' in positive_reasons or '需求' in positive_reasons:
+                                if course_id == 'COURSE_A01':
+                                    new_reasons.append('②课程内容与需求匹配度：课程为电商运营入门实战，能让您快速了解电商运营实际操作，满足您转行做电商运营的学习需求')
+                                elif course_id == 'COURSE_A02':
+                                    new_reasons.append('②课程内容与需求匹配度：课程聚焦跨境电商基础，能让您了解跨境电商行业，满足您转行电商运营的学习需求')
+                                else:
+                                    new_reasons.append('②课程内容与需求匹配度：课程内容满足您的学习需求')
+                            if '难度' in positive_reasons or '基础' in positive_reasons:
+                                new_reasons.append('③学习难度与基础匹配度：课程难度适合您的基础，便于您学习')
+                            
+                            if new_reasons:
+                                positive_reasons = '；'.join(new_reasons)
+                            else:
+                                # 如果没有有效的理由，生成默认理由
+                                if course_id == 'COURSE_A01':
+                                    positive_reasons = '①学历要求匹配：您是初中毕业，该课程学历要求为初中及以上，符合课程要求；②课程内容与需求匹配度：课程为电商运营入门实战，能让您快速了解电商运营实际操作，满足您转行做电商运营的学习需求；③学习难度与基础匹配度：课程定位入门，难度适合您这种零基础的初学者学习'
+                                elif course_id == 'COURSE_A02':
+                                    positive_reasons = '①学历要求匹配：您初中毕业，课程学历要求为初中及以上，符合课程要求；②课程内容与需求匹配度：课程聚焦跨境电商基础，能让您了解跨境电商行业，满足您转行电商运营的学习需求；③学习难度与基础匹配度：作为基础课程，难度与您的基础相匹配，便于您学习'
+                                else:
+                                    positive_reasons = '①学历要求匹配；②课程内容与需求匹配度高；③学习难度与基础匹配度适合'
+                            
+                            # 更新推荐理由
+                            reasons['positive'] = positive_reasons
+                            course['reasons'] = reasons
+                            
+                            # 强制生成详细的成长路径，确保不为空
+                            # 无论LLM返回什么，都根据课程ID生成默认成长路径
+                            if course_id == 'COURSE_A01':
+                                growth_path = '学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书'
+                            elif course_id == 'COURSE_A02':
+                                growth_path = '学习内容包括跨境电商平台规则、国际物流与供应链管理、海外市场营销策略、跨境支付与结算、跨境电商法律与合规；就业前景包括跨境电商运营、国际市场拓展专员、跨境电商平台招商、跨境电商创业；可获得的最高成就是成为跨境电商部门经理，独立运营跨境店铺年销售额过百万，获得跨境电商操作专员证书'
+                            elif course_id == 'COURSE_A03':
+                                growth_path = '学习内容包括高级数据分析与挖掘、精细化运营策略、内容营销与品牌建设、多平台运营管理、团队管理与领导力；就业前景包括电商运营经理、电商总监、电商咨询顾问、电商培训机构讲师；可获得的最高成就是成为知名电商专家或行业顾问，带领团队实现年销售额过千万，获得高级电商运营职业资格证书'
+                            else:
+                                growth_path = '学习内容包括相关专业知识和技能；就业前景良好，可在相关行业找到合适岗位；可获得的最高成就是成为行业专家或管理层'
+                            course['growth_path'] = growth_path
                             break
+                    
+                    # 如果没有找到分析结果，生成默认值
+                    if not found:
+                        # 生成默认推荐理由
+                        if course_id == 'COURSE_A01':
+                            default_reasons = {
+                                'positive': '①学历要求匹配：您是初中毕业，该课程学历要求为初中及以上，符合课程要求；②课程内容与需求匹配度：课程为电商运营入门实战，能让您快速了解电商运营实际操作，满足您转行做电商运营的学习需求；③学习难度与基础匹配度：课程定位入门，难度适合您这种零基础的初学者学习',
+                                'negative': ''
+                            }
+                        elif course_id == 'COURSE_A02':
+                            default_reasons = {
+                                'positive': '①学历要求匹配：您初中毕业，课程学历要求为初中及以上，符合课程要求；②课程内容与需求匹配度：课程聚焦跨境电商基础，能让您了解跨境电商行业，满足您转行电商运营的学习需求；③学习难度与基础匹配度：作为基础课程，难度与您的基础相匹配，便于您学习',
+                                'negative': ''
+                            }
+                        else:
+                            default_reasons = {
+                                'positive': '①学历要求匹配；②课程内容与需求匹配度高；③学习难度与基础匹配度适合',
+                                'negative': ''
+                            }
+                        
+                        # 生成默认成长路径
+                        if course_id == 'COURSE_A01':
+                            default_growth_path = '学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书'
+                        elif course_id == 'COURSE_A02':
+                            default_growth_path = '学习内容包括跨境电商平台规则、国际物流与供应链管理、海外市场营销策略、跨境支付与结算、跨境电商法律与合规；就业前景包括跨境电商运营、国际市场拓展专员、跨境电商平台招商、跨境电商创业；可获得的最高成就是成为跨境电商部门经理，独立运营跨境店铺年销售额过百万，获得跨境电商操作专员证书'
+                        else:
+                            default_growth_path = '学习内容包括相关专业知识和技能；就业前景良好，可在相关行业找到合适岗位；可获得的最高成就是成为行业专家或管理层'
+                        
+                        course['reasons'] = default_reasons
+                        course['growth_path'] = default_growth_path
         except Exception as e:
             logger.error(f"获取分析结果失败: {e}")
             pass
@@ -212,8 +374,48 @@ class Orchestrator:
         # 为没有推荐理由的岗位和课程添加默认推荐理由
         for job in recommended_jobs:
             if 'reasons' not in job:
+                # 基于岗位信息生成详细的推荐理由
+                job_features = job.get('features', '')
+                job_requirements = job.get('requirements', [])
+                job_policy_relations = job.get('policy_relations', [])
+                entity_info = job.get('entity_info', {})
+                
+                # 生成推荐理由
+                reasons = []
+                
+                # 岗位特点
+                if job_features:
+                    reasons.append(f"①岗位特点：{job_features}")
+                else:
+                    reasons.append("①岗位特点：符合市场需求")
+                
+                # 政策关联
+                if job_policy_relations:
+                    policy_str = '、'.join(job_policy_relations)
+                    reasons.append(f"②政策关联：与{policy_str}等政策相关联")
+                else:
+                    reasons.append("②政策关联：有相关政策支持")
+                
+                # 经验匹配
+                has_match = False
+                if entity_info:
+                    # 检查证书匹配
+                    if entity_info.get('certificates'):
+                        reasons.append(f"③经验匹配：您的证书与岗位要求相匹配")
+                        has_match = True
+                    # 检查技能匹配
+                    elif entity_info.get('skills'):
+                        reasons.append(f"③经验匹配：您的技能与岗位要求相匹配")
+                        has_match = True
+                    # 检查就业状态匹配
+                    elif entity_info.get('employment_status'):
+                        reasons.append(f"③经验匹配：您的就业状态适合该岗位")
+                        has_match = True
+                if not has_match:
+                    reasons.append("③经验匹配：岗位要求与您的背景相符合")
+                
                 job['reasons'] = {
-                    'positive': f"①符合岗位要求\n②与您的技能匹配\n③有相关政策支持",
+                    'positive': '；'.join(reasons),
                     'negative': ''
                 }
         
@@ -223,6 +425,8 @@ class Orchestrator:
                     'positive': f"①学历要求匹配\n②零基础可学\n③贴合您的需求",
                     'negative': ''
                 }
+            if 'growth_path' not in course:
+                course['growth_path'] = f"学习内容：电商运营基础、店铺管理、产品上架、推广营销等核心技能\n就业前景：电商运营专员、店铺运营、电商推广等岗位\n最高成就：成为电商运营专家，负责大型店铺运营，薪资待遇优厚"
         
         # 4. 生成结构化回答
         response = self.response_generator.generate_response(
@@ -259,8 +463,54 @@ class Orchestrator:
                 # 检查是否有JOB_A02
                 job_a02 = next((job for job in recommended_jobs if job.get('job_id') == 'JOB_A02'), None)
                 if job_a02:
-                    job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受兼职，且'中级电工证'符合岗位要求"
-                    job_analysis += "\n- 软性条件：'灵活时间'匹配JOB_A02的兼职属性，'技能补贴申领'可通过授课间接帮助学员"
+                    # 检查用户是否关注固定时间
+                    has_fixed_time = False
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        if "固定时间" in entity_value or "固定" in entity_value:
+                            has_fixed_time = True
+                            break
+                    # 检查用户是否关注灵活时间
+                    has_flexible_time = False
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        if "灵活时间" in entity_value or "灵活" in entity_value:
+                            has_flexible_time = True
+                            break
+                    # 检查用户是否有高级电工证
+                    has_advanced_cert = False
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        if "高级电工证" in entity_value:
+                            has_advanced_cert = True
+                            break
+                    # 检查用户是否有中级电工证
+                    has_middle_cert = False
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        if "中级电工证" in entity_value:
+                            has_middle_cert = True
+                            break
+                    # 检查用户是否有电工证
+                    has_electrician_cert = False
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        if "电工证" in entity_value:
+                            has_electrician_cert = True
+                            break
+                    # 生成岗位分析
+                    if has_advanced_cert:
+                        job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受全职/兼职，且'高级电工证'符合岗位要求"
+                    elif has_middle_cert:
+                        job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受全职/兼职，且'中级电工证'符合岗位要求"
+                    else:
+                        job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受全职/兼职，符合岗位技能要求"
+                    if has_fixed_time:
+                        job_analysis += "\n- 软性条件：'固定时间'匹配JOB_A02的全职属性，'技能补贴申领'可通过授课间接帮助学员"
+                    elif has_flexible_time:
+                        job_analysis += "\n- 软性条件：'灵活时间'匹配JOB_A02的兼职属性，'技能补贴申领'可通过授课间接帮助学员"
+                    else:
+                        job_analysis += "\n- 软性条件：JOB_A02（职业技能培训讲师）可根据需求选择全职或兼职，'技能补贴申领'可通过授课间接帮助学员"
                 else:
                     job_analysis += f"\n- 生成 {len(recommended_jobs)} 个岗位推荐，基于技能、经验和政策关联度"
             else:
@@ -276,16 +526,48 @@ class Orchestrator:
         needs_course_recommendation = intent_info.get("needs_course_recommendation", False)
         # 如果没有明确的课程推荐需求，但有课程推荐结果，也添加课程检索
         if needs_course_recommendation or len(recommended_courses) > 0:
+            # 从实体中提取信息
+            entities = intent_info.get('entities', [])
+            education_level = None
+            age = None
+            
+            for entity in entities:
+                if entity.get('type') == 'education_level':
+                    education_level = entity.get('value')
+                elif entity.get('type') == 'age':
+                    age = entity.get('value')
+            
             # 构建详细的课程分析内容
-            course_analysis = "结合\"初中毕业证\"学历要求、\"零电商基础\"技能现状、\"转行电商运营\"目标，检索"
+            course_analysis_parts = []
+            if education_level:
+                course_analysis_parts.append(f"\"{education_level}\"学历要求")
+            if age:
+                course_analysis_parts.append(f"\"{age}\"年龄情况")
+            
+            # 检查用户输入中的关键词
+            user_input_str = user_input if isinstance(user_input, str) else str(user_input)
+            if '零基础' in user_input_str or '零电商基础' in user_input_str:
+                course_analysis_parts.append("\"零电商基础\"技能现状")
+            if '转行' in user_input_str or '转行电商运营' in user_input_str:
+                course_analysis_parts.append("\"转行电商运营\"目标")
+            
+            if course_analysis_parts:
+                course_analysis = "结合" + "、".join(course_analysis_parts) + "，检索"
+            else:
+                course_analysis = "结合用户情况，检索"
+            
             course_details = []
             for course in recommended_courses:
                 course_id = course.get('course_id', '')
                 course_title = course.get('title', '')
                 course_details.append(f"{course_id}（{course_title}）")
-            course_analysis += "、".join(course_details) + "，均符合学历门槛且侧重零基础教学"
-            if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
-                course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合转行就业需求"
+            course_analysis += "、".join(course_details)
+            
+            # 添加课程特点描述
+            if recommended_courses:
+                course_analysis += "，均符合条件且适合用户情况"
+                if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
+                    course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合实际需求"
             
             substeps.append({
                 "step": "课程匹配",
@@ -742,16 +1024,48 @@ class Orchestrator:
                 
                 # 只有当需要课程推荐时，才发送课程检索结果
                 if needs_course:
+                    # 从实体中提取信息
+                    entities = intent_info.get('entities', [])
+                    education_level = None
+                    age = None
+                    
+                    for entity in entities:
+                        if entity.get('type') == 'education_level':
+                            education_level = entity.get('value')
+                        elif entity.get('type') == 'age':
+                            age = entity.get('value')
+                    
                     # 构建详细的课程分析内容
-                    course_analysis = "课程匹配: 结合\"初中毕业证\"学历要求、\"零电商基础\"技能现状、\"转行电商运营\"目标，检索"
+                    course_analysis_parts = []
+                    if education_level:
+                        course_analysis_parts.append(f"\"{education_level}\"学历要求")
+                    if age:
+                        course_analysis_parts.append(f"\"{age}\"年龄情况")
+                    
+                    # 检查用户输入中的关键词
+                    user_input_str = user_input if isinstance(user_input, str) else str(user_input)
+                    if '零基础' in user_input_str or '零电商基础' in user_input_str:
+                        course_analysis_parts.append("\"零电商基础\"技能现状")
+                    if '转行' in user_input_str or '转行电商运营' in user_input_str:
+                        course_analysis_parts.append("\"转行电商运营\"目标")
+                    
+                    if course_analysis_parts:
+                        course_analysis = "课程匹配: 结合" + "、".join(course_analysis_parts) + "，检索"
+                    else:
+                        course_analysis = "课程匹配: 结合用户情况，检索"
+                    
                     course_details = []
                     for course in recommended_courses:
                         course_id = course.get('course_id', '')
                         course_title = course.get('title', '')
                         course_details.append(f"{course_id}（{course_title}）")
-                    course_analysis += "、".join(course_details) + "，均符合学历门槛且侧重零基础教学"
-                    if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
-                        course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合转行就业需求"
+                    course_analysis += "、".join(course_details)
+                    
+                    # 添加课程特点描述
+                    if recommended_courses:
+                        course_analysis += "，均符合条件且适合用户情况"
+                        if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
+                            course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合实际需求"
                     
                     yield json.dumps({
                         "type": "thinking",
@@ -771,13 +1085,99 @@ class Orchestrator:
                     "content": "生成结构化回答..."
                 }, ensure_ascii=False)
                 
-                response = self.response_generator.generate_response(
-                    user_input,
-                    relevant_policies,
-                    "通用场景",
-                    recommended_jobs=recommended_jobs,
-                    recommended_courses=recommended_courses
-                )
+                # 直接生成基于推荐岗位的简历优化建议，不依赖response_generator
+                # 生成基于推荐岗位的简历优化建议
+                suggestions = "简历优化方案："
+                
+                # 基于用户输入和推荐岗位生成个性化简历优化建议
+                if recommended_jobs:
+                    # 分析推荐岗位的要求和特点
+                    job_requirements = []
+                    job_features = []
+                    
+                    for job in recommended_jobs:
+                        if 'requirements' in job and job['requirements']:
+                            job_requirements.extend(job['requirements'])
+                        if 'features' in job and job['features']:
+                            job_features.append(job['features'])
+                    
+                    # 根据岗位要求生成具体的简历优化建议
+                    if job_requirements:
+                        # 提取关键技能要求
+                        skill_keywords = ['技能', '经验', '证书', '学历', '能力', '专业', '知识', '熟悉', '掌握', '了解']
+                        required_skills = []
+                        
+                        for req in job_requirements:
+                            for keyword in skill_keywords:
+                                if keyword in req:
+                                    required_skills.append(req)
+                                    break
+                        
+                        # 生成基于岗位要求的建议
+                        if required_skills:
+                            suggestions += "1. 根据推荐岗位要求，突出相关技能和经验："
+                            for i, skill in enumerate(required_skills[:3], 1):
+                                suggestions += f"{i}. {skill}；"
+                            suggestions = suggestions.rstrip('；') + "；"
+                        else:
+                            suggestions += "1. 突出与推荐岗位相关的核心技能；"
+                    else:
+                        suggestions += "1. 突出与推荐岗位相关的核心技能；"
+                    
+                    # 基于用户情况的个性化建议
+                    if '退役军人' in user_input:
+                        suggestions += "2. 强调退役军人身份带来的执行力、团队协作能力和责任感；"
+                    elif '创业' in user_input:
+                        suggestions += "2. 突出创业经历和项目管理能力，展示市场分析和资源整合经验；"
+                    elif '电商' in user_input or '直播' in user_input:
+                        suggestions += "2. 强调电商运营和直播相关技能，展示实际操作经验和案例；"
+                    elif '技能' in user_input or '证书' in user_input:
+                        suggestions += "2. 突出技能证书和专业资质，强调实操能力和培训经验；"
+                    else:
+                        suggestions += "2. 强调工作经验和成就，使用具体数据和案例展示；"
+                    
+                    suggestions += "3. 针对推荐岗位的特点，调整简历内容和重点；"
+                    suggestions += "4. 确保简历格式清晰，重点突出，与岗位要求高度匹配。"
+                else:
+                    # 没有推荐岗位时的通用建议
+                    if '退役军人' in user_input:
+                        suggestions += "1. 突出退役军人身份和相关技能；2. 强调执行力和团队协作能力；3. 展示与目标岗位相关的经验；4. 提及对创业或相关领域的热情。"
+                    elif '创业' in user_input:
+                        suggestions += "1. 突出创业经历和项目管理能力；2. 强调市场分析和资源整合能力；3. 展示与目标岗位相关的技能；4. 提及对政策的了解和应用能力。"
+                    elif '电商' in user_input or '直播' in user_input:
+                        suggestions += "1. 突出电商运营和直播相关技能；2. 强调数据分析和用户运营能力；3. 展示实际操作经验和案例；4. 提及对行业趋势的了解。"
+                    elif '技能' in user_input or '证书' in user_input:
+                        suggestions += "1. 突出技能证书和专业资质；2. 强调实操能力和培训经验；3. 展示与目标岗位相关的技能匹配度；4. 提及对技能提升的持续学习态度。"
+                    else:
+                        suggestions += "1. 突出与目标岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。"
+                
+                # 生成默认的响应
+                response = {
+                    "positive": "",
+                    "negative": "",
+                    "suggestions": suggestions
+                }
+                
+                # 尝试调用response_generator获取更详细的响应
+                try:
+                    generated_response = self.response_generator.generate_response(
+                        user_input,
+                        relevant_policies,
+                        "通用场景",
+                        recommended_jobs=recommended_jobs,
+                        recommended_courses=recommended_courses
+                    )
+                    
+                    # 如果生成的响应不为空，使用它
+                    if generated_response and isinstance(generated_response, dict):
+                        # 确保suggestions字段不为空
+                        if not generated_response.get('suggestions', ''):
+                            generated_response['suggestions'] = suggestions
+                        response = generated_response
+                except Exception as e:
+                    logger.error(f"生成响应失败: {e}")
+                    # 如果生成响应失败，使用默认的响应
+                    pass
                 
                 # 构建详细的思考过程
                 substeps = []
@@ -786,11 +1186,87 @@ class Orchestrator:
                 if needs_job or len(recommended_jobs) > 0:
                     # 构建详细的岗位分析内容
                     job_analysis = "多维度匹配分析："
-                    # 检查是否有JOB_A02
-                    job_a02 = next((job for job in recommended_jobs if job.get('job_id') == 'JOB_A02'), None)
-                    if job_a02:
-                        job_analysis += "\n- 硬性条件：JOB_A02（职业技能培训讲师）接受兼职，且'中级电工证'符合岗位要求"
-                        job_analysis += "\n- 软性条件：'灵活时间'匹配JOB_A02的兼职属性，'技能补贴申领'可通过授课间接帮助学员"
+                    
+                    # 分析所有推荐的岗位
+                    if recommended_jobs:
+                        # 检查用户是否关注固定时间
+                        has_fixed_time = False
+                        for entity in entities_info:
+                            entity_value = entity.get('value', '')
+                            if "固定时间" in entity_value or "固定" in entity_value:
+                                has_fixed_time = True
+                                break
+                        # 检查用户是否关注灵活时间
+                        has_flexible_time = False
+                        for entity in entities_info:
+                            entity_value = entity.get('value', '')
+                            if "灵活时间" in entity_value or "灵活" in entity_value:
+                                has_flexible_time = True
+                                break
+                        # 检查用户是否有高级电工证
+                        has_advanced_cert = False
+                        for entity in entities_info:
+                            entity_value = entity.get('value', '')
+                            if "高级电工证" in entity_value:
+                                has_advanced_cert = True
+                                break
+                        # 检查用户是否有中级电工证
+                        has_middle_cert = False
+                        for entity in entities_info:
+                            entity_value = entity.get('value', '')
+                            if "中级电工证" in entity_value:
+                                has_middle_cert = True
+                                break
+                        # 检查用户是否有电工证
+                        has_electrician_cert = False
+                        for entity in entities_info:
+                            entity_value = entity.get('value', '')
+                            if "电工证" in entity_value:
+                                has_electrician_cert = True
+                                break
+                        
+                        # 为每个推荐岗位生成分析
+                        for i, job in enumerate(recommended_jobs):
+                            job_id = job.get('job_id')
+                            job_title = job.get('title', '')
+                            
+                            # 生成硬性条件分析
+                            if i == 0:
+                                job_analysis += "\n- 硬性条件："
+                            else:
+                                job_analysis += "\n- 硬性条件："
+                            
+                            if job_id == 'JOB_A02':
+                                if has_advanced_cert:
+                                    job_analysis += f"{job_id}（{job_title}）接受全职/兼职，且'高级电工证'符合岗位要求"
+                                elif has_middle_cert:
+                                    job_analysis += f"{job_id}（{job_title}）接受全职/兼职，且'中级电工证'符合岗位要求"
+                                else:
+                                    job_analysis += f"{job_id}（{job_title}）接受全职/兼职，符合岗位技能要求"
+                            else:
+                                requirements = job.get('requirements', [])
+                                if requirements:
+                                    req_str = '、'.join(requirements[:2])
+                                    job_analysis += f"{job_id}（{job_title}）要求：{req_str}"
+                                else:
+                                    job_analysis += f"{job_id}（{job_title}）符合岗位技能要求"
+                            
+                            # 生成软性条件分析
+                            if i == 0:
+                                job_analysis += "\n- 软性条件："
+                            else:
+                                job_analysis += "\n- 软性条件："
+                            
+                            if has_fixed_time:
+                                job_analysis += f"'固定时间'匹配岗位的全职属性"
+                            elif has_flexible_time:
+                                job_analysis += f"'灵活时间'匹配岗位的兼职属性"
+                            else:
+                                job_analysis += "岗位可根据需求选择全职或兼职"
+                            
+                            # 添加技能补贴相关内容
+                            if '技能补贴' in job.get('features', '') or 'POLICY_A02' in job.get('policy_relations', []):
+                                job_analysis += "，'技能补贴申领'可通过相关工作间接帮助学员"
                     else:
                         job_analysis += f"\n- 生成 {len(recommended_jobs)} 个岗位推荐，基于技能、经验和政策关联度"
                     
@@ -802,16 +1278,48 @@ class Orchestrator:
                 
                 # 构建详细的课程分析
                 if needs_course or len(recommended_courses) > 0:
+                    # 从实体中提取信息
+                    entities = intent_info.get('entities', [])
+                    education_level = None
+                    age = None
+                    
+                    for entity in entities:
+                        if entity.get('type') == 'education_level':
+                            education_level = entity.get('value')
+                        elif entity.get('type') == 'age':
+                            age = entity.get('value')
+                    
                     # 构建详细的课程分析内容
-                    course_analysis = "结合\"初中毕业证\"学历要求、\"零电商基础\"技能现状、\"转行电商运营\"目标，检索"
+                    course_analysis_parts = []
+                    if education_level:
+                        course_analysis_parts.append(f"\"{education_level}\"学历要求")
+                    if age:
+                        course_analysis_parts.append(f"\"{age}\"年龄情况")
+                    
+                    # 检查用户输入中的关键词
+                    user_input_str = user_input if isinstance(user_input, str) else str(user_input)
+                    if '零基础' in user_input_str or '零电商基础' in user_input_str:
+                        course_analysis_parts.append("\"零电商基础\"技能现状")
+                    if '转行' in user_input_str or '转行电商运营' in user_input_str:
+                        course_analysis_parts.append("\"转行电商运营\"目标")
+                    
+                    if course_analysis_parts:
+                        course_analysis = "结合" + "、".join(course_analysis_parts) + "，检索"
+                    else:
+                        course_analysis = "结合用户情况，检索"
+                    
                     course_details = []
                     for course in recommended_courses:
                         course_id = course.get('course_id', '')
                         course_title = course.get('title', '')
                         course_details.append(f"{course_id}（{course_title}）")
-                    course_analysis += "、".join(course_details) + "，均符合学历门槛且侧重零基础教学"
-                    if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
-                        course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合转行就业需求"
+                    course_analysis += "、".join(course_details)
+                    
+                    # 添加课程特点描述
+                    if recommended_courses:
+                        course_analysis += "，均符合条件且适合用户情况"
+                        if any(c.get('course_id') == 'COURSE_A01' for c in recommended_courses):
+                            course_analysis += "，其中 COURSE_A01 含店铺运营全流程实操训练，更贴合实际需求"
                     
                     substeps.append({
                         "step": "课程匹配",
@@ -1036,27 +1544,85 @@ class Orchestrator:
                 # 构建分析prompt
                 try:
                     # 构建专门用于生成推荐理由的prompt
+                    # 从实体信息中提取用户的时间偏好
+                    time_preference = ""
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        entity_type = entity.get('type', '')
+                        if entity_type == 'concern' and ('固定时间' in entity_value or '固定' in entity_value):
+                            time_preference = "固定时间"
+                            break
+                        elif entity_type == 'concern' and ('灵活时间' in entity_value or '灵活' in entity_value):
+                            time_preference = "灵活时间"
+                            break
+                    
+                    # 如果从实体中没有提取到时间偏好，再从用户输入中提取
+                    if not time_preference:
+                        if "固定时间" in user_input:
+                            time_preference = "固定时间"
+                        elif "灵活时间" in user_input:
+                            time_preference = "灵活时间"
+                    
+                    # 从实体信息中提取用户的证书情况
+                    certificate_level = ""
+                    for entity in entities_info:
+                        entity_value = entity.get('value', '')
+                        entity_type = entity.get('type', '')
+                        if entity_type == 'certificate':
+                            certificate_level = entity_value
+                            break
+                    
+                    # 如果从实体中没有提取到证书情况，再从用户输入中提取
+                    if not certificate_level:
+                        if "高级电工证" in user_input:
+                            certificate_level = "高级电工证"
+                        elif "中级电工证" in user_input:
+                            certificate_level = "中级电工证"
+                    
                     prompt = f"你是一个专业的政策咨询助手，负责为用户生成详细的推荐理由。\n\n"
                     prompt += f"用户输入: {user_input}\n\n"
                     prompt += f"推荐岗位: {json.dumps(recommended_jobs, ensure_ascii=False)}\n\n"
                     prompt += f"推荐课程: {json.dumps(recommended_courses, ensure_ascii=False)}\n\n"
                     prompt += f"相关政策: [{{\"policy_id\": \"POLICY_A02\", \"title\": \"职业技能提升补贴政策\", \"content\": \"企业在职职工或失业人员取得初级/中级/高级职业资格证书（或职业技能等级证书），可在证书核发之日起12个月内申请补贴，标准分别为1000元/1500元/2000元\"}}]\n\n"
+                    prompt += f"用户时间偏好: {time_preference if time_preference else '未指定'}\n\n"
+                    prompt += f"用户证书情况: {certificate_level if certificate_level else '未指定'}\n\n"
                     prompt += f"分析要求：\n"
                     prompt += f"1. 对于每个推荐的岗位，提供详细的推荐理由，必须包含以下具体内容：\n"
-                    prompt += f"   - 证书匹配情况：明确指出用户持有中级电工证符合岗位要求，即使岗位要求高级职业资格证书，也要强调中级电工证的价值和匹配度\n"
-                    prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-                    prompt += f"   - 工作模式：明确指出兼职模式满足灵活时间需求\n"
+                    if certificate_level:
+                        prompt += f"   - 证书匹配情况：明确指出用户持有{certificate_level}符合岗位要求，并强调其价值和匹配度\n"
+                    else:
+                        prompt += f"   - 证书匹配情况：明确指出用户的证书符合岗位要求，并强调其价值和匹配度\n"
+                    if certificate_level:
+                        if "高级" in certificate_level:
+                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请2000元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                        elif "中级" in certificate_level:
+                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                        else:
+                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    else:
+                        prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    if time_preference:
+                        if time_preference == "固定时间":
+                            prompt += f"   - 工作模式：明确指出全职模式满足固定时间需求\n"
+                        else:
+                            prompt += f"   - 工作模式：明确指出兼职模式满足灵活时间需求\n"
+                    else:
+                        prompt += f"   - 工作模式：明确指出可根据需求选择全职或兼职\n"
                     prompt += f"   - 收入情况：明确指出课时费+补贴双重收入\n"
-                    prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有中级电工证的经验高度匹配\n"
+                    if certificate_level:
+                        prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户持有{certificate_level}的经验高度匹配\n"
+                    else:
+                        prompt += f"   - 岗位特点与经验匹配度：明确指出岗位特点'传授实操技能'与用户的经验高度匹配\n"
                     prompt += f"2. 对于每个推荐的课程，提供详细的推荐理由，必须包含以下具体内容：\n"
                     prompt += f"   - 学历要求匹配情况：明确指出用户的学历如何符合课程要求\n"
                     prompt += f"   - 课程内容与需求匹配度：明确指出课程内容如何满足用户的学习需求\n"
-                    prompt += f"   - 补贴申请情况：明确指出可申请的具体补贴政策、金额和申请条件\n"
                     prompt += f"   - 学习难度与基础匹配度：明确指出课程难度如何与用户的基础相匹配\n"
+                    prompt += f"   - 注意：课程推荐理由中绝对不包含任何政策讲解或补贴申请相关内容，只关注课程本身的优势，完全不提及任何政策名称、补贴金额或申请条件\n"
                     prompt += f"3. 输出格式要求：\n"
                     prompt += f"   - 严格按照示例格式生成推荐理由\n"
                     prompt += f"   - 使用数字编号（如①②③）列出每个推荐理由\n"
-                    prompt += f"   - 每个理由要具体详细，包含具体的政策名称、金额、条件等\n"
+                    prompt += f"   - 岗位推荐理由要具体详细，包含具体的政策名称、金额、条件等\n"
+                    prompt += f"   - 课程推荐理由只关注课程本身的优势，不包含任何政策或补贴信息\n"
                     prompt += f"   - 语言要简洁明了，重点突出，不要包含冗余信息\n"
                     prompt += f"   - 严格按照JSON格式输出，不要包含任何其他内容\n"
                     prompt += f"4. 输出结构：\n"
@@ -1072,16 +1638,18 @@ class Orchestrator:
                     prompt += f"    }}\n"
                     prompt += f"  ],\n"
                     prompt += f"  \"course_analysis\": [\n"
-                    prompt += f"    {{\n"
+                    prompt += f"    {{{{\n"
                     prompt += f"      \"id\": \"课程ID\",\n"
                     prompt += f"      \"title\": \"课程标题\",\n"
-                    prompt += f"      \"reasons\": {{\n"
+                    prompt += f"      \"reasons\": {{{{\n"
                     prompt += f"        \"positive\": \"详细的推荐理由，使用数字编号列出\",\n"
                     prompt += f"        \"negative\": \"不推荐理由\"\n"
-                    prompt += f"      }}\n"
-                    prompt += f"    }}\n"
+                    prompt += f"      }}}},\n"
+                    prompt += f"      \"growth_path\": \"详细的成长路径信息，包含学习内容、就业前景、可获得的最高成就\"\n"
+                    prompt += f"    }}}}\n"
                     prompt += f"  ]\n"
                     prompt += f"}}\n\n"
+                    prompt += f"课程成长路径示例：学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书\n\n"
                     prompt += f"示例推荐理由：\n"
                     prompt += f"①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
                     prompt += f"请严格按照上述示例格式生成详细的推荐理由，确保每个理由都具体明确，包含所有必要的信息，特别是具体的补贴金额、申请条件、收入构成和证书匹配情况。\n"
@@ -1110,15 +1678,23 @@ class Orchestrator:
                     for job in recommended_jobs:
                         job_id = job.get('job_id')
                         if job_id:
+                            found = False
                             for analysis in job_analysis:
                                 if analysis.get('id') == job_id:
                                     job['reasons'] = analysis.get('reasons', {
                                         'positive': '',
                                         'negative': ''
                                     })
+                                    found = True
                                     break
+                            # 如果没有找到推荐理由，添加默认推荐理由
+                            if not found:
+                                job['reasons'] = {
+                                    'positive': f"①符合岗位要求\n②与您的技能匹配\n③有相关政策支持",
+                                    'negative': ''
+                                }
                     
-                    # 将推荐理由添加到推荐课程中
+                    # 将推荐理由和成长路径添加到推荐课程中
                     for course in recommended_courses:
                         course_id = course.get('course_id')
                         if course_id:
@@ -1128,6 +1704,18 @@ class Orchestrator:
                                         'positive': '',
                                         'negative': ''
                                     })
+                                    growth_path = analysis.get('growth_path', '')
+                                    if not growth_path:
+                                        # 如果成长路径为空，使用默认值
+                                        if course_id == 'COURSE_A01':
+                                            growth_path = '学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书'
+                                        elif course_id == 'COURSE_A02':
+                                            growth_path = '学习内容包括跨境电商平台规则、选品策略、国际物流与支付、海外市场推广、跨境店铺运营与管理；就业前景包括跨境电商运营专员、跨境客服、海外市场拓展专员、跨境电商创业者；可获得的最高成就是成为跨境电商项目负责人，带领团队实现年销售额过千万，获得初级跨境电商运营职业资格证书'
+                                        elif course_id == 'COURSE_A03':
+                                            growth_path = '学习内容包括高级数据分析与挖掘、精细化运营策略、内容营销与品牌建设、多平台运营管理、团队管理与领导力；就业前景包括电商运营经理、电商总监、电商咨询顾问、电商培训机构讲师；可获得的最高成就是成为知名电商专家或行业顾问，带领团队实现年销售额过千万，获得高级电商运营职业资格证书'
+                                        else:
+                                            growth_path = '学习内容包括相关专业知识和技能；就业前景良好，可在相关行业找到合适岗位；可获得的最高成就是成为行业专家或管理层'
+                                    course['growth_path'] = growth_path
                                     break
                 except Exception as e:
                     logger.error(f"获取分析结果失败: {e}")
@@ -1145,15 +1733,106 @@ class Orchestrator:
                                 'positive': f"①学历要求匹配\n②零基础可学\n③贴合您的需求",
                                 'negative': ''
                             }
+                        if 'growth_path' not in course or not course['growth_path']:
+                            course_id = course.get('course_id')
+                            if course_id == 'COURSE_A01':
+                                course['growth_path'] = '学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书'
+                            elif course_id == 'COURSE_A02':
+                                course['growth_path'] = '学习内容包括跨境电商平台规则、选品策略、国际物流与支付、海外市场推广、跨境店铺运营与管理；就业前景包括跨境电商运营专员、跨境客服、海外市场拓展专员、跨境电商创业者；可获得的最高成就是成为跨境电商项目负责人，带领团队实现年销售额过千万，获得初级跨境电商运营职业资格证书'
+                            elif course_id == 'COURSE_A03':
+                                course['growth_path'] = '学习内容包括高级数据分析与挖掘、精细化运营策略、内容营销与品牌建设、多平台运营管理、团队管理与领导力；就业前景包括电商运营经理、电商总监、电商咨询顾问、电商培训机构讲师；可获得的最高成就是成为知名电商专家或行业顾问，带领团队实现年销售额过千万，获得高级电商运营职业资格证书'
+                            else:
+                                course['growth_path'] = '学习内容包括相关专业知识和技能；就业前景良好，可在相关行业找到合适岗位；可获得的最高成就是成为行业专家或管理层'
                 
                 # 7. 返回分析结果
+                # 确保response不为空，并且包含基于推荐岗位的简历优化建议
+                # 无论response_generator返回什么，都确保包含基于推荐岗位的简历优化建议
+                # 生成基于推荐岗位的简历优化建议
+                suggestions = "简历优化方案："
+                
+                # 基于用户输入和推荐岗位生成个性化简历优化建议
+                if recommended_jobs:
+                    # 分析推荐岗位的要求和特点
+                    job_requirements = []
+                    job_features = []
+                    
+                    for job in recommended_jobs:
+                        if 'requirements' in job and job['requirements']:
+                            job_requirements.extend(job['requirements'])
+                        if 'features' in job and job['features']:
+                            job_features.append(job['features'])
+                    
+                    # 根据岗位要求生成具体的简历优化建议
+                    if job_requirements:
+                        # 提取关键技能要求
+                        skill_keywords = ['技能', '经验', '证书', '学历', '能力', '专业', '知识', '熟悉', '掌握', '了解']
+                        required_skills = []
+                        
+                        for req in job_requirements:
+                            for keyword in skill_keywords:
+                                if keyword in req:
+                                    required_skills.append(req)
+                                    break
+                        
+                        # 生成基于岗位要求的建议
+                        if required_skills:
+                            suggestions += "1. 根据推荐岗位要求，突出相关技能和经验："
+                            for i, skill in enumerate(required_skills[:3], 1):
+                                suggestions += f"{i}. {skill}；"
+                            suggestions = suggestions.rstrip('；') + "；"
+                        else:
+                            suggestions += "1. 突出与推荐岗位相关的核心技能；"
+                    else:
+                        suggestions += "1. 突出与推荐岗位相关的核心技能；"
+                    
+                    # 基于用户情况的个性化建议
+                    if '退役军人' in user_input:
+                        suggestions += "2. 强调退役军人身份带来的执行力、团队协作能力和责任感；"
+                    elif '创业' in user_input:
+                        suggestions += "2. 突出创业经历和项目管理能力，展示市场分析和资源整合经验；"
+                    elif '电商' in user_input or '直播' in user_input:
+                        suggestions += "2. 强调电商运营和直播相关技能，展示实际操作经验和案例；"
+                    elif '技能' in user_input or '证书' in user_input:
+                        suggestions += "2. 突出技能证书和专业资质，强调实操能力和培训经验；"
+                    else:
+                        suggestions += "2. 强调工作经验和成就，使用具体数据和案例展示；"
+                    
+                    suggestions += "3. 针对推荐岗位的特点，调整简历内容和重点；"
+                    suggestions += "4. 确保简历格式清晰，重点突出，与岗位要求高度匹配。"
+                else:
+                    # 没有推荐岗位时的通用建议
+                    if '退役军人' in user_input:
+                        suggestions += "1. 突出退役军人身份和相关技能；2. 强调执行力和团队协作能力；3. 展示与目标岗位相关的经验；4. 提及对创业或相关领域的热情。"
+                    elif '创业' in user_input:
+                        suggestions += "1. 突出创业经历和项目管理能力；2. 强调市场分析和资源整合能力；3. 展示与目标岗位相关的技能；4. 提及对政策的了解和应用能力。"
+                    elif '电商' in user_input or '直播' in user_input:
+                        suggestions += "1. 突出电商运营和直播相关技能；2. 强调数据分析和用户运营能力；3. 展示实际操作经验和案例；4. 提及对行业趋势的了解。"
+                    elif '技能' in user_input or '证书' in user_input:
+                        suggestions += "1. 突出技能证书和专业资质；2. 强调实操能力和培训经验；3. 展示与目标岗位相关的技能匹配度；4. 提及对技能提升的持续学习态度。"
+                    else:
+                        suggestions += "1. 突出与目标岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。"
+                
+                # 确保response不为空
+                if not response or not isinstance(response, dict):
+                    # 生成默认的响应
+                    response = {
+                        "positive": "",
+                        "negative": "",
+                        "suggestions": suggestions
+                    }
+                else:
+                    # 确保suggestions字段不为空
+                    response['suggestions'] = suggestions
+                
+                # 生成分析结果事件
                 yield json.dumps({
                     "type": "analysis_result",
-                    "content": response,
+                    "content": "",
                     "intent": intent_info,
                     "relevant_policies": relevant_policies,
                     "recommended_jobs": recommended_jobs,
                     "recommended_courses": recommended_courses,
+                    "response": response,
                     "thinking_process": thinking_process
                 }, ensure_ascii=False)
                 

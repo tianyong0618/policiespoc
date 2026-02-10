@@ -140,7 +140,7 @@ class ResponseGenerator:
             prompt += "\n"
             prompt += "请以JSON格式输出，包含以下字段：\n"
             prompt += "{\n"
-            prompt += "  \"positive\": \"符合条件的政策及内容\",\n"
+            prompt += "  \"positive\": \"符合条件的政策及内容（只包含政策和补贴信息，不包含课程或岗位信息）\",\n"
             prompt += "  \"negative\": \"不符合条件的政策及原因\",\n"
             prompt += "  \"suggestions\": \"主动建议\"\n"
             prompt += "}\n"
@@ -148,6 +148,8 @@ class ResponseGenerator:
             prompt += "格式要求：\n"
             prompt += "1. 否定部分：必须严格按照格式输出：\"根据《返乡创业扶持补贴政策》（POLICY_A03），您需满足‘带动3人以上就业’方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。\"\n"
             prompt += "2. 肯定部分：必须严格按照格式输出：\"您可申请《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：线上[当地人社局官网-创业服务专栏]，线下[当地人社局创业服务窗口]。\"\n"
+            prompt += "3. 重要提示：在'positive'部分只包含政策和补贴信息，绝对不包含任何课程或岗位信息。\n"
+            prompt += "4. 重要提示：课程和岗位信息只在其他部分显示，不包含在'positive'部分的政策讲解中。\n"
             prompt += "5. 重要提示：在生成回答时，只根据用户明确提供的身份信息进行表述，不要假设用户的身份。如果用户没有提及具体身份，请不要在回答中添加身份表述。\n"
             prompt += "6. 重要提示：只根据提供的相关政策生成回答，不要提及未在相关政策中列出的政策。\n"
             prompt += "7. 重要提示：如果相关政策列表为空，请在positive中说明\"未找到符合条件的政策\"，不要提及任何具体政策。\n"
@@ -160,10 +162,10 @@ class ResponseGenerator:
             prompt += "14. 重要提示：对于POLICY_A03（返乡创业扶持补贴政策），如果用户在输入中提到了'带动就业'、'带动X人就业'、'就业'等相关内容，就认为用户已经满足'带动3人以上就业'的条件，必须在'positive'部分显示为符合条件的政策。\n"
             prompt += "15. 重要提示：对于POLICY_A03（返乡创业扶持补贴政策），如果用户未提及'带动就业'，则必须在'negative'部分指出缺失的条件。\n"
             prompt += "16. 重要提示：对于POLICY_A06（退役军人创业税收优惠政策），如果用户在输入中提到了'退役军人'身份和'创办企业'（如开汽车维修店），就认为用户已经满足条件，必须在'positive'部分显示为符合条件的政策。\n"
-            prompt += "16. 重要提示：必须根据用户的实际情况和政策的实际条件来判断是否符合，只列出真正符合条件的政策，不要遗漏任何符合条件的政策，也不要包含不符合条件的政策。\n"
-            prompt += "17. 主动建议：\n"
-            prompt += "   - 如果用户是退役军人，必须输出：\"推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。\"\n"
-            prompt += "   - 否则，必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
+            prompt += "17. 重要提示：必须根据用户的实际情况和政策的实际条件来判断是否符合，只列出真正符合条件的政策，不要遗漏任何符合条件的政策，也不要包含不符合条件的政策。\n"
+            prompt += "18. 主动建议：\n"
+            prompt += "   - 必须输出简历优化方案，基于用户的情况和推荐岗位生成个性化的简历优化建议，包括技能突出、经验展示、格式优化等方面。\n"
+            prompt += "   - 例如：简历优化方案：1. 突出与推荐岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。\n"
         else:
             prompt += "你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成详细的政策分析。\n"
             prompt += "\n"
@@ -182,7 +184,7 @@ class ResponseGenerator:
             prompt += "请根据以上信息，按照以下指令生成回答：\n"
             prompt += "1. 由于用户没有提供个人信息，无法判断是否符合政策条件，因此只需要提供详细的政策分析。\n"
             prompt += "2. 对于每个相关政策，都要提供详细的分析，包括政策内容、申请条件和申请路径。\n"
-            prompt += "3. 不要进行符合或不符合条件的判断，只提供客观的政策信息。\n"
+            prompt += "3. 不要包含符合或不符合条件的判断，只提供客观的政策信息。\n"
             prompt += "4. 语言简洁明了，使用中文。\n"
             prompt += "\n"
             prompt += "请以JSON格式输出，包含以下字段：\n"
@@ -196,7 +198,8 @@ class ResponseGenerator:
             prompt += "1. 政策分析部分：必须严格按照格式输出：\"《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[人社局官网-创业服务专栏]。\"\n"
             prompt += "2. 对于每个相关政策，都要提供类似的详细分析，包括政策内容、申请条件和申请路径。\n"
             prompt += "3. 不要包含符合或不符合条件的判断，只提供客观的政策信息。\n"
-            prompt += "4. 主动建议：必须输出：\"推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。\"\n"
+            prompt += "4. 主动建议：必须输出简历优化方案，基于推荐岗位生成通用的简历优化建议，包括技能突出、经验展示、格式优化等方面。\n"
+            prompt += "   例如：简历优化方案：1. 突出与推荐岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。\n"
         
         prompt += "\n"
         prompt += "重要提示：请严格按照上述格式要求输出，不要修改任何内容，确保与格式要求完全一致。\n"
@@ -220,11 +223,93 @@ class ResponseGenerator:
             else:
                 logger.info(f"大模型返回的回答结果: {str(content)[:100]}...")
         
+        # 无论如何都生成基于推荐岗位的简历优化建议
+        # 生成简历优化方案作为主动建议
+        suggestions = "简历优化方案："
+        
+        # 基于用户输入和推荐岗位生成个性化简历优化建议
+        if recommended_jobs:
+            # 分析推荐岗位的要求和特点
+            job_requirements = []
+            job_features = []
+            
+            for job in recommended_jobs:
+                if 'requirements' in job and job['requirements']:
+                    job_requirements.extend(job['requirements'])
+                if 'features' in job and job['features']:
+                    job_features.append(job['features'])
+            
+            # 根据岗位要求生成具体的简历优化建议
+            if job_requirements:
+                # 提取关键技能要求
+                skill_keywords = ['技能', '经验', '证书', '学历', '能力', '专业', '知识', '熟悉', '掌握', '了解']
+                required_skills = []
+                
+                for req in job_requirements:
+                    for keyword in skill_keywords:
+                        if keyword in req:
+                            required_skills.append(req)
+                            break
+                
+                # 生成基于岗位要求的建议
+                if required_skills:
+                    suggestions += "1. 根据推荐岗位要求，突出相关技能和经验："
+                    for i, skill in enumerate(required_skills[:3], 1):
+                        suggestions += f"{i}. {skill}；"
+                    suggestions = suggestions.rstrip('；') + "；"
+                else:
+                    suggestions += "1. 突出与推荐岗位相关的核心技能；"
+            else:
+                suggestions += "1. 突出与推荐岗位相关的核心技能；"
+            
+            # 基于用户情况的个性化建议
+            if '退役军人' in user_input:
+                suggestions += "2. 强调退役军人身份带来的执行力、团队协作能力和责任感；"
+            elif '创业' in user_input:
+                suggestions += "2. 突出创业经历和项目管理能力，展示市场分析和资源整合经验；"
+            elif '电商' in user_input or '直播' in user_input:
+                suggestions += "2. 强调电商运营和直播相关技能，展示实际操作经验和案例；"
+            elif '技能' in user_input or '证书' in user_input:
+                suggestions += "2. 突出技能证书和专业资质，强调实操能力和培训经验；"
+            else:
+                suggestions += "2. 强调工作经验和成就，使用具体数据和案例展示；"
+            
+            suggestions += "3. 针对推荐岗位的特点，调整简历内容和重点；"
+            suggestions += "4. 确保简历格式清晰，重点突出，与岗位要求高度匹配。"
+        else:
+            # 没有推荐岗位时的通用建议
+            if '退役军人' in user_input:
+                suggestions += "1. 突出退役军人身份和相关技能；2. 强调执行力和团队协作能力；3. 展示与目标岗位相关的经验；4. 提及对创业或相关领域的热情。"
+            elif '创业' in user_input:
+                suggestions += "1. 突出创业经历和项目管理能力；2. 强调市场分析和资源整合能力；3. 展示与目标岗位相关的技能；4. 提及对政策的了解和应用能力。"
+            elif '电商' in user_input or '直播' in user_input:
+                suggestions += "1. 突出电商运营和直播相关技能；2. 强调数据分析和用户运营能力；3. 展示实际操作经验和案例；4. 提及对行业趋势的了解。"
+            elif '技能' in user_input or '证书' in user_input:
+                suggestions += "1. 突出技能证书和专业资质；2. 强调实操能力和培训经验；3. 展示与目标岗位相关的技能匹配度；4. 提及对技能提升的持续学习态度。"
+            else:
+                suggestions += "1. 突出与目标岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。"
+        
+        # 尝试解析LLM响应
         try:
             if isinstance(content, dict):
-                result_json = content
+                # 如果content是字典，检查是否是错误响应
+                if 'error' in content:
+                    # 处理错误响应，生成默认的响应
+                    result_json = {
+                        "positive": "",
+                        "negative": "",
+                        "suggestions": suggestions
+                    }
+                else:
+                    # 直接使用字典
+                    result_json = content
+                    # 确保suggestions字段不为空
+                    result_json['suggestions'] = suggestions
             else:
+                # 尝试解析为JSON
                 result_json = json.loads(content)
+                # 确保suggestions字段不为空
+                result_json['suggestions'] = suggestions
             
             # 后处理逻辑：确保响应符合要求
             # 1. 检查是否有符合条件的政策
@@ -239,10 +324,7 @@ class ResponseGenerator:
             
             # 4. 确保suggestions部分不为空
             if not result_json.get('suggestions', ''):
-                if '退役军人' in user_input:
-                    result_json['suggestions'] = "推荐联系JOB_A05（退役军人创业项目评估师）做项目可行性分析，提升成功率。"
-                else:
-                    result_json['suggestions'] = "推荐联系JOB_A01（创业孵化基地管理员），获取政策申请全程指导。"
+                result_json['suggestions'] = suggestions
             
             # 5. 确保包含所有符合条件的政策，特别是POLICY_A01
             positive_content = result_json.get('positive', '')
@@ -273,8 +355,9 @@ class ResponseGenerator:
             return result_json
         except Exception as e:
             logger.error(f"解析回答结果失败: {str(e)}")
+            # 即使发生错误，也要返回基于推荐岗位的简历优化建议
             return {
                 "positive": "",
                 "negative": "",
-                "suggestions": ""
+                "suggestions": suggestions
             }

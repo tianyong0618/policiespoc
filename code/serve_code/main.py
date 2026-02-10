@@ -1,6 +1,8 @@
 import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import sys
 import os
@@ -35,6 +37,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 配置静态文件服务
+web_dir = os.path.join(base_dir, 'code', 'web_code')
+if os.path.exists(web_dir):
+    # 挂载到/static路径，避免覆盖API路由
+    app.mount("/static", StaticFiles(directory=web_dir), name="static")
+    
+    # 添加根路径路由，返回index.html
+    @app.get("/")
+    async def root():
+        return FileResponse(os.path.join(web_dir, "index.html"))
+    
+    # 添加其他可能的路由
+    @app.get("/index.html")
+    async def index():
+        return FileResponse(os.path.join(web_dir, "index.html"))
+else:
+    logger.warning(f"Web directory not found: {web_dir}")
 
 # 初始化岗位匹配器 (单例)
 job_matcher = JobMatcher()

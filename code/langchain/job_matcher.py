@@ -121,7 +121,7 @@ class JobMatcher:
         keywords = []
         
         # 提取证书信息
-        cert_pattern = re.compile(r'(中级|高级|初级)?(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理)证', re.IGNORECASE)
+        cert_pattern = re.compile(r'(中级|高级|初级)?(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理|创业|电商)证', re.IGNORECASE)
         cert_matches = cert_pattern.findall(user_input)
         for cert in cert_matches:
             keywords.append(''.join(cert))
@@ -138,6 +138,10 @@ class JobMatcher:
             keywords.append('兼职')
         if '全职' in user_input:
             keywords.append('全职')
+        if '退役军人' in user_input:
+            keywords.append('退役军人')
+        if '返乡' in user_input or '农民工' in user_input:
+            keywords.append('返乡农民工')
         
         # 提取关注点
         if '补贴' in user_input:
@@ -146,9 +150,17 @@ class JobMatcher:
             keywords.append('时间')
         if '收入' in user_input:
             keywords.append('收入')
+        if '创业' in user_input:
+            keywords.append('创业')
+        if '电商' in user_input:
+            keywords.append('电商')
+        if '技能' in user_input:
+            keywords.append('技能')
+        if '培训' in user_input:
+            keywords.append('培训')
         
         # 提取技能相关词
-        skill_pattern = re.compile(r'(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理|实操|技术)', re.IGNORECASE)
+        skill_pattern = re.compile(r'(电工|焊工|厨师|会计|教师|护士|消防|计算机|软件|设计|营销|管理|实操|技术|创业|电商|直播|运营)', re.IGNORECASE)
         skill_matches = skill_pattern.findall(user_input)
         for skill in skill_matches:
             keywords.append(skill)
@@ -178,25 +190,59 @@ class JobMatcher:
         # 如果用户关注补贴，优先匹配有政策关系的岗位
         if '补贴' in keywords:
             if job_policy_relations:
-                score += 1
+                score += 3
         
         # 检查岗位是否为兼职/灵活
         if any(keyword in ['灵活', '兼职'] for keyword in keywords):
             if '灵活' in job_features or '兼职' in job_features:
-                score += 2
+                score += 3
+        # 检查岗位是否为全职/固定时间
+        if any(keyword in ['固定', '全职'] for keyword in keywords):
+            if '全职' in str(job_requirements):
+                score += 3
+        
+        # 检查岗位是否与创业相关
+        if '创业' in keywords:
+            if '创业' in job_features or '创业' in str(job_requirements):
+                score += 3
+        
+        # 检查岗位是否与电商相关
+        if '电商' in keywords:
+            if '电商' in job_features or '电商' in str(job_requirements):
+                score += 3
+        
+        # 检查岗位是否与退役军人相关
+        if '退役军人' in keywords:
+            if '退役军人' in str(job_requirements):
+                score += 5
+        
+        # 检查岗位是否与返乡农民工相关
+        if '返乡农民工' in keywords:
+            if '创业' in job_features or '创业' in str(job_requirements):
+                score += 3
         
         return score
     
-    def match_jobs_by_entities(self, entities):
+    def match_jobs_by_entities(self, entities, user_input=""):
         """基于实体信息匹配岗位"""
         logger.info(f"基于实体匹配岗位，实体: {entities}")
         matched_jobs = []
         
         # 从实体中提取关键词
         keywords = []
-        has_middle_electrician_cert = False
-        has_flexible_time = False
-        has_skill_subsidy = False
+        entity_info = {
+            "certificates": [],
+            "skills": [],
+            "employment_status": [],
+            "concerns": [],
+            "has_middle_electrician_cert": False,
+            "has_flexible_time": False,
+            "has_fixed_time": False,
+            "has_skill_subsidy": False,
+            "has_veteran_status": False,
+            "has_entrepreneurship": False,
+            "has_ecommerce": False
+        }
         
         for entity in entities:
             entity_value = entity.get("value", "")
@@ -206,51 +252,143 @@ class JobMatcher:
             # 基于实体类型添加额外关键词
             if entity_type == "certificate":
                 keywords.append("证书")
+                entity_info["certificates"].append(entity_value)
                 # 检查是否有中级电工证
-                if "中级电工证" in entity_value or "中级" in entity_value and "电工" in entity_value:
-                    has_middle_electrician_cert = True
+                if "中级电工证" in entity_value or ("中级" in entity_value and "电工" in entity_value):
+                    entity_info["has_middle_electrician_cert"] = True
             elif entity_type == "employment_status":
                 keywords.append("就业状态")
+                entity_info["employment_status"].append(entity_value)
+                # 检查是否有退役军人身份
+                if "退役军人" in entity_value:
+                    entity_info["has_veteran_status"] = True
             elif entity_type == "skill":
                 keywords.append("技能")
+                entity_info["skills"].append(entity_value)
+                # 检查是否有创业或电商技能
+                if "创业" in entity_value:
+                    entity_info["has_entrepreneurship"] = True
+                if "电商" in entity_value or "直播" in entity_value or "运营" in entity_value:
+                    entity_info["has_ecommerce"] = True
+            elif entity_type == "concern":
+                keywords.append("关注点")
+                entity_info["concerns"].append(entity_value)
+                # 额外处理技能培训相关的关注点
+                if "技能培训" in entity_value or "培训" in entity_value:
+                    keywords.append("技能")
+                    keywords.append("培训")
             
             # 检查其他关键词
             if "灵活时间" in entity_value or "灵活" in entity_value:
-                has_flexible_time = True
+                entity_info["has_flexible_time"] = True
+            if "固定时间" in entity_value or "固定" in entity_value:
+                entity_info["has_fixed_time"] = True
             if "技能补贴" in entity_value or "补贴" in entity_value:
-                has_skill_subsidy = True
+                entity_info["has_skill_subsidy"] = True
+            if "创业" in entity_value:
+                entity_info["has_entrepreneurship"] = True
+            if "电商" in entity_value:
+                entity_info["has_ecommerce"] = True
+            # 额外处理技能培训相关的关键词
+            if "技能培训" in entity_value or "培训" in entity_value:
+                keywords.append("技能")
+                keywords.append("培训")
         
         logger.info(f"从实体中提取的关键词: {keywords}")
-        logger.info(f"特殊条件检测: 中级电工证={has_middle_electrician_cert}, 灵活时间={has_flexible_time}, 技能补贴={has_skill_subsidy}")
+        logger.info(f"实体信息: {entity_info}")
         
         # 基于关键词匹配岗位
         for job in self.jobs:
             job_id = job.get("job_id")
             match_score = self.calculate_job_input_match(job, keywords)
             
-            # 特殊处理JOB_A02
+            # 特殊处理不同岗位
             if job_id == "JOB_A02":
                 # 硬性条件：中级电工证符合岗位要求
-                if has_middle_electrician_cert:
+                if entity_info["has_middle_electrician_cert"]:
                     match_score += 5
                     logger.info("JOB_A02: 中级电工证符合岗位要求，增加匹配度")
+                # 检查高级电工证
+                if any("高级电工证" in cert for cert in entity_info["certificates"]):
+                    match_score += 5
+                    logger.info("JOB_A02: 高级电工证符合岗位要求，增加匹配度")
                 # 软性条件：灵活时间匹配兼职属性
-                if has_flexible_time and "兼职" in str(job.get("requirements", [])):
+                if entity_info["has_flexible_time"] and "兼职" in str(job.get("requirements", [])):
                     match_score += 3
                     logger.info("JOB_A02: 灵活时间匹配兼职属性，增加匹配度")
+                # 软性条件：固定时间匹配全职属性
+                if entity_info["has_fixed_time"] and "全职" in str(job.get("requirements", [])):
+                    match_score += 3
+                    logger.info("JOB_A02: 固定时间匹配全职属性，增加匹配度")
                 # 软性条件：技能补贴申领相关
-                if has_skill_subsidy and "POLICY_A02" in job.get("policy_relations", []):
-                    match_score += 2
+                if entity_info["has_skill_subsidy"] and "POLICY_A02" in job.get("policy_relations", []):
+                    match_score += 3
                     logger.info("JOB_A02: 技能补贴申领与政策关联，增加匹配度")
+            elif job_id == "JOB_A05":
+                # 退役军人创业项目评估师
+                if entity_info["has_veteran_status"]:
+                    match_score += 5
+                    logger.info("JOB_A05: 退役军人身份符合岗位要求，增加匹配度")
+                if entity_info["has_entrepreneurship"]:
+                    match_score += 3
+                    logger.info("JOB_A05: 创业意向符合岗位要求，增加匹配度")
+            elif job_id == "JOB_A03":
+                # 电商创业辅导专员
+                if entity_info["has_ecommerce"]:
+                    match_score += 5
+                    logger.info("JOB_A03: 电商技能符合岗位要求，增加匹配度")
+                if entity_info["has_entrepreneurship"]:
+                    match_score += 3
+                    logger.info("JOB_A03: 创业意向符合岗位要求，增加匹配度")
+            elif job_id == "JOB_A01":
+                # 创业孵化基地管理员
+                if entity_info["has_entrepreneurship"]:
+                    match_score += 4
+                    logger.info("JOB_A01: 创业意向符合岗位要求，增加匹配度")
+            elif job_id == "JOB_A04":
+                # 技能培训课程顾问
+                # 只有当用户的输入或实体中包含相关政策信息时，才增加匹配度
+                # 检查用户是否了解POLICY_A02/A05
+                has_policy_info = False
+                # 检查实体中是否有政策相关信息
+                for entity in entities:
+                    entity_value = entity.get("value", "")
+                    if "POLICY_A02" in entity_value or "POLICY_A05" in entity_value or "政策" in entity_value:
+                        has_policy_info = True
+                        break
+                # 检查用户输入中是否有政策相关信息
+                if not has_policy_info:
+                    if "POLICY_A02" in user_input or "POLICY_A05" in user_input or "政策" in user_input:
+                        has_policy_info = True
+                
+                # 如果用户没有政策相关信息，JOB_A04的匹配分数为0
+                if not has_policy_info:
+                    match_score = 0
+                    logger.info("JOB_A04: 用户无政策相关信息，不推荐该岗位")
+                else:
+                    # 只有当用户有政策相关信息时，才增加匹配度
+                    match_score += 3
+                    logger.info("JOB_A04: 政策信息符合岗位要求，增加匹配度")
+                    # 技能补贴关注点只有在用户了解政策的情况下才增加匹配度
+                    if entity_info["has_skill_subsidy"]:
+                        match_score += 2
+                        logger.info("JOB_A04: 技能补贴关注点符合岗位要求，增加匹配度")
             
             if match_score > 0:
                 matched_jobs.append({
                     "job": job,
-                    "match_score": match_score
+                    "match_score": match_score,
+                    "entity_info": entity_info
                 })
         
         # 按匹配度排序
         matched_jobs.sort(key=lambda x: x["match_score"], reverse=True)
         
-        # 返回匹配度最高的3个岗位
-        return [item["job"] for item in matched_jobs[:3]]
+        # 返回匹配度最高的3个岗位，并添加实体信息用于生成推荐理由
+        result = []
+        for item in matched_jobs[:3]:
+            job = item["job"]
+            job["entity_info"] = item["entity_info"]
+            result.append(job)
+        
+        return result

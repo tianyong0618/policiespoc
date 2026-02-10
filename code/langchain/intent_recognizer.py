@@ -42,7 +42,7 @@ class IntentRecognizer:
 
 判断规则：
 - 当用户明确提到"找工作"、"推荐岗位"、"就业"、"工作机会"、"推荐工作"等相关内容时，needs_job_recommendation 应设置为 true
-- 当用户明确提到"课程"、"培训"、"学习"、"技能提升"等相关内容时，needs_course_recommendation 应设置为 true
+- 当用户明确提到"课程"、"培训"、"学习"、"技能提升"、"转行"等相关内容时，needs_course_recommendation 应设置为 true
 - 当用户明确提到"政策"、"补贴"、"贷款"、"申请"、"返乡"、"创业"、"小微企业"等相关内容时，needs_policy_recommendation 应设置为 true
 
 请仔细识别以下实体类型：
@@ -51,7 +51,7 @@ class IntentRecognizer:
 - education_level: 教育水平（如初中毕业、高中毕业、大学本科等）
 - employment_status: 就业状态（如退役军人、返乡农民工等）
 - certificate: 证书/资格证
-- concern: 关注点（如税收优惠、场地补贴等）
+- concern: 关注点（如税收优惠、场地补贴、固定时间、灵活时间等）
 - business_type: 经营类型（如个体经营、小微企业等，注意：小加工厂属于小微企业）
 - employment_impact: 就业影响（如带动X人就业、带动就业等）
 - location: 场地信息（如入驻孵化基地等）

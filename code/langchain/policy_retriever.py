@@ -214,6 +214,9 @@ class PolicyRetriever:
             matched_courses = self.course_matcher.match_courses_by_user_input(user_input, entities)
             recommended_courses.extend(matched_courses)
             
+            # 使用改进的推荐算法，基于实体信息进行排序
+            recommended_courses = self.course_matcher.recommend_courses(user_input, None, entities)
+            
             # 去重
             seen_course_ids = set()
             unique_courses = []

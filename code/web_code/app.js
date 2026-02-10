@@ -568,8 +568,21 @@ function renderAnalysisResult(data, container) {
         // 保持data不变，因为thinking_process等字段在根级别
     }
     
-    // 处理后端返回的格式
-    if (data.content) {
+    // 处理analysis_result事件格式
+    if (data.type === 'analysis_result') {
+        // 从response字段中获取数据
+        if (data.response) {
+            positiveContent = data.response.positive || '';
+            negativeContent = data.response.negative || '';
+            suggestionsContent = data.response.suggestions || '';
+            answerContent = data.response.answer || '';
+        }
+        intentData = data.intent || null;
+        relevantPolicies = data.relevant_policies || [];
+        thinkingProcess = data.thinking_process || [];
+        recommendedJobs = data.recommended_jobs || [];
+        recommendedCourses = data.recommended_courses || [];
+    } else if (data.content) {
         // 后端返回的流式响应格式
         positiveContent = data.content.positive || '';
         negativeContent = data.content.negative || '';
@@ -807,32 +820,32 @@ function renderAnalysisResult(data, container) {
     // 根据符合条件的政策生成建议
     if (typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无') {
         suggestions.push('符合政策条件，建议及时准备材料申请。');
-        
-        // 无论是否有相关岗位，都显示岗位信息
+        suggestions.push('政策详情：' + positiveContent);
+        suggestions.push('建议联系当地人力资源和社会保障部门咨询政策申请流程。');
         if (jobsData.length > 0) {
             // 优先显示相关岗位，如果没有则显示所有岗位
             const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
             const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
-            suggestions.push(`建议联系以下岗位获取政策支持：${jobInfo}`);
-        } else {
-            suggestions.push('建议联系当地人力资源和社会保障部门咨询政策申请流程。');
+            suggestions.push(`可咨询以下岗位获取政策支持：${jobInfo}`);
         }
     }
     
-    // 根据推荐岗位生成建议
-    if (recommendedJobs.length > 0) {
-        const topJobs = recommendedJobs.slice(0, 2); // 取前两个推荐岗位
-        const jobTitles = topJobs.map(job => job.title).join('、');
-        suggestions.push(`推荐岗位：${jobTitles}，建议优先考虑。`);
-        suggestions.push('建议联系招聘负责人了解详情及政策支持服务。');
+    // 如果没有符合条件的政策，提供一般政策咨询建议
+    if (typeof negativeContent === 'string' && negativeContent.trim() !== '' && negativeContent.trim() !== '无') {
+        suggestions.push('不符合政策条件的原因：' + negativeContent);
+        suggestions.push('建议关注相关政策动态，了解申请条件变化。');
+        suggestions.push('建议联系当地人力资源和社会保障部门咨询相关政策。');
     }
     
-    // 根据推荐课程生成建议
-    if (recommendedCourses.length > 0) {
-        const topCourses = recommendedCourses.slice(0, 2); // 取前两个推荐课程
-        const courseTitles = topCourses.map(course => course.title).join('、');
-        suggestions.push(`推荐课程：${courseTitles}，可提升相关技能。`);
-        suggestions.push('建议联系课程提供方了解详情及培训补贴。');
+    // 如果没有政策相关信息，提供一般政策咨询建议
+    if ((!positiveContent || positiveContent.trim() === '' || positiveContent.trim() === '无') && (!negativeContent || negativeContent.trim() === '' || negativeContent.trim() === '无')) {
+        suggestions.push('建议联系当地人力资源和社会保障部门咨询相关政策。');
+        if (jobsData.length > 0) {
+            // 优先显示相关岗位，如果没有则显示所有岗位
+            const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
+            const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
+            suggestions.push(`可咨询以下岗位获取更多信息：${jobInfo}`);
+        }
     }
     
     // 如果有建议，组合成主动建议内容
@@ -840,8 +853,8 @@ function renderAnalysisResult(data, container) {
         dynamicSuggestions = suggestions.join('\n\n');
     }
     
-    // 使用动态建议或后端返回的建议
-    const finalSuggestionsContent = dynamicSuggestions || suggestionsContent;
+    // 优先使用后端返回的简历优化建议，确保基于推荐岗位的具体方案能够显示
+    const finalSuggestionsContent = suggestionsContent || dynamicSuggestions;
     
     // 构建HTML
     let html = `
@@ -888,7 +901,7 @@ function renderAnalysisResult(data, container) {
                                 <strong>推荐理由:</strong> ${course.reasons && course.reasons.positive ? course.reasons.positive : '无具体推荐理由'}
                             </div>
                             <div class="course-features">
-                                <strong>特点:</strong> ${course.content || '无具体特点'}
+                                <strong>成长路径:</strong> ${course.growth_path || '无具体成长路径'}
                             </div>
                         </div>
                         `).join('')}

@@ -73,9 +73,14 @@ class CourseMatcher:
         # 从实体中提取教育水平信息
         if entities:
             for entity in entities:
-                if entity.get('type') == 'education_level' and '初中' in entity.get('value', ''):
-                    has_middle_school_edu = True
-                    logger.info(f"从实体中检测到初中学历: {entity.get('value')}")
+                if entity.get('type') == 'education_level':
+                    education_value = entity.get('value', '')
+                    if '初中' in education_value:
+                        has_middle_school_edu = True
+                        logger.info(f"从实体中检测到初中学历: {education_value}")
+                    elif '大专' in education_value:
+                        # 大专学历也应该匹配适合的课程
+                        logger.info(f"从实体中检测到大专学历: {education_value}")
         
         logger.info(f"特殊条件检测: 初中学历={has_middle_school_edu}, 零电商基础={has_zero_ecommerce_basic}, 转行={has_career_change}")
         
@@ -94,6 +99,22 @@ class CourseMatcher:
                         match_score += 5  # 学历匹配权重提高
                         logger.info(f"课程 {course['course_id']} 符合初中学历要求")
                         break
+            
+            # 检查是否有大专学历
+            has_college_edu = False
+            if entities:
+                for entity in entities:
+                    if entity.get('type') == 'education_level' and '大专' in entity.get('value', ''):
+                        has_college_edu = True
+                        break
+            
+            if has_college_edu:
+                for condition in course['conditions']:
+                    if condition['type'] == '学历':
+                        if '初中及以上' in condition['value'] or '大专及以上' in condition['value']:
+                            match_score += 5  # 学历匹配权重提高
+                            logger.info(f"课程 {course['course_id']} 符合大专学历要求")
+                            break
             
             # 基础匹配
             if has_zero_ecommerce_basic:
@@ -180,75 +201,101 @@ class CourseMatcher:
         logger.info(f"根据画像匹配到 {len(result)} 门课程: {[course['course_id'] for course in result]}")
         return result
     
-    def recommend_courses(self, user_input=None, user_profile=None):
+    def recommend_courses(self, user_input=None, user_profile=None, entities=None):
         """综合推荐课程"""
         logger.info("开始综合推荐课程")
         
         # 初始化推荐结果
         recommended = []
+        course_scores = {}
         
         # 根据用户输入匹配
         if user_input:
-            input_matched = self.match_courses_by_user_input(user_input)
+            input_matched = self.match_courses_by_user_input(user_input, entities)
             recommended.extend(input_matched)
+            # 为用户输入匹配的课程设置较高的基础分数
+            for course in input_matched:
+                course_id = course['course_id']
+                if course_id not in course_scores:
+                    course_scores[course_id] = 100  # 基础分数
         
         # 根据用户画像匹配
         if user_profile:
             profile_matched = self.match_courses_by_user_profile(user_profile)
             recommended.extend(profile_matched)
+            # 为用户画像匹配的课程设置基础分数
+            for course in profile_matched:
+                course_id = course['course_id']
+                if course_id not in course_scores:
+                    course_scores[course_id] = 50  # 基础分数
         
-        # 去重
+        # 去重并计算最终分数
         seen_course_ids = set()
-        unique_courses = []
+        unique_courses_with_scores = []
+        
         for course in recommended:
-            if course['course_id'] not in seen_course_ids:
-                seen_course_ids.add(course['course_id'])
-                unique_courses.append(course)
+            course_id = course['course_id']
+            if course_id not in seen_course_ids:
+                seen_course_ids.add(course_id)
+                # 获取课程分数
+                score = course_scores.get(course_id, 0)
+                
+                # 额外的分数计算
+                # 1. 检查学历匹配
+                if entities:
+                    for entity in entities:
+                        if entity.get('type') == 'education_level':
+                            education_value = entity.get('value', '')
+                            # 检查课程是否符合学历要求
+                            for condition in course['conditions']:
+                                if condition['type'] == '学历':
+                                    if '大专' in education_value:
+                                        if '大专及以上' in condition['value']:
+                                            score += 30  # 大专学历匹配加分
+                                        elif '初中及以上' in condition['value']:
+                                            score += 20  # 初中学历匹配加分
+                                    elif '初中' in education_value:
+                                        if '初中及以上' in condition['value']:
+                                            score += 30  # 初中学历匹配加分
+                
+                # 2. 检查关键词匹配
+                if user_input:
+                    if '电商' in user_input and '电商' in course['title']:
+                        score += 20
+                    if '跨境' in user_input and '跨境' in course['title']:
+                        score += 20
+                    if '入门' in user_input and ('入门' in course['title'] or '基础' in course['title']):
+                        score += 15
+                    if '进阶' in user_input and ('进阶' in course['title'] or '高级' in course['title']):
+                        score += 15
+                    if '转行' in user_input:
+                        score += 10
+                
+                # 3. 检查是否有技能门槛要求
+                def has_no_basic_requirement(course):
+                    for condition in course['conditions']:
+                        if condition['type'] == '基础':
+                            return False
+                    return True
+                
+                if has_no_basic_requirement(course):
+                    score += 10  # 无技能门槛要求的课程加分
+                
+                unique_courses_with_scores.append((course, score))
         
-        # 场景四特殊处理：确保COURSE_A01优先于COURSE_A02
-        # 1. 提取COURSE_A01和COURSE_A02
-        course_a01 = None
-        course_a02 = None
-        other_courses = []
+        # 按分数排序
+        unique_courses_with_scores.sort(key=lambda x: x[1], reverse=True)
         
-        for course in unique_courses:
-            if course['course_id'] == 'COURSE_A01':
-                course_a01 = course
-            elif course['course_id'] == 'COURSE_A02':
-                course_a02 = course
-            else:
-                other_courses.append(course)
+        # 只返回课程对象
+        prioritized_courses = [course for course, score in unique_courses_with_scores]
         
-        # 2. 构建优先级排序
-        prioritized_courses = []
-        if course_a01:
-            prioritized_courses.append(course_a01)
-        if course_a02:
-            prioritized_courses.append(course_a02)
-        prioritized_courses.extend(other_courses)
+        # 确保至少返回一些课程
+        if not prioritized_courses:
+            # 如果没有匹配的课程，返回所有课程
+            prioritized_courses = self.courses
         
-        # 3. 通用优先级排序（针对其他课程）
-        # 优先推荐无技能门槛要求的课程
-        def has_no_basic_requirement(course):
-            for condition in course['conditions']:
-                if condition['type'] == '基础':
-                    return False
-            return True
-        
-        prioritized_courses.sort(key=lambda x: (
-            x['course_id'] == 'COURSE_A01',  # COURSE_A01最优先
-            x['course_id'] == 'COURSE_A02',  # COURSE_A02次之
-            has_no_basic_requirement(x)  # 无技能门槛要求的课程优先
-        ), reverse=True)
-        
-        # 只返回符合条件的课程（COURSE_A01、COURSE_A02）
-        final_courses = []
-        for course in prioritized_courses:
-            if course['course_id'] in ['COURSE_A01', 'COURSE_A02']:
-                final_courses.append(course)
-        
-        logger.info(f"最终推荐 {len(final_courses)} 门课程: {[course['course_id'] for course in final_courses]}")
-        return final_courses
+        logger.info(f"最终推荐 {len(prioritized_courses)} 门课程: {[course['course_id'] for course in prioritized_courses]}")
+        return prioritized_courses
     
     def get_course_with_policy(self, course_id):
         """获取课程及其关联的政策"""
@@ -319,45 +366,87 @@ class CourseMatcher:
         return package
     
     def generate_growth_path(self, courses):
-        """勾勒成长路径"""
-        logger.info("勾勒成长路径")
+        """生成结构化成长路径信息，供大模型参考"""
+        logger.info("生成结构化成长路径信息")
         
         if not courses:
             return []
         
-        growth_path = []
+        structured_info = []
         
-        # 第一阶段：基础培训
-        if any(c['course_id'] == 'COURSE_A01' for c in courses):
-            growth_path.append({
-                "stage": "第一阶段",
-                "title": "基础培训",
-                "content": "参加《电商运营入门实战班》（COURSE_A01），学习电商运营基础知识，掌握店铺搭建、产品上架、流量运营等核心技能，获取初级电商运营职业资格证书。",
-                "duration": "3个月",
-                "outcome": "具备电商运营基础能力，可应聘电商运营专员、店铺运营等岗位"
-            })
+        for course in courses:
+            course_info = {
+                "course_id": course['course_id'],
+                "course_title": course['title'],
+                "learning_content": [],
+                "career_prospects": [],
+                "highest_achievements": []
+            }
+            
+            # 根据课程ID添加详细信息
+            if course['course_id'] == 'COURSE_A01':  # 电商运营入门实战班
+                course_info['learning_content'] = [
+                    "电商运营基础知识",
+                    "店铺搭建与装修",
+                    "产品上架与优化",
+                    "流量运营与推广",
+                    "客户服务与售后",
+                    "数据分析与运营策略"
+                ]
+                course_info['career_prospects'] = [
+                    "电商运营专员",
+                    "店铺运营",
+                    "电商客服主管",
+                    "自营店铺创业"
+                ]
+                course_info['highest_achievements'] = [
+                    "初级电商运营职业资格证书",
+                    "独立运营店铺月销售额过万",
+                    "成为电商运营团队主管"
+                ]
+            elif course['course_id'] == 'COURSE_A02':  # 跨境电商基础课程
+                course_info['learning_content'] = [
+                    "跨境电商平台规则",
+                    "国际物流与供应链管理",
+                    "海外市场营销策略",
+                    "跨境支付与结算",
+                    "跨境电商法律与合规"
+                ]
+                course_info['career_prospects'] = [
+                    "跨境电商运营",
+                    "国际市场拓展专员",
+                    "跨境电商平台招商",
+                    "跨境电商创业"
+                ]
+                course_info['highest_achievements'] = [
+                    "跨境电商操作专员证书",
+                    "独立运营跨境店铺年销售额过百万",
+                    "成为跨境电商部门经理"
+                ]
+            elif course['course_id'] == 'COURSE_A03':  # 电商运营进阶课程
+                course_info['learning_content'] = [
+                    "高级数据分析与挖掘",
+                    "精细化运营策略",
+                    "内容营销与品牌建设",
+                    "多平台运营管理",
+                    "团队管理与领导力"
+                ]
+                course_info['career_prospects'] = [
+                    "电商运营经理",
+                    "电商总监",
+                    "电商咨询顾问",
+                    "电商培训机构讲师"
+                ]
+                course_info['highest_achievements'] = [
+                    "高级电商运营职业资格证书",
+                    "带领团队实现年销售额过千万",
+                    "成为知名电商专家或行业顾问"
+                ]
+            
+            structured_info.append(course_info)
         
-        # 第二阶段：进阶学习
-        if any(c['course_id'] == 'COURSE_A02' for c in courses):
-            growth_path.append({
-                "stage": "第二阶段",
-                "title": "进阶学习",
-                "content": "参加《跨境电商基础课程》（COURSE_A02），学习跨境电商平台规则、国际物流、海外营销等知识，提升电商运营层次。",
-                "duration": "2个月",
-                "outcome": "具备跨境电商运营能力，可应聘跨境电商运营、国际市场拓展等岗位"
-            })
-        
-        # 第三阶段：就业/创业
-        growth_path.append({
-            "stage": "第三阶段",
-            "title": "就业/创业",
-            "content": "根据所学技能，选择适合的就业方向或自主创业。就业方向包括电商运营专员、跨境电商运营等；创业方向包括开设网店、电商服务等。",
-            "duration": "长期",
-            "outcome": "实现职业转型，获得稳定收入或创业成功"
-        })
-        
-        logger.info(f"生成的成长路径包含 {len(growth_path)} 个阶段")
-        return growth_path
+        logger.info(f"生成的结构化成长路径信息包含 {len(structured_info)} 门课程")
+        return structured_info
     
     def match_courses_by_policy(self, policy_id):
         """根据政策ID匹配课程"""
