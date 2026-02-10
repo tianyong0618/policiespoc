@@ -168,9 +168,6 @@ class Orchestrator:
             else:
                 prompt += f"   - 证书匹配情况：明确指出用户的证书符合岗位要求，并强调其价值和匹配度\n"
             
-            # 补贴申请情况
-            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴（高级电工证2000元，中级电工证1500元），并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-            
             # 工作模式
             if time_preference:
                 prompt += f"   - 工作模式：根据用户的{time_preference}偏好，明确指出相应的工作模式（固定时间匹配全职，灵活时间匹配兼职）\n"
@@ -178,7 +175,7 @@ class Orchestrator:
                 prompt += f"   - 工作模式：根据用户的时间偏好，明确指出相应的工作模式（固定时间匹配全职，灵活时间匹配兼职）\n"
             
             # 收入情况
-            prompt += f"   - 收入情况：明确指出课时费+补贴双重收入\n"
+            prompt += f"   - 收入情况：明确指出课时费收入稳定\n"
             
             # 岗位特点与经验匹配度
             if certificate_level:
@@ -226,7 +223,7 @@ class Orchestrator:
             prompt += f"  ]\n"
             prompt += f"}}\n\n"
             prompt += f"示例推荐理由：\n"
-            prompt += f"岗位推荐理由：①持有中级电工证符合岗位要求，可按POLICY_A02申请1500元技能补贴（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）；②兼职模式满足灵活时间需求，课时费+补贴双重收入；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
+            prompt += f"岗位推荐理由：①持有中级电工证符合岗位要求；②兼职模式满足灵活时间需求，课时费收入稳定；③岗位特点'传授实操技能'，与您的经验高度匹配。\n\n"
             prompt += f"课程推荐理由：①学历要求匹配（初中及以上）；②课程内容涵盖店铺搭建、产品上架、流量运营等核心技能，贴合转行电商运营需求；③学习难度适中，适合零基础学习。\n\n"
             prompt += f"课程成长路径示例：学习内容包括电商运营基础知识、店铺搭建与装修、产品上架与优化、流量运营与推广、客户服务与售后、数据分析与运营策略；就业前景包括电商运营专员、店铺运营、电商客服主管、自营店铺创业；可获得的最高成就是成为电商运营团队主管，独立运营店铺月销售额过万，获得初级电商运营职业资格证书。\n\n"
             prompt += f"请严格按照上述示例格式生成详细的推荐理由和成长路径，确保每个内容都具体明确，包含所有必要的信息。\n"
@@ -271,10 +268,45 @@ class Orchestrator:
                 if job_id:
                     for analysis in job_analysis:
                         if analysis.get('id') == job_id:
-                            job['reasons'] = analysis.get('reasons', {
-                                'positive': '',
-                                'negative': ''
-                            })
+                            # 获取推荐理由
+                            reasons = analysis.get('reasons', {'positive': '', 'negative': ''})
+                            positive_reasons = reasons.get('positive', '')
+                            
+                            # 清理岗位推荐理由，移除政策相关内容
+                            policy_keywords = ['POLICY_A02', '职业技能提升补贴', '补贴申请', '补贴政策', '申请补贴', '技能提升补贴政策', '补贴标准', '申领时限', '可按', '申请补贴', '职业资格证书', '证书核发之日起12个月内', '双重收入', '补贴', '政策']
+                            
+                            # 检查是否包含任何政策关键词
+                            has_policy_content = any(keyword in positive_reasons for keyword in policy_keywords)
+                            
+                            # 检查是否包含"补贴申请情况"这样的部分
+                            has_subsidy_section = '补贴申请情况' in positive_reasons
+                            
+                            # 如果包含政策内容或补贴申请部分，重新生成推荐理由
+                            if has_policy_content or has_subsidy_section:
+                                # 分割推荐理由，按序号分割
+                                reason_parts = positive_reasons.split('。')
+                                
+                                # 过滤掉包含政策内容的部分
+                                filtered_parts = []
+                                for part in reason_parts:
+                                    if part.strip():
+                                        # 检查该部分是否包含政策相关内容
+                                        part_has_policy = any(keyword in part for keyword in policy_keywords)
+                                        part_has_subsidy = '补贴申请情况' in part
+                                        
+                                        if not part_has_policy and not part_has_subsidy:
+                                            filtered_parts.append(part.strip())
+                                
+                                # 如果有过滤后的部分，使用它们
+                                if filtered_parts:
+                                    positive_reasons = '。'.join(filtered_parts)
+                                else:
+                                    # 如果没有有效的理由，生成默认理由
+                                    positive_reasons = '①证书匹配情况：您的证书符合岗位要求，能为您的工作提供有力支持；②工作模式：岗位提供灵活的工作模式，满足您的时间需求；③收入情况：您从事该岗位可获得稳定的课时费收入；④岗位特点与经验匹配度：岗位特点与您的经验高度匹配'
+                            
+                            # 更新推荐理由
+                            reasons['positive'] = positive_reasons
+                            job['reasons'] = reasons
                             break
             
             # 将推荐理由和成长路径添加到推荐课程中
@@ -389,12 +421,11 @@ class Orchestrator:
                 else:
                     reasons.append("①岗位特点：符合市场需求")
                 
-                # 政策关联
-                if job_policy_relations:
-                    policy_str = '、'.join(job_policy_relations)
-                    reasons.append(f"②政策关联：与{policy_str}等政策相关联")
+                # 工作模式
+                if '兼职' in str(job_requirements) or '灵活' in job_features:
+                    reasons.append("②工作模式：支持兼职/灵活时间")
                 else:
-                    reasons.append("②政策关联：有相关政策支持")
+                    reasons.append("②工作模式：稳定的工作时间")
                 
                 # 经验匹配
                 has_match = False
@@ -1592,15 +1623,15 @@ class Orchestrator:
                         prompt += f"   - 证书匹配情况：明确指出用户持有{certificate_level}符合岗位要求，并强调其价值和匹配度\n"
                     else:
                         prompt += f"   - 证书匹配情况：明确指出用户的证书符合岗位要求，并强调其价值和匹配度\n"
-                    if certificate_level:
-                        if "高级" in certificate_level:
-                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请2000元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-                        elif "中级" in certificate_level:
-                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-                        else:
-                            prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
-                    else:
-                        prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    # if certificate_level:
+                    #     if "高级" in certificate_level:
+                    #         prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请2000元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    #     elif "中级" in certificate_level:
+                    #         prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请1500元技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    #     else:
+                    #         prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
+                    # else:
+                    #     prompt += f"   - 补贴申请情况：明确指出可按POLICY_A02申请相应技能补贴，并详细说明申请条件（若以企业在职职工身份参保，需在证书核发之日起12个月内申请）\n"
                     if time_preference:
                         if time_preference == "固定时间":
                             prompt += f"   - 工作模式：明确指出全职模式满足固定时间需求\n"

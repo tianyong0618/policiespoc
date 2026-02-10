@@ -102,9 +102,9 @@ class ResponseGenerator:
             
             # 直接生成结构化回答
             response = {
-                "positive": f"推荐岗位：[JOB_A02] {recommended_jobs[0]['title']}，推荐理由：①符合技能培训方向 ②兼职属性满足灵活时间需求 ③与POLICY_A02政策相关\n\n政策说明：根据POLICY_A02技能提升补贴政策，您可以申请相关培训补贴",
+                "positive": f"推荐岗位：[JOB_A02] {recommended_jobs[0]['title']}，推荐理由：①符合技能培训方向 ②兼职属性满足灵活时间需求 ③岗位特点适合您的背景",
                 "negative": "",
-                "suggestions": "建议联系相关机构了解具体申请流程"
+                "suggestions": "建议联系相关机构了解具体岗位详情"
             }
             
             return response
