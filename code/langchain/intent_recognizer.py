@@ -14,7 +14,7 @@ class IntentRecognizer:
         """初始化意图识别器"""
         self.chatbot = chatbot if chatbot else ChatBot()
     
-    def identify_intent(self, user_input):
+    def ir_identify_intent(self, user_input):
         """识别用户意图和实体"""
         logger.info("开始识别意图和实体，调用大模型")
         # 使用普通字符串拼接，避免f-string格式化问题

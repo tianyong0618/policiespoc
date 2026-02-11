@@ -40,7 +40,7 @@ class Orchestrator:
         logger.info(f"处理用户查询: {user_input[:50]}...")
         
         # 1. 识别意图和实体
-        intent_result = self.intent_recognizer.identify_intent(user_input)
+        intent_result = self.intent_recognizer.ir_identify_intent(user_input)
         intent_info = intent_result["result"]
         
         # 2. 验证意图是否在服务范围内
@@ -460,7 +460,7 @@ class Orchestrator:
                 course['growth_path'] = f"学习内容：电商运营基础、店铺管理、产品上架、推广营销等核心技能\n就业前景：电商运营专员、店铺运营、电商推广等岗位\n最高成就：成为电商运营专家，负责大型店铺运营，薪资待遇优厚"
         
         # 4. 生成结构化回答
-        response = self.response_generator.generate_response(
+        response = self.response_generator.rg_generate_response(
             user_input,
             relevant_policies,
             "通用场景",
@@ -858,7 +858,7 @@ class Orchestrator:
         logger.info(f"处理场景: {scenario}, 用户输入: {user_input[:50]}...")
         
         # 1. 识别意图和实体
-        intent_result = self.intent_recognizer.identify_intent(user_input)
+        intent_result = self.intent_recognizer.ir_identify_intent(user_input)
         intent_info = intent_result["result"]
         
         # 2. 检索相关政策和推荐
@@ -868,7 +868,7 @@ class Orchestrator:
         recommended_courses = retrieve_result["recommended_courses"]
         
         # 3. 生成结构化回答
-        response = self.response_generator.generate_response(
+        response = self.response_generator.rg_generate_response(
             user_input,
             relevant_policies,
             scenario,
@@ -935,7 +935,7 @@ class Orchestrator:
         logger.info(f"处理流式查询: {user_input[:50]}..., session_id: {session_id}")
         
         # 1. 识别意图
-        intent_result = self.intent_recognizer.identify_intent(user_input)
+        intent_result = self.intent_recognizer.ir_identify_intent(user_input)
         intent_info = intent_result["result"]
         
         # 提取实体信息用于流式显示
@@ -1191,7 +1191,7 @@ class Orchestrator:
                 
                 # 尝试调用response_generator获取更详细的响应
                 try:
-                    generated_response = self.response_generator.generate_response(
+                    generated_response = self.response_generator.rg_generate_response(
                         user_input,
                         relevant_policies,
                         "通用场景",

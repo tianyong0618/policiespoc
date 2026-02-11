@@ -590,6 +590,59 @@ class PolicyAgent:
         logger.info(f"分析用户输入: {user_input[:50]}...")
         
         # 1. 识别意图和实体
+        intent_info = self._identify_intent_and_entities(user_input)
+        
+        # 2. 匹配用户画像
+        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        
+        # 3. 分析需要的信息
+        required_info = self._initialize_required_info()
+        
+        # 4. 检查现有信息
+        required_info = self._extract_info_from_user_profile(matched_user, required_info)
+        
+        # 5. 从当前用户输入中提取信息
+        required_info = self._extract_info_from_user_input(user_input, required_info)
+        
+        # 6. 处理用户回答"没有"的情况
+        is_negative_answer = self._is_negative_answer(user_input)
+        
+        # 7. 从对话历史中提取信息
+        if conversation_history:
+            required_info = self._extract_info_from_conversation_history(conversation_history, required_info)
+        
+        # 8. 从上下文中理解用户回答
+        if conversation_history:
+            required_info = self._extract_info_from_last_qa_pair(conversation_history, required_info)
+        
+        # 9. 智能过滤不必要的信息需求
+        if is_negative_answer:
+            required_info = self._handle_negative_answer(conversation_history, required_info)
+        
+        # 10. 检查是否需要更多信息
+        missing_info = self._identify_missing_info(required_info)
+        
+        # 11. 智能判断是否需要追问
+        should_ask, important_missing_info = self._should_ask_for_more_info(missing_info, matched_user)
+        
+        # 12. 生成追问
+        if should_ask and (important_missing_info or missing_info):
+            follow_up_result = self._generate_follow_up_question(missing_info, important_missing_info, matched_user, intent_info, required_info)
+            if follow_up_result:
+                return follow_up_result
+        
+        # 13. 信息足够，返回分析结果
+        logger.info("信息足够，开始分析")
+        return {
+            "intent_info": intent_info,
+            "matched_user": matched_user,
+            "required_info": required_info,
+            "missing_info": [],
+            "needs_more_info": False
+        }
+    
+    def _identify_intent_and_entities(self, user_input):
+        """识别用户意图和实体"""
         intent_result = self.identify_intent(user_input)
         
         # 安全处理intent_result
@@ -597,12 +650,11 @@ class PolicyAgent:
         if isinstance(intent_result, dict):
             intent_info = intent_result.get("result", {})
         
-        # 2. 匹配用户画像
-        matched_user = self.user_profile_manager.match_user_profile(user_input)
-        
-        # 3. 分析需要的信息
-        # 基于数据文件分析，优化信息收集要素
-        required_info = {
+        return intent_info
+    
+    def _initialize_required_info(self):
+        """初始化需要的信息结构"""
+        return {
             "user_profile": {
                 "required": ["education", "skills", "work_experience", "identity", "status"],
                 "available": []
@@ -612,71 +664,82 @@ class PolicyAgent:
                 "available": []
             }
         }
+    
+    def _extract_info_from_user_profile(self, matched_user, required_info):
+        """从用户画像中提取信息"""
+        if not matched_user or not isinstance(matched_user, dict):
+            return required_info
         
-        # 4. 检查现有信息
-        if matched_user and isinstance(matched_user, dict):
-            user_data = matched_user.get("data", {})
-            
-            # 从用户画像中提取信息
-            logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
-            
-            # 将用户画像中的信息添加到现有可用信息列表中
-            # 添加用户数据
-            for key in user_data.keys():
-                if key not in required_info["user_profile"]["available"]:
-                    required_info["user_profile"]["available"].append(key)
-            
-            # 从core_needs中提取specific_needs
-            core_needs = matched_user.get("core_needs", [])
-            if core_needs:
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info(f"从用户画像中提取到需求信息: {core_needs}")
-            
-            # 基于用户描述预测可用信息
-            description = matched_user.get("description", "")
-            if "返乡" in description or "农民工" in description:
-                # 返乡农民工通常需要创业扶持政策
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于返乡农民工描述预测需求信息")
-                if "location" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("location")
-                    logger.info("基于返乡农民工描述预测地点信息")
-            elif "高校毕业生" in description:
-                # 高校毕业生通常有学历信息
-                if "education" not in required_info["user_profile"]["available"]:
-                    required_info["user_profile"]["available"].append("education")
-                    logger.info("基于高校毕业生描述预测学历信息")
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于高校毕业生描述预测需求信息")
-            elif "退役军人" in description:
-                # 退役军人通常有特定的政策需求
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于退役军人描述预测需求信息")
-                if "location" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("location")
-                    logger.info("基于退役军人描述预测地点信息")
-            elif "失业" in description:
-                # 失业人员通常需要技能培训和就业服务
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于失业人员描述预测需求信息")
-                if "skills" not in required_info["user_profile"]["available"]:
-                    required_info["user_profile"]["available"].append("skills")
-                    logger.info("基于失业人员描述预测技能信息")
-            elif "脱贫" in description:
-                # 脱贫人口通常需要技能培训和生活费补贴
-                if "specific_needs" not in required_info["user_needs"]["available"]:
-                    required_info["user_needs"]["available"].append("specific_needs")
-                    logger.info("基于脱贫人口描述预测需求信息")
-                if "education" not in required_info["user_profile"]["available"]:
-                    required_info["user_profile"]["available"].append("education")
-                    logger.info("基于脱贫人口描述预测学历信息")
+        user_data = matched_user.get("data", {})
         
-        # 5. 从当前用户输入中提取信息
+        # 从用户画像中提取信息
+        logger.info(f"匹配到用户画像: {matched_user.get('user_id')}")
+        
+        # 添加用户数据
+        for key in user_data.keys():
+            if key not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append(key)
+        
+        # 从core_needs中提取specific_needs
+        core_needs = matched_user.get("core_needs", [])
+        if core_needs:
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info(f"从用户画像中提取到需求信息: {core_needs}")
+        
+        # 基于用户描述预测可用信息
+        description = matched_user.get("description", "")
+        required_info = self._predict_info_based_on_description(description, required_info)
+        
+        return required_info
+    
+    def _predict_info_based_on_description(self, description, required_info):
+        """基于用户描述预测可用信息"""
+        if "返乡" in description or "农民工" in description:
+            # 返乡农民工通常需要创业扶持政策
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("基于返乡农民工描述预测需求信息")
+            if "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info("基于返乡农民工描述预测地点信息")
+        elif "高校毕业生" in description:
+            # 高校毕业生通常有学历信息
+            if "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info("基于高校毕业生描述预测学历信息")
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("基于高校毕业生描述预测需求信息")
+        elif "退役军人" in description:
+            # 退役军人通常有特定的政策需求
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("基于退役军人描述预测需求信息")
+            if "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info("基于退役军人描述预测地点信息")
+        elif "失业" in description:
+            # 失业人员通常需要技能培训和就业服务
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("基于失业人员描述预测需求信息")
+            if "skills" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("skills")
+                logger.info("基于失业人员描述预测技能信息")
+        elif "脱贫" in description:
+            # 脱贫人口通常需要技能培训和生活费补贴
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("基于脱贫人口描述预测需求信息")
+            if "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info("基于脱贫人口描述预测学历信息")
+        
+        return required_info
+    
+    def _extract_info_from_user_input(self, user_input, required_info):
+        """从当前用户输入中提取信息"""
         # 检查用户输入中是否包含学历相关词汇
         education_keywords = ["本科", "硕士", "博士", "高中", "中专", "大专", "研究生", "初中", "小学", "学历"]
         for keyword in education_keywords:
@@ -757,185 +820,205 @@ class PolicyAgent:
                 logger.info(f"从用户输入中提取到岗位兴趣信息: {keyword}")
                 break
         
-        # 6. 处理用户回答"没有"的情况
+        return required_info
+    
+    def _is_negative_answer(self, user_input):
+        """检查用户是否回答"没有"""
         negative_keywords = ["没有", "无", "none", "no"]
-        is_negative_answer = any(keyword in user_input.lower() for keyword in negative_keywords)
+        return any(keyword in user_input.lower() for keyword in negative_keywords)
+    
+    def _extract_info_from_conversation_history(self, conversation_history, required_info):
+        """从对话历史中提取信息"""
+        if not isinstance(conversation_history, list):
+            return required_info
         
-        # 7. 从对话历史中提取信息，特别处理用户回答
-        if conversation_history and isinstance(conversation_history, list):
-            logger.info(f"对话历史长度: {len(conversation_history)}")
-            
-            # 遍历对话历史，处理问答对
-            i = 0
-            while i < len(conversation_history):
-                msg = conversation_history[i]
-                if isinstance(msg, dict):
-                    role = msg.get("role")
-                    content = msg.get("content", "")
-                    
-                    # 查找AI提问和用户回答的配对
-                    if role == "ai" and i + 1 < len(conversation_history):
-                        next_msg = conversation_history[i + 1]
-                        if isinstance(next_msg, dict) and next_msg.get("role") == "user":
-                            user_answer = next_msg.get("content", "")
-                            
-                            # 尝试解析AI消息
-                            ai_message_content = content
-                            try:
-                                ai_message_data = json.loads(content)
-                                if isinstance(ai_message_data, dict):
-                                    if "question" in ai_message_data:
-                                        ai_message_content = ai_message_data["question"]
-                                    elif "content" in ai_message_data:
-                                        ai_message_content = ai_message_data["content"]
-                                    elif "question" in ai_message_data.get("data", {}):
-                                        ai_message_content = ai_message_data["data"]["question"]
-                            except:
-                                pass
-                            
-                            logger.info(f"AI消息: {ai_message_content}")
-                            logger.info(f"用户回答: {user_answer}")
-                            
-                            # 处理问答对
-                            if "学历" in ai_message_content:
-                                if "education" not in required_info["user_profile"]["available"]:
-                                    required_info["user_profile"]["available"].append("education")
-                                    logger.info("从对话历史中提取到学历信息")
-                            elif "技能" in ai_message_content:
-                                if "skills" not in required_info["user_profile"]["available"]:
-                                    required_info["user_profile"]["available"].append("skills")
-                                    logger.info("从对话历史中提取到技能信息")
-                            elif "经验" in ai_message_content:
-                                if "work_experience" not in required_info["user_profile"]["available"]:
-                                    required_info["user_profile"]["available"].append("work_experience")
-                                    logger.info("从对话历史中提取到工作经验信息")
-                            elif "需要" in ai_message_content or "需求" in ai_message_content:
-                                if "specific_needs" not in required_info["user_needs"]["available"]:
-                                    required_info["user_needs"]["available"].append("specific_needs")
-                                    logger.info("从对话历史中提取到需求信息")
-                            elif "时间" in ai_message_content or "期限" in ai_message_content:
-                                if "timeframe" not in required_info["user_needs"]["available"]:
-                                    required_info["user_needs"]["available"].append("timeframe")
-                                    logger.info("从对话历史中提取到时间信息")
-                            elif "地点" in ai_message_content or "地区" in ai_message_content:
-                                if "location" not in required_info["user_needs"]["available"]:
-                                    required_info["user_needs"]["available"].append("location")
-                                    logger.info("从对话历史中提取到地点信息")
-                i += 1
+        logger.info(f"对话历史长度: {len(conversation_history)}")
         
-        # 8. 从上下文中理解用户回答，特别是最后一个问答对
-        if conversation_history and isinstance(conversation_history, list) and len(conversation_history) >= 2:
-            # 查找最后一个AI消息和最后一个用户消息
-            last_ai_message = None
-            last_user_message = None
-            
-            for msg in reversed(conversation_history):
-                if isinstance(msg, dict):
-                    if msg.get("role") == "ai" and not last_ai_message:
-                        last_ai_message = msg.get("content", "")
-                    elif msg.get("role") == "user" and not last_user_message:
-                        last_user_message = msg.get("content", "")
-                    
-                    if last_ai_message and last_user_message:
-                        break
-            
-            if last_ai_message and last_user_message:
-                # 尝试解析AI消息
-                ai_message_content = last_ai_message
-                try:
-                    ai_message_data = json.loads(last_ai_message)
-                    if isinstance(ai_message_data, dict):
-                        if "question" in ai_message_data:
-                            ai_message_content = ai_message_data["question"]
-                        elif "content" in ai_message_data:
-                            ai_message_content = ai_message_data["content"]
-                        elif "question" in ai_message_data.get("data", {}):
-                            ai_message_content = ai_message_data["data"]["question"]
-                except:
-                    pass
+        # 遍历对话历史，处理问答对
+        i = 0
+        while i < len(conversation_history):
+            msg = conversation_history[i]
+            if isinstance(msg, dict):
+                role = msg.get("role")
+                content = msg.get("content", "")
                 
-                logger.info(f"最后一个AI消息: {ai_message_content}")
-                logger.info(f"最后一个用户回答: {last_user_message}")
-                
-                # 只要用户回答了问题，就认为该信息已提供，无论回答是什么
-                if "学历" in ai_message_content:
-                    if "education" not in required_info["user_profile"]["available"]:
-                        required_info["user_profile"]["available"].append("education")
-                        logger.info("从最后一个问答对中提取到学历信息")
-                elif "技能" in ai_message_content:
-                    if "skills" not in required_info["user_profile"]["available"]:
-                        required_info["user_profile"]["available"].append("skills")
-                        logger.info("从最后一个问答对中提取到技能信息")
-                elif "经验" in ai_message_content:
-                    if "work_experience" not in required_info["user_profile"]["available"]:
-                        required_info["user_profile"]["available"].append("work_experience")
-                        logger.info("从最后一个问答对中提取到工作经验信息")
-                elif "需要" in ai_message_content or "需求" in ai_message_content:
-                    if "specific_needs" not in required_info["user_needs"]["available"]:
-                        required_info["user_needs"]["available"].append("specific_needs")
-                        logger.info("从最后一个问答对中提取到需求信息")
-                elif "时间" in ai_message_content or "期限" in ai_message_content:
-                    if "timeframe" not in required_info["user_needs"]["available"]:
-                        required_info["user_needs"]["available"].append("timeframe")
-                        logger.info("从最后一个问答对中提取到时间信息")
-                elif "地点" in ai_message_content or "地区" in ai_message_content:
-                    if "location" not in required_info["user_needs"]["available"]:
-                        required_info["user_needs"]["available"].append("location")
-                        logger.info("从最后一个问答对中提取到地点信息")
+                # 查找AI提问和用户回答的配对
+                if role == "ai" and i + 1 < len(conversation_history):
+                    next_msg = conversation_history[i + 1]
+                    if isinstance(next_msg, dict) and next_msg.get("role") == "user":
+                        user_answer = next_msg.get("content", "")
+                        
+                        # 尝试解析AI消息
+                        ai_message_content = self._parse_ai_message_content(content)
+                        
+                        logger.info(f"AI消息: {ai_message_content}")
+                        logger.info(f"用户回答: {user_answer}")
+                        
+                        # 处理问答对
+                        required_info = self._process_qa_pair(ai_message_content, user_answer, required_info)
+            i += 1
         
-        # 9. 智能过滤不必要的信息需求
-        # 基于用户输入和对话历史，过滤掉明显不需要的信息
-        if is_negative_answer:
-            # 用户回答"没有"，标记所有当前正在询问的信息为已提供
-            logger.info("用户回答'没有'，标记相关信息为已提供")
-            # 检查对话历史，确定当前正在询问的信息类型
-            if conversation_history and isinstance(conversation_history, list) and len(conversation_history) >= 2:
-                last_ai_message = None
-                for msg in reversed(conversation_history):
-                    if isinstance(msg, dict) and msg.get("role") == "ai":
-                        last_ai_message = msg.get("content", "")
-                        break
-                
-                if last_ai_message:
-                    # 尝试解析最后一个AI消息
-                    ai_message_content = last_ai_message
-                    try:
-                        ai_message_data = json.loads(last_ai_message)
-                        if isinstance(ai_message_data, dict):
-                            if "question" in ai_message_data:
-                                ai_message_content = ai_message_data["question"]
-                            elif "content" in ai_message_data:
-                                ai_message_content = ai_message_data["content"]
-                    except:
-                        pass
-                    
-                    # 根据AI问题类型，标记相应信息为已提供
-                    if "学历" in ai_message_content:
-                        if "education" not in required_info["user_profile"]["available"]:
-                            required_info["user_profile"]["available"].append("education")
-                            logger.info("用户回答'没有'，标记学历信息为已提供")
-                    elif "技能" in ai_message_content:
-                        if "skills" not in required_info["user_profile"]["available"]:
-                            required_info["user_profile"]["available"].append("skills")
-                            logger.info("用户回答'没有'，标记技能信息为已提供")
-                    elif "经验" in ai_message_content:
-                        if "work_experience" not in required_info["user_profile"]["available"]:
-                            required_info["user_profile"]["available"].append("work_experience")
-                            logger.info("用户回答'没有'，标记工作经验信息为已提供")
-                    elif "需要" in ai_message_content or "需求" in ai_message_content:
-                        if "specific_needs" not in required_info["user_needs"]["available"]:
-                            required_info["user_needs"]["available"].append("specific_needs")
-                            logger.info("用户回答'没有'，标记需求信息为已提供")
-                    elif "时间" in ai_message_content or "期限" in ai_message_content:
-                        if "timeframe" not in required_info["user_needs"]["available"]:
-                            required_info["user_needs"]["available"].append("timeframe")
-                            logger.info("用户回答'没有'，标记时间信息为已提供")
-                    elif "地点" in ai_message_content or "地区" in ai_message_content:
-                        if "location" not in required_info["user_needs"]["available"]:
-                            required_info["user_needs"]["available"].append("location")
-                            logger.info("用户回答'没有'，标记地点信息为已提供")
+        return required_info
+    
+    def _parse_ai_message_content(self, content):
+        """解析AI消息内容"""
+        ai_message_content = content
+        try:
+            ai_message_data = json.loads(content)
+            if isinstance(ai_message_data, dict):
+                if "question" in ai_message_data:
+                    ai_message_content = ai_message_data["question"]
+                elif "content" in ai_message_data:
+                    ai_message_content = ai_message_data["content"]
+                elif "question" in ai_message_data.get("data", {}):
+                    ai_message_content = ai_message_data["data"]["question"]
+        except:
+            pass
+        return ai_message_content
+    
+    def _process_qa_pair(self, ai_message_content, user_answer, required_info):
+        """处理问答对"""
+        if "学历" in ai_message_content:
+            if "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info("从对话历史中提取到学历信息")
+        elif "技能" in ai_message_content:
+            if "skills" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("skills")
+                logger.info("从对话历史中提取到技能信息")
+        elif "经验" in ai_message_content:
+            if "work_experience" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("work_experience")
+                logger.info("从对话历史中提取到工作经验信息")
+        elif "需要" in ai_message_content or "需求" in ai_message_content:
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("从对话历史中提取到需求信息")
+        elif "时间" in ai_message_content or "期限" in ai_message_content:
+            if "timeframe" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("timeframe")
+                logger.info("从对话历史中提取到时间信息")
+        elif "地点" in ai_message_content or "地区" in ai_message_content:
+            if "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info("从对话历史中提取到地点信息")
         
-        # 10. 检查是否需要更多信息
+        return required_info
+    
+    def _extract_info_from_last_qa_pair(self, conversation_history, required_info):
+        """从上下文中理解用户回答，特别是最后一个问答对"""
+        if not isinstance(conversation_history, list) or len(conversation_history) < 2:
+            return required_info
+        
+        # 查找最后一个AI消息和最后一个用户消息
+        last_ai_message = None
+        last_user_message = None
+        
+        for msg in reversed(conversation_history):
+            if isinstance(msg, dict):
+                if msg.get("role") == "ai" and not last_ai_message:
+                    last_ai_message = msg.get("content", "")
+                elif msg.get("role") == "user" and not last_user_message:
+                    last_user_message = msg.get("content", "")
+                
+                if last_ai_message and last_user_message:
+                    break
+        
+        if last_ai_message and last_user_message:
+            # 尝试解析AI消息
+            ai_message_content = self._parse_ai_message_content(last_ai_message)
+            
+            logger.info(f"最后一个AI消息: {ai_message_content}")
+            logger.info(f"最后一个用户回答: {last_user_message}")
+            
+            # 只要用户回答了问题，就认为该信息已提供，无论回答是什么
+            required_info = self._process_last_qa_pair(ai_message_content, required_info)
+        
+        return required_info
+    
+    def _process_last_qa_pair(self, ai_message_content, required_info):
+        """处理最后一个问答对"""
+        if "学历" in ai_message_content:
+            if "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info("从最后一个问答对中提取到学历信息")
+        elif "技能" in ai_message_content:
+            if "skills" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("skills")
+                logger.info("从最后一个问答对中提取到技能信息")
+        elif "经验" in ai_message_content:
+            if "work_experience" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("work_experience")
+                logger.info("从最后一个问答对中提取到工作经验信息")
+        elif "需要" in ai_message_content or "需求" in ai_message_content:
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("从最后一个问答对中提取到需求信息")
+        elif "时间" in ai_message_content or "期限" in ai_message_content:
+            if "timeframe" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("timeframe")
+                logger.info("从最后一个问答对中提取到时间信息")
+        elif "地点" in ai_message_content or "地区" in ai_message_content:
+            if "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info("从最后一个问答对中提取到地点信息")
+        
+        return required_info
+    
+    def _handle_negative_answer(self, conversation_history, required_info):
+        """处理用户回答"没有"的情况"""
+        if not conversation_history or not isinstance(conversation_history, list):
+            return required_info
+        
+        logger.info("用户回答'没有'，标记相关信息为已提供")
+        
+        # 检查对话历史，确定当前正在询问的信息类型
+        last_ai_msg = None
+        for msg in reversed(conversation_history):
+            if isinstance(msg, dict) and msg.get("role") == "ai":
+                last_ai_msg = msg.get("content", "")
+                break
+        
+        if last_ai_msg:
+            # 尝试解析最后一个AI消息
+            ai_message_content = self._parse_ai_message_content(last_ai_msg)
+            
+            # 根据AI问题类型，标记相应信息为已提供
+            required_info = self._mark_info_as_provided_based_on_question(ai_message_content, required_info)
+        
+        return required_info
+    
+    def _mark_info_as_provided_based_on_question(self, question, required_info):
+        """根据问题类型标记相应信息为已提供"""
+        if "学历" in question:
+            if "education" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("education")
+                logger.info("用户回答'没有'，标记学历信息为已提供")
+        elif "技能" in question:
+            if "skills" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("skills")
+                logger.info("用户回答'没有'，标记技能信息为已提供")
+        elif "经验" in question:
+            if "work_experience" not in required_info["user_profile"]["available"]:
+                required_info["user_profile"]["available"].append("work_experience")
+                logger.info("用户回答'没有'，标记工作经验信息为已提供")
+        elif "需要" in question or "需求" in question:
+            if "specific_needs" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("specific_needs")
+                logger.info("用户回答'没有'，标记需求信息为已提供")
+        elif "时间" in question or "期限" in question:
+            if "timeframe" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("timeframe")
+                logger.info("用户回答'没有'，标记时间信息为已提供")
+        elif "地点" in question or "地区" in question:
+            if "location" not in required_info["user_needs"]["available"]:
+                required_info["user_needs"]["available"].append("location")
+                logger.info("用户回答'没有'，标记地点信息为已提供")
+        
+        return required_info
+    
+    def _identify_missing_info(self, required_info):
+        """检查是否需要更多信息"""
         missing_info = []
         for category, info in required_info.items():
             for req in info["required"]:
@@ -945,7 +1028,10 @@ class PolicyAgent:
         logger.info(f"可用信息: {required_info['user_profile']['available']}, {required_info['user_needs']['available']}")
         logger.info(f"缺失信息: {missing_info}")
         
-        # 11. 智能判断是否需要追问
+        return missing_info
+    
+    def _should_ask_for_more_info(self, missing_info, matched_user):
+        """智能判断是否需要追问"""
         # 基于用户身份和输入内容，判断是否真的需要追问
         should_ask = False
         important_missing_info = []
@@ -977,93 +1063,96 @@ class PolicyAgent:
                 # 对于没有匹配到用户画像的用户，如果缺失信息较多，需要追问
                 should_ask = len(missing_info) > 2
         
-        # 12. 生成追问
-        if should_ask and (important_missing_info or missing_info):
-            follow_up_questions = {
-                "user_profile.education": "请问您的学历是什么？",
-                "user_profile.skills": "请问您有哪些技能或证书？",
-                "user_profile.work_experience": "请问您有多少年工作经验？",
-                "user_needs.specific_needs": "请问您的具体需求是什么？",
-                "user_needs.timeframe": "请问您的时间要求是什么？",
-                "user_needs.location": "请问您的地点要求是什么？"
+        return should_ask, important_missing_info
+    
+    def _generate_follow_up_question(self, missing_info, important_missing_info, matched_user, intent_info, required_info):
+        """生成追问"""
+        follow_up_questions = {
+            "user_profile.education": "请问您的学历是什么？",
+            "user_profile.skills": "请问您有哪些技能或证书？",
+            "user_profile.work_experience": "请问您有多少年工作经验？",
+            "user_needs.specific_needs": "请问您的具体需求是什么？",
+            "user_needs.timeframe": "请问您的时间要求是什么？",
+            "user_needs.location": "请问您的地点要求是什么？"
+        }
+        
+        # 优化优先级排序，减少不必要的追问
+        priority_order = self._get_priority_order_based_on_identity(matched_user)
+        
+        # 优先选择重要的缺失信息进行追问
+        target_info_types = important_missing_info if important_missing_info else missing_info
+        
+        # 按照优先级顺序选择追问信息
+        selected_info_type = None
+        for info_type in priority_order:
+            if info_type in target_info_types:
+                selected_info_type = info_type
+                break
+        
+        if selected_info_type:
+            follow_up_question = follow_up_questions.get(selected_info_type, "请问您能提供更多信息吗？")
+            logger.info(f"生成追问: {follow_up_question}")
+            
+            return {
+                "intent_info": intent_info,
+                "matched_user": matched_user,
+                "required_info": required_info,
+                "missing_info": missing_info,
+                "needs_more_info": True,
+                "follow_up_question": follow_up_question
             }
-            
-            # 优化优先级排序，减少不必要的追问
-            priority_order = []
-            
-            # 优先处理与用户身份相关的信息
-            if matched_user and isinstance(matched_user, dict):
-                identity = matched_user.get("basic_info", {}).get("identity", "")
-                if identity == "返乡农民工":
-                    # 返乡农民工优先需要需求信息
-                    priority_order = [
-                        "user_needs.specific_needs",
-                        "user_profile.education",
-                        "user_profile.skills",
-                        "user_profile.work_experience",
-                        "user_needs.timeframe"
-                    ]
-                elif identity == "高校毕业生":
-                    # 高校毕业生优先需要需求和学历信息
-                    priority_order = [
-                        "user_needs.specific_needs",
-                        "user_profile.education",
-                        "user_profile.skills",
-                        "user_profile.work_experience",
-                        "user_needs.timeframe"
-                    ]
-                elif identity == "退役军人":
-                    # 退役军人优先需要需求和地点信息
-                    priority_order = [
+        
+        return None
+    
+    def _get_priority_order_based_on_identity(self, matched_user):
+        """基于用户身份的优先级排序"""
+        if not matched_user or not isinstance(matched_user, dict):
+            # 默认优先级排序
+            return [
                 "user_needs.specific_needs",
                 "user_profile.education",
                 "user_profile.skills",
                 "user_profile.work_experience",
                 "user_needs.timeframe"
             ]
-            
-            # 如果没有基于身份的优先级排序，使用默认排序
-            if not priority_order:
-                priority_order = [
-                    "user_needs.specific_needs",
-                    "user_profile.education",
-                    "user_profile.skills",
-                    "user_profile.work_experience",
-                    "user_needs.timeframe"
-                ]
-            
-            # 优先选择重要的缺失信息进行追问
-            target_info_types = important_missing_info if important_missing_info else missing_info
-            
-            # 按照优先级顺序选择追问信息
-            selected_info_type = None
-            for info_type in priority_order:
-                if info_type in target_info_types:
-                    selected_info_type = info_type
-                    break
-            
-            if selected_info_type:
-                follow_up_question = follow_up_questions.get(selected_info_type, "请问您能提供更多信息吗？")
-                logger.info(f"生成追问: {follow_up_question}")
-                
-                return {
-                    "intent_info": intent_info,
-                    "matched_user": matched_user,
-                    "required_info": required_info,
-                    "missing_info": missing_info,
-                    "needs_more_info": True,
-                    "follow_up_question": follow_up_question
-                }
         
-        # 13. 信息足够，返回分析结果
-        logger.info("信息足够，开始分析")
-        return {
-            "intent_info": intent_info,
-            "matched_user": matched_user,
-            "required_info": required_info,
-            "missing_info": [],
-            "needs_more_info": False
-        }
+        identity = matched_user.get("basic_info", {}).get("identity", "")
+        if identity == "返乡农民工":
+            # 返乡农民工优先需要需求信息
+            return [
+                "user_needs.specific_needs",
+                "user_profile.education",
+                "user_profile.skills",
+                "user_profile.work_experience",
+                "user_needs.timeframe"
+            ]
+        elif identity == "高校毕业生":
+            # 高校毕业生优先需要需求和学历信息
+            return [
+                "user_needs.specific_needs",
+                "user_profile.education",
+                "user_profile.skills",
+                "user_profile.work_experience",
+                "user_needs.timeframe"
+            ]
+        elif identity == "退役军人":
+            # 退役军人优先需要需求和地点信息
+            return [
+                "user_needs.specific_needs",
+                "user_profile.education",
+                "user_profile.skills",
+                "user_profile.work_experience",
+                "user_needs.timeframe"
+            ]
+        else:
+            # 默认优先级排序
+            return [
+                "user_needs.specific_needs",
+                "user_profile.education",
+                "user_profile.skills",
+                "user_profile.work_experience",
+                "user_needs.timeframe"
+            ]
     
     def process_analysis(self, analysis_result, session_id=None):
         """处理分析结果，生成最终回答"""
