@@ -101,8 +101,8 @@ class PolicyRetriever:
                 # 只有明确提到自己是返乡农民工，才识别为返乡人员
                 if explicitly_mentions_identity or has_migrant_entity_check:
                     has_return_home = True
-        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str
-        has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
+        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str or "网店运营" in user_input_str
+        has_incubator = "孵化基地" in user_input_str or "入驻" in user_input_str
         has_veteran = ("退役军人" in user_input_str or 
                       ("我是" in user_input_str and "退役军人" in user_input_str) or
                       ("是" in user_input_str and "退役军人" in user_input_str) or
@@ -145,10 +145,12 @@ class PolicyRetriever:
                     logger.info(f"用户不符合 {policy_id} 条件: 返乡={has_return_home}, 创业={has_entrepreneurship}, 在职={is_employed}")
             
             elif policy_id == "POLICY_A04":  # 创业场地租金补贴政策
-                # 条件：入驻创业孵化基地
-                if has_incubator:
+                # 条件：入驻创业孵化基地 + 创办企业
+                if has_incubator and (has_entrepreneurship or has_individual_business):
                     is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地")
+                    logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地且创办企业")
+                else:
+                    logger.info(f"用户不符合 {policy_id} 条件: 入驻孵化基地={has_incubator}, 创办企业={has_entrepreneurship or has_individual_business}")
             
             elif policy_id == "POLICY_A01":  # 创业担保贷款贴息政策
                 # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）+ 创业需求

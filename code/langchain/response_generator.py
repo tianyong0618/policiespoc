@@ -396,6 +396,40 @@ class ResponseGenerator:
             # 更新positive部分
             result_json['positive'] = positive_content
             
+            # 确保同一政策不会同时出现在两个列表中
+            if positive_content and result_json.get('negative'):
+                negative_content = result_json.get('negative', '')
+                # 提取positive_content中的政策ID
+                positive_policies = []
+                import re
+                matches = re.findall(r'\((POLICY_[A-Z0-9]+)\)', positive_content)
+                positive_policies.extend(matches)
+                
+                # 从negative_content中移除已在positive_content中出现的政策
+                negative_lines = negative_content.split('。')
+                filtered_negative_lines = []
+                for line in negative_lines:
+                    if line.strip():
+                        # 提取当前行中的政策ID
+                        line_matches = re.findall(r'\((POLICY_[A-Z0-9]+)\)', line)
+                        if not any(policy_id in line for policy_id in positive_policies):
+                            filtered_negative_lines.append(line)
+                
+                # 重新组合negative_content
+                result_json['negative'] = '。'.join(filtered_negative_lines)
+            
+            # 处理没有不符合条件政策的情况
+            negative_content = result_json.get('negative', '')
+            negative_not_found_patterns = ['未找到不符合条件的政策', '无不符合条件的政策']
+            for pattern in negative_not_found_patterns:
+                if pattern in negative_content:
+                    result_json['negative'] = ''
+                    break
+            
+            # 如果positive_content为空，确保不显示符合条件的政策部分
+            if not positive_content:
+                result_json['positive'] = ''
+            
             return result_json
         except Exception as e:
             logger.error(f"解析回答结果失败: {str(e)}")

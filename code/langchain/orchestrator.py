@@ -760,8 +760,8 @@ class Orchestrator:
                         })
             elif policy_id == "POLICY_A04":
                 # 创业场地租金补贴政策
-                has_employment_base = "创业孵化基地" in user_input_str or "入驻" in user_input_str or "场地" in user_input_str
-                has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str
+                has_employment_base = "创业孵化基地" in user_input_str or "入驻" in user_input_str
+                has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str or "创业" in user_input_str or "经营" in user_input_str or "网店运营" in user_input_str
                 
                 if has_employment_base and has_business:
                     policy_substeps.append({
