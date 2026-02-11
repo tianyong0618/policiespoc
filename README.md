@@ -375,22 +375,26 @@ LLM_MAX_TOKENS=8192
 
 #### 3. 启动后端服务
 ```bash
-# 方式1：直接运行FastAPI
-cd code/serve_code
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+# 从根目录运行（推荐，与Vercel部署方式一致）
+python3 -m uvicorn main:app --reload --port 8000
 
-# 方式2：从根目录运行（Vercel部署方式）
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+# 或从serve_code目录运行
+cd code/serve_code
+python3 -m uvicorn main:app --reload --port 8000
 ```
 
 #### 4. 启动前端服务
 ```bash
 cd code/web_code
-python3 -m http.server 8080
+# 使用端口3001（避免与其他服务冲突）
+python3 -m http.server 3001
+
+# 或使用其他可用端口
+# python3 -m http.server 8080
 ```
 
 #### 5. 访问应用
-打开浏览器访问：http://localhost:8080
+打开浏览器访问：http://localhost:3001（或使用你设置的前端端口）
 
 ### 6.3 Vercel部署
 
@@ -624,5 +628,5 @@ __all__ = ['app']
 ---
 
 **文档版本**：v1.3  
-**最后更新**：2026-02-11  
+**最后更新**：2026-02-12  
 **维护者**：政策咨询智能体POC团队
