@@ -41,7 +41,7 @@ class IntentRecognizer:
 }
 
 判断规则：
-- 当用户明确提到"找工作"、"推荐岗位"、"就业"、"工作机会"、"推荐工作"等相关内容时，needs_job_recommendation 应设置为 true
+- 当用户明确提到"找工作"、"推荐岗位"、"就业"、"工作机会"、"推荐工作"、"求职"、"职业推荐"、"工作推荐"、"岗位匹配"、"推荐职位"、"想找一份"、"想从事"等相关内容时，needs_job_recommendation 应设置为 true
 - 当用户明确提到"课程"、"培训"、"学习"、"技能提升"、"转行"等相关内容时，needs_course_recommendation 应设置为 true
 - 当用户明确提到"政策"、"补贴"、"贷款"、"申请"、"返乡"、"创业"、"小微企业"、"失业"、"证书"、"资格证"等相关内容时，needs_policy_recommendation 应设置为 true
 

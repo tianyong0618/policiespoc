@@ -182,7 +182,7 @@ class PolicyRetriever:
             entities = intent_info.get("entities", [])
             
             # 基于用户输入和实体匹配岗位
-            matched_jobs = self.job_matcher.match_jobs_by_entities(entities)
+            matched_jobs = self.job_matcher.match_jobs_by_entities(entities, user_input)
             recommended_jobs.extend(matched_jobs)
             
             # 去重

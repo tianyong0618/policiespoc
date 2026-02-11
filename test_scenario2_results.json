@@ -11,7 +11,7 @@
         "JOB_A02"
       ],
       "passed": true,
-      "execution_time": 49.8813111782074
+      "execution_time": 10.650621891021729
     },
     {
       "id": "S2-002",
@@ -20,9 +20,13 @@
       "expected_jobs": [
         "JOB_A01"
       ],
-      "matched_jobs": [],
+      "matched_jobs": [
+        "JOB_A01",
+        "JOB_A02",
+        "JOB_A03"
+      ],
       "passed": false,
-      "execution_time": 36.026745080947876
+      "execution_time": 7.760077953338623
     },
     {
       "id": "S2-003",
@@ -32,11 +36,12 @@
         "JOB_A03"
       ],
       "matched_jobs": [
-        "JOB_A02",
-        "JOB_A03"
+        "JOB_A03",
+        "JOB_A01",
+        "JOB_A02"
       ],
       "passed": false,
-      "execution_time": 54.16321086883545
+      "execution_time": 7.395297050476074
     },
     {
       "id": "S2-004",
@@ -45,9 +50,11 @@
       "expected_jobs": [
         "JOB_A04"
       ],
-      "matched_jobs": [],
-      "passed": false,
-      "execution_time": 26.86453604698181
+      "matched_jobs": [
+        "JOB_A04"
+      ],
+      "passed": true,
+      "execution_time": 8.692383050918579
     },
     {
       "id": "S2-005",
@@ -56,7 +63,7 @@
       "expected_jobs": [],
       "matched_jobs": [],
       "passed": true,
-      "execution_time": 30.646008253097534
+      "execution_time": 7.311152219772339
     },
     {
       "id": "S2-006",
@@ -66,11 +73,10 @@
         "JOB_A05"
       ],
       "matched_jobs": [
-        "JOB_A05",
-        "JOB_A04"
+        "JOB_A05"
       ],
-      "passed": false,
-      "execution_time": 36.1027557849884
+      "passed": true,
+      "execution_time": 7.055701017379761
     },
     {
       "id": "S2-007",
@@ -78,18 +84,18 @@
       "input": "我不是退役军人，有8年企业管理经验，熟悉税收优惠政策，想从事创业项目评估相关工作。",
       "expected_jobs": [],
       "matched_jobs": [
-        "JOB_A05",
-        "JOB_A04"
+        "JOB_A01",
+        "JOB_A03"
       ],
       "passed": false,
-      "execution_time": 60.108185052871704
+      "execution_time": 8.521934032440186
     }
   ],
   "summary": {
     "total_cases": 7,
-    "passed_count": 2,
-    "pass_rate": 28.57142857142857,
-    "average_time": 41.97039318084717,
-    "total_time": 293.7927522659302
+    "passed_count": 4,
+    "pass_rate": 57.14285714285714,
+    "average_time": 8.198166745049614,
+    "total_time": 57.38716721534729
   }
 }

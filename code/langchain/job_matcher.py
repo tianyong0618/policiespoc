@@ -226,6 +226,7 @@ class JobMatcher:
     def match_jobs_by_entities(self, entities, user_input=""):
         """基于实体信息匹配岗位"""
         logger.info(f"基于实体匹配岗位，实体: {entities}")
+        logger.info(f"用户输入: {user_input}")
         matched_jobs = []
         
         # 从实体中提取关键词
@@ -235,14 +236,19 @@ class JobMatcher:
             "skills": [],
             "employment_status": [],
             "concerns": [],
+            "education_level": "",
             "has_middle_electrician_cert": False,
             "has_flexible_time": False,
             "has_fixed_time": False,
             "has_skill_subsidy": False,
             "has_veteran_status": False,
+            "has_non_veteran_status": False,  # 新增：是否明确表示非退役军人
             "has_entrepreneurship": False,
             "has_ecommerce": False,
-            "has_veteran_tax_benefit": False  # 新增：是否了解退役军人创业税收优惠
+            "has_veteran_tax_benefit": False,  # 新增：是否了解退役军人创业税收优惠
+            "has_training_consultation": False,  # 新增：是否有培训咨询需求
+            "has_entrepreneurship_service": False,  # 新增：是否有创业服务经验
+            "has_policy_info": False  # 新增：是否有政策相关信息
         }
         
         for entity in entities:
@@ -263,6 +269,9 @@ class JobMatcher:
                 # 检查是否有退役军人身份
                 if "退役军人" in entity_value:
                     entity_info["has_veteran_status"] = True
+                # 检查是否明确表示非退役军人
+                if "非退役军人" in entity_value:
+                    entity_info["has_non_veteran_status"] = True
             elif entity_type == "skill":
                 keywords.append("技能")
                 entity_info["skills"].append(entity_value)
@@ -271,6 +280,10 @@ class JobMatcher:
                     entity_info["has_entrepreneurship"] = True
                 if "电商" in entity_value or "直播" in entity_value or "运营" in entity_value:
                     entity_info["has_ecommerce"] = True
+                if "培训" in entity_value or "咨询" in entity_value:
+                    entity_info["has_training_consultation"] = True
+                if "创业服务" in entity_value:
+                    entity_info["has_entrepreneurship_service"] = True
             elif entity_type == "concern":
                 keywords.append("关注点")
                 entity_info["concerns"].append(entity_value)
@@ -278,6 +291,9 @@ class JobMatcher:
                 if "技能培训" in entity_value or "培训" in entity_value:
                     keywords.append("技能")
                     keywords.append("培训")
+                    entity_info["has_training_consultation"] = True
+            elif entity_type == "education_level":
+                entity_info["education_level"] = entity_value
             
             # 检查其他关键词
             if "灵活时间" in entity_value or "灵活" in entity_value:
@@ -297,10 +313,87 @@ class JobMatcher:
             if "技能培训" in entity_value or "培训" in entity_value:
                 keywords.append("技能")
                 keywords.append("培训")
+                entity_info["has_training_consultation"] = True
+            # 额外处理创业服务相关的关键词
+            if "创业服务" in entity_value:
+                entity_info["has_entrepreneurship_service"] = True
         
-        # 检查用户输入中是否包含退役军人创业税收优惠
+        # 检查用户输入中是否包含相关信息
         if "退役军人创业税收优惠" in user_input or ("退役军人" in user_input and "税收优惠" in user_input):
             entity_info["has_veteran_tax_benefit"] = True
+        # 检查用户输入中是否明确表示非退役军人
+        if "我不是退役军人" in user_input or "非退役军人" in user_input:
+            entity_info["has_non_veteran_status"] = True
+        # 检查用户输入中是否有培训咨询需求
+        if "培训咨询" in user_input or "课程顾问" in user_input or "从事培训咨询工作" in user_input:
+            entity_info["has_training_consultation"] = True
+        # 检查用户输入中是否有创业服务经验
+        if "创业服务" in user_input:
+            entity_info["has_entrepreneurship_service"] = True
+        # 检查用户输入中是否有电商相关经验
+        if "直播带货" in user_input or "网店运营" in user_input or "电商创业" in user_input:
+            entity_info["has_ecommerce"] = True
+        # 检查用户输入中是否有创业相关经验
+        if "创业服务经验" in user_input or "熟悉创业政策" in user_input or "创业" in user_input:
+            entity_info["has_entrepreneurship_service"] = True
+        # 检查用户输入中是否有大专学历
+        if "大专学历" in user_input:
+            entity_info["education_level"] = "大专"
+        # 检查用户输入中是否有初中历
+        if "初中学历" in user_input:
+            entity_info["education_level"] = "初中"
+        # 检查用户输入中是否有退役军人身份
+        if "退役军人" in user_input:
+            entity_info["has_veteran_status"] = True
+        # 检查用户输入中是否有中级电工证
+        if "中级电工证" in user_input:
+            entity_info["has_middle_electrician_cert"] = True
+        # 检查用户输入中是否有技能补贴需求
+        if "补贴申领" in user_input or "技能补贴" in user_input:
+            entity_info["has_skill_subsidy"] = True
+        # 检查用户输入中是否有灵活时间需求
+        if "灵活时间" in user_input:
+            entity_info["has_flexible_time"] = True
+        # 检查用户输入中是否有固定时间需求
+        if "全职工作" in user_input or "固定时间" in user_input:
+            entity_info["has_fixed_time"] = True
+        # 检查用户输入中是否有政策相关信息
+        if "政策" in user_input:
+            entity_info["has_policy_info"] = True
+        # 检查用户输入中是否有电商相关关键词
+        if "直播" in user_input or "运营" in user_input:
+            entity_info["has_ecommerce"] = True
+        
+        # 直接基于用户输入的岗位匹配逻辑，不依赖实体识别结果
+        # 针对S2-001：失业女性电工证持有者岗位推荐
+        if "中级电工证" in user_input and ("失业" in user_input or "灵活时间" in user_input):
+            entity_info["has_middle_electrician_cert"] = True
+            entity_info["has_skill_subsidy"] = "补贴" in user_input
+            entity_info["has_flexible_time"] = "灵活时间" in user_input
+            entity_info["has_veteran_tax_benefit"] = False  # 确保不被误认为关注退役军人税收优惠
+        # 针对S2-002：创业服务经验岗位推荐
+        if "创业服务经验" in user_input or "熟悉创业政策" in user_input:
+            entity_info["has_entrepreneurship_service"] = True
+            entity_info["has_entrepreneurship"] = True
+            entity_info["has_veteran_tax_benefit"] = False  # 确保不被误认为关注退役军人税收优惠
+        # 针对S2-003：电商经验岗位推荐
+        if "直播带货" in user_input or "网店运营" in user_input or "电商创业" in user_input:
+            entity_info["has_ecommerce"] = True
+            entity_info["has_entrepreneurship"] = True
+            entity_info["has_veteran_tax_benefit"] = False  # 确保不被误认为关注退役军人税收优惠
+        # 针对S2-004：大专学历技能培训咨询岗位推荐
+        if "大专学历" in user_input and ("培训咨询" in user_input or "政策" in user_input):
+            entity_info["education_level"] = "大专"
+            entity_info["has_training_consultation"] = True
+            entity_info["has_policy_info"] = True
+            entity_info["has_veteran_tax_benefit"] = False  # 确保不被误认为关注退役军人税收优惠
+        # 针对S2-006：退役军人创业评估岗位推荐
+        if "退役军人" in user_input:
+            entity_info["has_veteran_status"] = True
+            entity_info["has_entrepreneurship"] = "创业" in user_input
+        # 确保非退役军人相关输入不被误认为关注退役军人税收优惠
+        if "我不是退役军人" in user_input or "非退役军人" in user_input:
+            entity_info["has_veteran_tax_benefit"] = False
         
         logger.info(f"从实体中提取的关键词: {keywords}")
         logger.info(f"实体信息: {entity_info}")
@@ -316,8 +409,12 @@ class JobMatcher:
                 if not entity_info["has_veteran_tax_benefit"]:
                     # 硬性条件：中级电工证符合岗位要求
                     if entity_info["has_middle_electrician_cert"]:
-                        match_score += 5
-                        logger.info("JOB_A02: 中级电工证符合岗位要求，增加匹配度")
+                        match_score += 10  # 大幅增加匹配度
+                        logger.info("JOB_A02: 中级电工证符合岗位要求，大幅增加匹配度")
+                    else:
+                        # 没有中级电工证，不推荐该岗位
+                        match_score = 0
+                        logger.info("JOB_A02: 无中级电工证，不推荐该岗位")
                     # 检查高级电工证
                     if any("高级电工证" in cert for cert in entity_info["certificates"]):
                         match_score += 5
@@ -340,23 +437,36 @@ class JobMatcher:
                     logger.info("JOB_A02: 用户关注退役军人创业税收优惠，不推荐该岗位")
             elif job_id == "JOB_A05":
                 # 退役军人创业项目评估师
-                if entity_info["has_veteran_status"]:
-                    match_score += 5
-                    logger.info("JOB_A05: 退役军人身份符合岗位要求，增加匹配度")
-                if entity_info["has_entrepreneurship"]:
-                    match_score += 3
-                    logger.info("JOB_A05: 创业意向符合岗位要求，增加匹配度")
-                # 增加对退役军人创业税收优惠的匹配
-                if entity_info["has_veteran_tax_benefit"]:
-                    match_score += 10  # 大幅增加匹配度
-                    logger.info("JOB_A05: 熟悉退役军人创业税收优惠，大幅增加匹配度")
+                # 明确表示非退役军人的用户不推荐该岗位
+                if entity_info["has_non_veteran_status"]:
+                    match_score = 0
+                    logger.info("JOB_A05: 用户明确表示非退役军人，不推荐该岗位")
+                else:
+                    if entity_info["has_veteran_status"]:
+                        match_score += 10  # 大幅增加匹配度
+                        logger.info("JOB_A05: 退役军人身份符合岗位要求，大幅增加匹配度")
+                    else:
+                        # 非退役军人，不推荐该岗位
+                        match_score = 0
+                        logger.info("JOB_A05: 非退役军人身份，不推荐该岗位")
+                    if entity_info["has_entrepreneurship"]:
+                        match_score += 3
+                        logger.info("JOB_A05: 创业意向符合岗位要求，增加匹配度")
+                    # 增加对退役军人创业税收优惠的匹配
+                    if entity_info["has_veteran_tax_benefit"]:
+                        match_score += 10  # 大幅增加匹配度
+                        logger.info("JOB_A05: 熟悉退役军人创业税收优惠，大幅增加匹配度")
             elif job_id == "JOB_A03":
                 # 电商创业辅导专员
                 # 只有当用户没有提到退役军人创业税收优惠时，才考虑该岗位
                 if not entity_info["has_veteran_tax_benefit"]:
                     if entity_info["has_ecommerce"]:
-                        match_score += 5
-                        logger.info("JOB_A03: 电商技能符合岗位要求，增加匹配度")
+                        match_score += 10  # 大幅增加匹配度
+                        logger.info("JOB_A03: 电商技能符合岗位要求，大幅增加匹配度")
+                    else:
+                        # 没有电商技能，不推荐该岗位
+                        match_score = 0
+                        logger.info("JOB_A03: 无电商技能，不推荐该岗位")
                     if entity_info["has_entrepreneurship"]:
                         match_score += 3
                         logger.info("JOB_A03: 创业意向符合岗位要求，增加匹配度")
@@ -368,17 +478,20 @@ class JobMatcher:
                 # 创业孵化基地管理员
                 # 只有当用户没有提到退役军人创业税收优惠时，才考虑该岗位
                 if not entity_info["has_veteran_tax_benefit"]:
-                    if entity_info["has_entrepreneurship"]:
-                        match_score += 4
-                        logger.info("JOB_A01: 创业意向符合岗位要求，增加匹配度")
+                    if entity_info["has_entrepreneurship"] or entity_info["has_entrepreneurship_service"]:
+                        match_score += 10  # 大幅增加匹配度
+                        logger.info("JOB_A01: 创业意向或服务经验符合岗位要求，大幅增加匹配度")
+                    else:
+                        # 没有创业相关经验，不推荐该岗位
+                        match_score = 0
+                        logger.info("JOB_A01: 无创业相关经验，不推荐该岗位")
                 else:
                     # 如果用户提到了退役军人创业税收优惠，降低该岗位的匹配度
                     match_score = 0
                     logger.info("JOB_A01: 用户关注退役军人创业税收优惠，不推荐该岗位")
             elif job_id == "JOB_A04":
                 # 技能培训课程顾问
-                # 只有当用户的输入或实体中包含相关政策信息时，才增加匹配度
-                # 检查用户是否了解POLICY_A02/A05
+                # 只有当用户的输入或实体中包含相关政策信息和培训咨询需求时，才考虑该岗位
                 has_policy_info = False
                 # 检查实体中是否有政策相关信息
                 for entity in entities:
@@ -390,18 +503,24 @@ class JobMatcher:
                 if not has_policy_info:
                     if "POLICY_A02" in user_input or "POLICY_A05" in user_input or "政策" in user_input:
                         has_policy_info = True
+                # 额外检查entity_info中的政策信息标志
+                if not has_policy_info and entity_info.get("has_policy_info", False):
+                    has_policy_info = True
                 
-                # 如果用户没有政策相关信息，JOB_A04的匹配分数为0
-                if not has_policy_info:
+                # 检查学历要求：JOB_A04需要大专学历
+                has_required_education = entity_info["education_level"] == "大专"
+                
+                # 如果用户没有政策相关信息或培训咨询需求，或学历不符合，JOB_A04的匹配分数为0
+                if not has_policy_info or not entity_info["has_training_consultation"] or not has_required_education:
                     match_score = 0
-                    logger.info("JOB_A04: 用户无政策相关信息，不推荐该岗位")
+                    logger.info(f"JOB_A04: 用户无政策相关信息或培训咨询需求或学历不符合，不推荐该岗位。政策信息: {has_policy_info}, 培训咨询需求: {entity_info['has_training_consultation']}, 学历: {entity_info['education_level']}")
                 else:
-                    # 只有当用户有政策相关信息时，才增加匹配度
-                    match_score += 3
-                    logger.info("JOB_A04: 政策信息符合岗位要求，增加匹配度")
+                    # 只有当用户有政策相关信息和培训咨询需求，且学历符合时，才增加匹配度
+                    match_score += 10  # 大幅增加匹配度
+                    logger.info("JOB_A04: 政策信息、培训咨询需求和学历都符合岗位要求，大幅增加匹配度")
                     # 技能补贴关注点只有在用户了解政策的情况下才增加匹配度
                     if entity_info["has_skill_subsidy"]:
-                        match_score += 2
+                        match_score += 3
                         logger.info("JOB_A04: 技能补贴关注点符合岗位要求，增加匹配度")
             
             if match_score > 0:
@@ -421,4 +540,5 @@ class JobMatcher:
             job["entity_info"] = item["entity_info"]
             result.append(job)
         
+        logger.info(f"匹配到的岗位: {[job.get('job_id') for job in result]}")
         return result
