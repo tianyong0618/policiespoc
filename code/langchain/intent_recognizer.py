@@ -88,6 +88,15 @@ class IntentRecognizer:
             if isinstance(content, dict):
                 result_json = content
             else:
+                # 移除Markdown代码块标记
+                if isinstance(content, str):
+                    # 移除开头的```json和结尾的```
+                    content = content.strip()
+                    if content.startswith('```json'):
+                        content = content[7:]
+                    if content.endswith('```'):
+                        content = content[:-3]
+                    content = content.strip()
                 result_json = json.loads(content)
                 
             return {

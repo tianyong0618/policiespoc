@@ -66,17 +66,41 @@ class PolicyRetriever:
             if entity_type == 'employment_status' and ('退役军人' in entity_value):
                 has_veteran_entity = True
             elif entity_type == 'employment_status' and ('返乡农民工' in entity_value or '农民工' in entity_value or '返乡' in entity_value):
-                has_migrant_entity = True
+                # 避免因为用户提到"返乡创业补贴"政策名称而错误识别为返乡农民工
+                if "返乡创业补贴" not in entity_value:
+                    has_migrant_entity = True
         
         has_certificate = "电工证" in user_input_str or "证书" in user_input_str
         is_unemployed = "失业" in user_input_str
+        # 检查用户是否是在职人员
+        is_employed = "在职" in user_input_str or "工作" in user_input_str
         # 检查用户是否明确提到自己是返乡农民工
-        has_return_home = ("返乡农民工" in user_input_str or 
-                         ("我是" in user_input_str and ("返乡" in user_input_str or "农民工" in user_input_str)) or
-                         ("是" in user_input_str and ("返乡" in user_input_str or "农民工" in user_input_str)) or
-                         ("返乡" in user_input_str and "农民工" in user_input_str) or
-                         ("回来" in user_input_str and "农民工" in user_input_str) or
-                         has_migrant_entity)
+        # 注意：避免因为用户提到"返乡创业补贴"政策名称而错误识别
+        has_return_home = False
+        
+        # 首先检查用户是否是在职人员，如果是，直接不识别为返乡人员
+        if not is_employed:
+            # 检查用户是否只是提到政策名称，而不是自己的身份
+            mentions_policy_only = "返乡创业补贴" in user_input_str
+            mentions_identity = "返乡农民工" in user_input_str or ("返乡" in user_input_str and "农民工" in user_input_str)
+            
+            # 如果用户只是提到政策名称，而没有提到自己的身份，不识别为返乡人员
+            if not (mentions_policy_only and not mentions_identity):
+                # 检查用户是否明确表示自己是返乡农民工
+                explicitly_mentions_identity = (
+                    "返乡农民工" in user_input_str or
+                    ("我是" in user_input_str and "返乡" in user_input_str and "农民工" in user_input_str) or
+                    ("是" in user_input_str and "返乡" in user_input_str and "农民工" in user_input_str) or
+                    ("返乡" in user_input_str and "农民工" in user_input_str) or
+                    ("回来" in user_input_str and "农民工" in user_input_str)
+                )
+                
+                # 检查实体中是否包含返乡农民工
+                has_migrant_entity_check = has_migrant_entity
+                
+                # 只有明确提到自己是返乡农民工，才识别为返乡人员
+                if explicitly_mentions_identity or has_migrant_entity_check:
+                    has_return_home = True
         has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str
         has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
         has_veteran = ("退役军人" in user_input_str or 
@@ -85,7 +109,7 @@ class PolicyRetriever:
                       has_veteran_entity)
         has_individual_business = "个体经营" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "维修店" in user_input_str or "经营" in user_input_str
         
-        logger.info(f"用户条件检测: 证书={has_certificate}, 失业={is_unemployed}, 返乡={has_return_home}, 创业={has_entrepreneurship}, 孵化基地={has_incubator}, 退役军人={has_veteran}, 个体经营={has_individual_business}")
+        logger.info(f"用户条件检测: 证书={has_certificate}, 失业={is_unemployed}, 在职={is_employed}, 返乡={has_return_home}, 创业={has_entrepreneurship}, 孵化基地={has_incubator}, 退役军人={has_veteran}, 个体经营={has_individual_business}")
         
         # 逐个检查政策是否符合用户条件
         for policy in self.policies:
@@ -106,7 +130,8 @@ class PolicyRetriever:
             
             elif policy_id == "POLICY_A03":  # 返乡创业扶持补贴政策
                 # 条件：返乡人员，创办小微企业，经营满1年，带动3人以上就业
-                if has_return_home and has_entrepreneurship:
+                logger.info(f"检查POLICY_A03条件: has_return_home={has_return_home}, has_entrepreneurship={has_entrepreneurship}, is_employed={is_employed}")
+                if has_return_home and has_entrepreneurship and not is_employed:
                     # 检查是否提到带动就业
                     has_employment = "带动就业" in user_input_str or "就业" in user_input_str
                     if has_employment:
@@ -116,6 +141,8 @@ class PolicyRetriever:
                         # 用户未提带动就业，但仍将政策加入相关列表，后续在展示时指出缺失条件
                         is_eligible = True
                         logger.info(f"用户符合 {policy_id} 基本条件，但未提带动就业，需指出缺失条件")
+                else:
+                    logger.info(f"用户不符合 {policy_id} 条件: 返乡={has_return_home}, 创业={has_entrepreneurship}, 在职={is_employed}")
             
             elif policy_id == "POLICY_A04":  # 创业场地租金补贴政策
                 # 条件：入驻创业孵化基地
@@ -124,22 +151,25 @@ class PolicyRetriever:
                     logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地")
             
             elif policy_id == "POLICY_A01":  # 创业担保贷款贴息政策
-                # 条件：返乡农民工或退役军人 + 创业需求
-                if (has_return_home or has_veteran) and has_entrepreneurship:
+                # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）+ 创业需求
+                if (has_return_home or has_veteran) and has_entrepreneurship and not is_employed:
                     is_eligible = True
                     logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人且有创业需求")
                 else:
                     # 检查实体中是否有返乡农民工或退役军人
                     has_relevant_entity = False
                     for entity in entities:
-                        if entity.get('type') == 'employment_status' and ('返乡农民工' in entity.get('value', '') or '退役军人' in entity.get('value', '')):
-                            has_relevant_entity = True
-                            break
-                    if has_relevant_entity and has_entrepreneurship:
+                        entity_value = entity.get('value', '')
+                        # 避免因为用户提到"返乡创业补贴"政策名称而错误识别
+                        if "返乡创业补贴" not in entity_value:
+                            if entity.get('type') == 'employment_status' and ('返乡农民工' in entity_value or '退役军人' in entity_value):
+                                has_relevant_entity = True
+                                break
+                    if has_relevant_entity and has_entrepreneurship and not is_employed:
                         is_eligible = True
                         logger.info(f"用户符合 {policy_id} 条件: 实体中包含返乡农民工或退役军人且有创业需求")
                     else:
-                        logger.info(f"用户不符合 {policy_id} 条件: 未提及返乡农民工或退役军人身份或创业需求")
+                        logger.info(f"用户不符合 {policy_id} 条件: 未提及返乡农民工或退役军人身份或创业需求，或为在职人员")
             
             elif policy_id == "POLICY_A05":  # 技能培训生活费补贴政策
                 # 条件：脱贫人口、低保家庭成员、残疾人等

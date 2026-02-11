@@ -13,7 +13,7 @@
         "POLICY_A03"
       ],
       "passed": true,
-      "execution_time": 42.87975764274597
+      "execution_time": 44.77308106422424
     },
     {
       "id": "S1-002",
@@ -26,7 +26,7 @@
         "POLICY_A04"
       ],
       "passed": true,
-      "execution_time": 23.549383878707886
+      "execution_time": 20.579056978225708
     },
     {
       "id": "S1-003",
@@ -39,7 +39,7 @@
         "POLICY_A02"
       ],
       "passed": true,
-      "execution_time": 75.80244493484497
+      "execution_time": 78.95895504951477
     },
     {
       "id": "S1-004",
@@ -52,7 +52,7 @@
         "POLICY_A05"
       ],
       "passed": true,
-      "execution_time": 21.278934001922607
+      "execution_time": 41.88000178337097
     },
     {
       "id": "S1-005",
@@ -65,7 +65,7 @@
         "POLICY_A06"
       ],
       "passed": true,
-      "execution_time": 22.223881006240845
+      "execution_time": 31.89431667327881
     },
     {
       "id": "S1-006",
@@ -77,14 +77,14 @@
         "POLICY_A03"
       ],
       "passed": false,
-      "execution_time": 39.53913998603821
+      "execution_time": 33.58765912055969
     }
   ],
   "summary": {
     "total_cases": 6,
     "passed_count": 5,
     "pass_rate": 83.33333333333334,
-    "average_time": 37.545590241750084,
-    "total_time": 225.2735414505005
+    "average_time": 41.9455117781957,
+    "total_time": 251.6730706691742
   }
 }
