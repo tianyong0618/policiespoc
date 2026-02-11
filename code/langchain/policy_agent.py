@@ -4,7 +4,7 @@ import time
 import logging
 from .chatbot import ChatBot
 from .job_matcher import JobMatcher
-from .course_matcher import CourseMatcher
+
 from .user_profile import UserProfileManager
 
 # 配置日志
@@ -23,8 +23,6 @@ class PolicyAgent:
         self.llm_cache = {}
         # 初始化岗位匹配器
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
-        # 初始化课程匹配器
-        self.course_matcher = CourseMatcher()
         # 初始化用户画像管理器
         self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
     
@@ -260,7 +258,7 @@ class PolicyAgent:
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条符合条件的政策: {[p['policy_id'] for p in relevant_policies]}")
         return relevant_policies if relevant_policies else []
     
-    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None, recommended_courses=None):
+    def generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
         """生成结构化回答"""
         # 优化：只发送前3条最相关的政策，减少输入长度
         relevant_policies = relevant_policies[:3]
@@ -293,41 +291,6 @@ class PolicyAgent:
                 simplified_jobs.append(simplified_job)
             jobs_str = f"\n相关推荐岗位:\n{json.dumps(simplified_jobs, ensure_ascii=False, separators=(',', ':'))}\n"
         
-        # 推荐课程信息
-        courses_str = ""
-        if recommended_courses:
-            simplified_courses = []
-            for course in recommended_courses:
-                simplified_course = {
-                    "course_id": course.get("course_id", ""),
-                    "title": course.get("title", ""),
-                    "category": course.get("category", ""),
-                    "conditions": course.get("conditions", []),
-                    "benefits": course.get("benefits", []),
-                    "duration": course.get("duration", ""),
-                    "difficulty": course.get("difficulty", "")
-                }
-                simplified_courses.append(simplified_course)
-            courses_str = f"\n相关推荐课程:\n{json.dumps(simplified_courses, ensure_ascii=False, separators=(',', ':'))}\n"
-            
-            # 场景四特殊处理：添加课程+补贴打包方案和成长路径
-            if "培训课程智能匹配" in scenario_type and recommended_courses:
-                # 查找POLICY_A02
-                policy_a02 = None
-                for policy in relevant_policies:
-                    if policy.get("policy_id") == "POLICY_A02":
-                        policy_a02 = policy
-                        break
-                
-                if policy_a02:
-                    # 生成课程+补贴打包方案
-                    course_package = self.course_matcher.get_course_package(recommended_courses, policy_a02)
-                    courses_str += f"\n课程+补贴打包方案:\n{json.dumps(course_package, ensure_ascii=False, separators=(',', ':'))}\n"
-                    
-                    # 生成成长路径
-                    growth_path = self.course_matcher.generate_growth_path(recommended_courses)
-                    courses_str += f"\n成长路径:\n{json.dumps(growth_path, ensure_ascii=False, separators=(',', ':'))}\n"
-
         # 用户画像信息
         user_profile_str = ""
         if matched_user:
@@ -388,7 +351,7 @@ class PolicyAgent:
         prompt += """
 
 """
-        prompt += courses_str
+
         prompt += """
 
 请根据以上信息，按照以下指令生成回答：
@@ -476,29 +439,10 @@ class PolicyAgent:
                     unique_jobs.append(job)
             recommended_jobs = unique_jobs[:3]  # 最多返回3个岗位
         
-        # 4. 生成课程推荐
-        recommended_courses = []
-        # 基于政策关联课程
-        for policy in relevant_policies:
-            policy_id = policy.get("policy_id")
-            # 简单示例：基于政策ID匹配课程
-            if policy_id == "POLICY_A02":  # 技能提升补贴政策
-                # 匹配相关课程
-                matched_courses = self.course_matcher.match_courses_by_policy(policy_id)
-                recommended_courses.extend(matched_courses)
-        
-        # 去重
-        seen_course_ids = set()
-        unique_courses = []
-        for course in recommended_courses:
-            course_id = course.get("course_id")
-            if course_id not in seen_course_ids:
-                seen_course_ids.add(course_id)
-                unique_courses.append(course)
-        recommended_courses = unique_courses[:3]  # 最多返回3个课程
+
         
         # 5. 生成回答
-        response = self.generate_response(user_input, relevant_policies, "通用场景", recommended_jobs=recommended_jobs, recommended_courses=recommended_courses)
+        response = self.generate_response(user_input, relevant_policies, "通用场景", recommended_jobs=recommended_jobs)
         
         end_time = time.time()
         execution_time = end_time - start_time
@@ -521,11 +465,7 @@ class PolicyAgent:
                 "content": f"生成 {len(recommended_jobs)} 个岗位推荐",
                 "status": "completed"
             },
-            {
-                "step": "课程推荐",
-                "content": f"生成 {len(recommended_courses)} 个课程推荐",
-                "status": "completed"
-            },
+
             {
                 "step": "回答生成",
                 "content": "基于检索结果生成结构化回答",
@@ -539,8 +479,7 @@ class PolicyAgent:
             "response": response,
             "execution_time": execution_time,
             "thinking_process": thinking_process,
-            "recommended_jobs": recommended_jobs,
-            "recommended_courses": recommended_courses
+            "recommended_jobs": recommended_jobs
         }
     
     def evaluate_response(self, user_input, response):
@@ -1714,8 +1653,6 @@ class PolicyAgent:
 
         # 生成岗位推荐
         recommended_jobs = []
-        # 生成课程推荐
-        recommended_courses = []
         # 直接根据用户输入匹配岗位，而不是基于政策
         if intent_info.get("needs_job_recommendation", False) or "技能培训岗位个性化推荐" in user_input:
             # 1. 直接根据用户输入信息匹配岗位
@@ -1738,33 +1675,16 @@ class PolicyAgent:
                     unique_jobs.append(job)
             recommended_jobs = unique_jobs[:3]  # 最多返回3个岗位
         
-        # 基于政策匹配课程
-        for policy in self.policies:
-            policy_id = policy.get("policy_id")
-            policy_courses = self.course_matcher.match_courses_by_policy(policy_id)
-            recommended_courses.extend(policy_courses)
-        
-        # 去重
-        seen_course_ids = set()
-        unique_courses = []
-        for course in recommended_courses:
-            course_id = course.get("course_id")
-            if course_id not in seen_course_ids:
-                seen_course_ids.add(course_id)
-                unique_courses.append(course)
-        recommended_courses = unique_courses[:3]  # 最多返回3个课程
-        
         # 检索相关政策
         relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info.get("entities", []), user_input)
         
         # 生成回答
-        response = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs, recommended_courses)
+        response = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs)
         
         return {
             "intent": intent_info,
             "relevant_policies": relevant_policies,  # 返回匹配的政策
             "response": response,
             "recommended_jobs": recommended_jobs,
-            "recommended_courses": recommended_courses,
             "matched_user": matched_user
         }

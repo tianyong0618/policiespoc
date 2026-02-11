@@ -6,6 +6,9 @@ const API_BASE_URL = (() => {
   return isLocal ? 'http://127.0.0.1:8000/api' : '/api';
 })();
 
+// 版本号，用于强制刷新缓存
+const APP_VERSION = '1.0.1';
+
 // 全局状态
 let currentSessionId = null;
 let eventSource = null;

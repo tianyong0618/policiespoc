@@ -2,7 +2,7 @@ import json
 import os
 import logging
 from .job_matcher import JobMatcher
-from .course_matcher import CourseMatcher
+
 from .user_profile import UserProfileManager
 from .chatbot import ChatBot
 
@@ -21,7 +21,6 @@ class PolicyRetriever:
         self._policies_loaded = False
         self.policies = self.pr_load_policies()
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
-        self.course_matcher = course_matcher if course_matcher else CourseMatcher()
         self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
         self.chatbot = ChatBot()
     
@@ -234,38 +233,11 @@ class PolicyRetriever:
             logger.info("用户需要政策推荐，开始处理")
             relevant_policies = self.pr_retrieve_policies(intent_info["intent"], intent_info["entities"], user_input)
         
-        # 3. 生成课程推荐（仅当用户需要时）
-        recommended_courses = []
-        if needs_course_recommendation:
-            logger.info("用户需要课程推荐，开始处理")
-            # 直接基于用户输入和实体匹配课程，不依赖政策
-            entities = intent_info.get("entities", [])
-            logger.info(f"使用实体信息匹配课程: {entities}")
-            
-            # 基于用户输入和实体匹配课程
-            matched_courses = self.course_matcher.match_courses_by_user_input(user_input, entities)
-            recommended_courses.extend(matched_courses)
-            
-            # 使用改进的推荐算法，基于实体信息进行排序
-            recommended_courses = self.course_matcher.recommend_courses(user_input, None, entities)
-            
-            # 去重
-            seen_course_ids = set()
-            unique_courses = []
-            for course in recommended_courses:
-                course_id = course.get("course_id")
-                if course_id not in seen_course_ids:
-                    seen_course_ids.add(course_id)
-                    unique_courses.append(course)
-            
-            # 限制课程数量
-            recommended_courses = unique_courses[:3]
-            logger.info(f"生成了 {len(recommended_courses)} 个课程推荐: {[course['course_id'] for course in recommended_courses]}")
+
         
         return {
             "relevant_policies": relevant_policies,
-            "recommended_jobs": recommended_jobs,
-            "recommended_courses": recommended_courses
+            "recommended_jobs": recommended_jobs
         }
     
     def pr_analyze_input(self, user_input, conversation_history=None):
@@ -291,10 +263,9 @@ class PolicyRetriever:
         # 2. 获取所有数据
         all_policies = self.policies
         all_jobs = self.job_matcher.get_all_jobs()
-        all_courses = self.course_matcher.get_all_courses()
         
         # 3. 构建分析Prompt
-        prompt = self.pr_build_analysis_prompt(user_input, matched_user, all_policies, all_jobs, all_courses)
+        prompt = self.pr_build_analysis_prompt(user_input, matched_user, all_policies, all_jobs)
         
         # 4. 调用LLM进行分析
         llm_response = self.chatbot.chat_with_memory(prompt)
@@ -317,10 +288,10 @@ class PolicyRetriever:
                 "error": str(e)
             }
     
-    def pr_build_analysis_prompt(self, user_input, matched_user, all_policies, all_jobs, all_courses):
+    def pr_build_analysis_prompt(self, user_input, matched_user, all_policies, all_jobs):
         """构建分析Prompt"""
         prompt = f"""
-你是一个专业的政策咨询助手，负责根据用户输入和提供的政策、岗位、课程信息，生成结构化的分析结果。
+你是一个专业的政策咨询助手，负责根据用户输入和提供的政策、岗位信息，生成结构化的分析结果。
 
 用户输入: {user_input}
 
@@ -338,10 +309,8 @@ class PolicyRetriever:
         for job in all_jobs[:5]:  # 只使用前5个岗位，避免输入过长
             prompt += f"- {job.get('job_id')}: {job.get('title')}\n"
         
-        prompt += "\n相关课程:\n"
-        for course in all_courses[:5]:  # 只使用前5个课程，避免输入过长
-            prompt += f"- {course.get('course_id')}: {course.get('title')} (分类: {course.get('category')})\n"
+
         
-        prompt += "\n请根据以上信息，生成结构化的分析结果，包括：\n1. 识别用户的核心需求\n2. 匹配相关的政策、岗位和课程\n3. 提供具体的建议和下一步行动\n\n输出格式为JSON，包含以下字段：\n{\n  \"core_needs\": [\"核心需求1\", \"核心需求2\", ...],\n  \"matched_policies\": [{\"policy_id\": \"政策ID\", \"title\": \"政策标题\", \"relevance\": \"相关性\"}, ...],\n  \"matched_jobs\": [{\"job_id\": \"岗位ID\", \"title\": \"岗位标题\", \"relevance\": \"相关性\"}, ...],\n  \"matched_courses\": [{\"course_id\": \"课程ID\", \"title\": \"课程标题\", \"relevance\": \"相关性\"}, ...],\n  \"suggestions\": [\"建议1\", \"建议2\", ...]\n}\n"
+        prompt += "\n请根据以上信息，生成结构化的分析结果，包括：\n1. 识别用户的核心需求\n2. 匹配相关的政策和岗位\n3. 提供具体的建议和下一步行动\n\n输出格式为JSON，包含以下字段：\n{\n  \"core_needs\": [\"核心需求1\", \"核心需求2\", ...],\n  \"matched_policies\": [{\"policy_id\": \"政策ID\", \"title\": \"政策标题\", \"relevance\": \"相关性\"}, ...],\n  \"matched_jobs\": [{\"job_id\": \"岗位ID\", \"title\": \"岗位标题\", \"relevance\": \"相关性\"}, ...],\n  \"suggestions\": [\"建议1\", \"建议2\", ...]\n}\n"
         
         return prompt

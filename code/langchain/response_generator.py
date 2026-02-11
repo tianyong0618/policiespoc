@@ -70,7 +70,7 @@ class ResponseGenerator:
         
         return policy_job_mapping
     
-    def rg_generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None, recommended_courses=None):
+    def rg_generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
         """生成结构化回答"""
         # 优化：只发送前3条最相关的政策，减少输入长度
         relevant_policies = relevant_policies[:3]
@@ -109,22 +109,7 @@ class ResponseGenerator:
                 simplified_jobs.append(simplified_job)
             jobs_str = f"\n相关推荐岗位:\n{json.dumps(simplified_jobs, ensure_ascii=False, separators=(',', ':'))}\n"
         
-        # 推荐课程信息
-        courses_str = ""
-        if recommended_courses:
-            simplified_courses = []
-            for course in recommended_courses:
-                simplified_course = {
-                    "course_id": course.get("course_id", ""),
-                    "title": course.get("title", ""),
-                    "category": course.get("category", ""),
-                    "conditions": course.get("conditions", []),
-                    "benefits": course.get("benefits", []),
-                    "duration": course.get("duration", ""),
-                    "difficulty": course.get("difficulty", "")
-                }
-                simplified_courses.append(simplified_course)
-            courses_str = f"\n相关推荐课程:\n{json.dumps(simplified_courses, ensure_ascii=False, separators=(',', ':'))}\n"
+
         
         # 用户画像信息
         user_profile_str = ""
@@ -189,8 +174,6 @@ class ResponseGenerator:
             prompt += "\n"
             prompt += jobs_str
             prompt += "\n"
-            prompt += courses_str
-            prompt += "\n"
             prompt += "请根据以上信息，按照以下指令生成回答：\n"
             prompt += base_instructions
             prompt += "\n"
@@ -235,8 +218,6 @@ class ResponseGenerator:
             prompt += "\n"
             prompt += jobs_str
             prompt += "\n"
-            prompt += courses_str
-            prompt += "\n"
             prompt += "请根据以上信息，按照以下指令生成回答：\n"
             prompt += "1. 由于用户没有提供个人信息，无法判断是否符合政策条件，因此只需要提供详细的政策分析。\n"
             prompt += "2. 对于每个相关政策，都要提供详细的分析，包括政策内容、申请条件和申请路径。\n"
@@ -280,38 +261,8 @@ class ResponseGenerator:
                 logger.info(f"大模型返回的回答结果: {str(content)[:100]}...")
         
         # 根据不同场景生成相应的主动建议
-        # 1. 如果有推荐课程，生成成长路径建议
-        if recommended_courses:
-            suggestions = "勾勒清晰成长路径："
-            # 分析推荐课程的信息
-            course_info = []
-            for course in recommended_courses:
-                course_title = course.get('title', '')
-                course_category = course.get('category', '')
-                course_duration = course.get('duration', '')
-                course_benefits = course.get('benefits', [])
-                
-                # 生成学习内容
-                suggestions += f"1. 学习内容：{course_title}（{course_category}），"
-                if course_duration:
-                    suggestions += f"学习时长{course_duration}，"
-                if course_benefits:
-                    suggestions += "主要收获："
-                    for benefit in course_benefits[:2]:
-                        suggestions += f"{benefit}、"
-                    suggestions = suggestions.rstrip('、') + "；"
-                else:
-                    suggestions += "系统学习相关专业知识和技能；"
-                
-                # 生成就业前景
-                suggestions += "2. 就业前景：通过该课程学习后，可从事相关领域的专业岗位，如与课程内容相关的技术或管理岗位；"
-                
-                # 生成最高成就
-                suggestions += "3. 最高成就：获得相关专业认证或资格证书，提升职业竞争力，实现职业发展目标。"
-                break  # 只使用第一个推荐课程生成建议
-        
-        # 2. 如果有推荐岗位，生成简历优化方案建议（优先于政策推荐）
-        elif recommended_jobs:
+        # 1. 如果有推荐岗位，生成简历优化方案建议（优先于政策推荐）
+        if recommended_jobs:
             suggestions = "简历优化方案："
             # 分析推荐岗位的要求和特点
             job_requirements = []
