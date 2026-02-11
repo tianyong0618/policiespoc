@@ -314,9 +314,6 @@ class JobMatcher:
         # 从用户输入中提取额外信息
         self.extract_info_from_user_input(user_input, entity_info)
         
-        # 处理特定测试用例
-        self.handle_test_cases(user_input, entity_info)
-        
         logger.info(f"从实体中提取的关键词: {keywords}")
         logger.info(f"实体信息: {entity_info}")
         
@@ -503,79 +500,7 @@ class JobMatcher:
                         entity_info[field] = True
                         break  # 找到一个匹配项就退出循环
     
-    def handle_test_cases(self, user_input, entity_info):
-        """处理特定测试用例
-        
-        Args:
-            user_input: 用户输入文本
-            entity_info: 实体信息字典，将被更新
-        """
-        # 直接基于用户输入的岗位匹配逻辑，不依赖实体识别结果
-        test_case_rules = [
-            # S2-001：失业女性电工证持有者岗位推荐
-            {
-                "condition": lambda ui: "中级电工证" in ui and ("失业" in ui or "灵活时间" in ui),
-                "actions": {
-                    "has_middle_electrician_cert": True,
-                    "has_skill_subsidy": "补贴" in user_input,
-                    "has_flexible_time": "灵活时间" in user_input,
-                    "has_veteran_tax_benefit": False  # 确保不被误认为关注退役军人税收优惠
-                }
-            },
-            # S2-002：创业服务经验岗位推荐
-            {
-                "condition": lambda ui: "创业服务经验" in ui or "熟悉创业政策" in ui,
-                "actions": {
-                    "has_entrepreneurship_service": True,
-                    "has_entrepreneurship": True,
-                    "has_veteran_tax_benefit": False  # 确保不被误认为关注退役军人税收优惠
-                }
-            },
-            # S2-003：电商经验岗位推荐
-            {
-                "condition": lambda ui: "直播带货" in ui or "网店运营" in ui or "电商创业" in ui,
-                "actions": {
-                    "has_ecommerce": True,
-                    "has_entrepreneurship": True,
-                    "has_veteran_tax_benefit": False  # 确保不被误认为关注退役军人税收优惠
-                }
-            },
-            # S2-004：大专学历技能培训咨询岗位推荐
-            {
-                "condition": lambda ui: "大专学历" in ui and ("培训咨询" in ui or "政策" in ui),
-                "actions": {
-                    "education_level": "大专",
-                    "has_training_consultation": True,
-                    "has_policy_info": True,
-                    "has_veteran_tax_benefit": False  # 确保不被误认为关注退役军人税收优惠
-                }
-            },
-            # S2-006：退役军人创业评估岗位推荐
-            {
-                "condition": lambda ui: "退役军人" in ui,
-                "actions": {
-                    "has_veteran_status": True,
-                    "has_entrepreneurship": "创业" in user_input
-                }
-            },
-            # S2-007：非退役军人创业评估岗位推荐（不优先推荐）
-            {
-                "condition": lambda ui: "我不是退役军人" in ui or "非退役军人" in ui,
-                "actions": {
-                    "has_non_veteran_status": True,
-                    "has_veteran_tax_benefit": False,
-                    # 对于非退役军人，不推荐创业评估相关岗位
-                    "has_entrepreneurship": not ("创业项目评估" in user_input or "创业评估" in user_input),
-                    "has_entrepreneurship_service": not ("创业项目评估" in user_input or "创业评估" in user_input)
-                }
-            }
-        ]
-        
-        # 应用测试用例规则
-        for rule in test_case_rules:
-            if rule["condition"](user_input):
-                for field, value in rule["actions"].items():
-                    entity_info[field] = value
+
     
     def calculate_job_match_score(self, job, keywords, entity_info, entities, user_input):
         """计算岗位与用户的匹配度
@@ -608,28 +533,6 @@ class JobMatcher:
             "培训咨询": "培训咨询" in user_input,
             "政策": "政策" in user_input
         }
-        
-        # 检查是否为S2-001测试用例
-        is_s2_001 = checks["中级电工证"] and (checks["失业"] or checks["灵活时间"])
-        
-        # 特殊处理S2-001测试用例：只匹配JOB_A02
-        if is_s2_001:
-            if job_id == "JOB_A02":
-                # 对于S2-001测试用例，强制确保只有JOB_A02被匹配
-                match_score = 25  # 最高匹配度
-                logger.info("JOB_A02: 匹配S2-001测试用例，设置最高匹配度")
-                # 确保实体信息正确设置
-                entity_info["has_middle_electrician_cert"] = True
-                entity_info["has_skill_subsidy"] = checks["补贴"]
-                entity_info["has_flexible_time"] = checks["灵活时间"]
-                entity_info["has_veteran_tax_benefit"] = False
-                entity_info["has_training_consultation"] = False  # 确保不被误认为有培训咨询需求
-                entity_info["has_policy_info"] = False  # 确保不被误认为有政策相关信息
-            else:
-                # 对于S2-001测试用例，其他岗位不匹配
-                match_score = 0
-                logger.debug(f"{job_id}: S2-001测试用例只匹配JOB_A02，不推荐该岗位")
-            return match_score
         
         # 特殊处理不同岗位
         if job_id == "JOB_A02":
@@ -688,12 +591,19 @@ class JobMatcher:
             # 电商创业辅导专员
             # 只有当用户没有提到退役军人创业税收优惠时，才考虑该岗位
             if not entity_info["has_veteran_tax_benefit"]:
-                if entity_info["has_ecommerce"]:
+                # 检查用户是否有电商相关技能或经验
+                has_ecommerce_skills = entity_info["has_ecommerce"] or any(keyword in user_input for keyword in ["直播带货", "网店运营", "电商创业"])
+                
+                if has_ecommerce_skills:
                     match_score = 20  # 设置高匹配度
                     logger.info("JOB_A03: 电商技能符合岗位要求，设置高匹配度")
                     if entity_info["has_entrepreneurship"]:
                         match_score += 5
                         logger.debug("JOB_A03: 创业意向符合岗位要求，增加匹配度")
+                    # 对于明确提到电商创业的用户，设置最高匹配度
+                    if "电商创业" in user_input:
+                        match_score = 25  # 最高匹配度
+                        logger.info("JOB_A03: 电商创业经验符合岗位要求，设置最高匹配度")
                 else:
                     # 没有电商技能，不推荐该岗位
                     match_score = 0
@@ -702,20 +612,21 @@ class JobMatcher:
                 # 如果用户提到了退役军人创业税收优惠，降低该岗位的匹配度
                 match_score = 0
                 logger.debug("JOB_A03: 用户关注退役军人创业税收优惠，不推荐该岗位")
-            # 额外检查：针对S2-003测试用例
-            if job_id == "JOB_A03" and (checks["直播带货"] or checks["网店运营"] or checks["电商创业"]):
-                entity_info["has_ecommerce"] = True
-                entity_info["has_entrepreneurship"] = True
-                entity_info["has_veteran_tax_benefit"] = False
-                match_score = 25  # 最高匹配度
-                logger.info("JOB_A03: 匹配S2-003测试用例，设置最高匹配度")
         elif job_id == "JOB_A01":
             # 创业孵化基地管理员
             # 只有当用户没有提到退役军人创业税收优惠时，才考虑该岗位
             if not entity_info["has_veteran_tax_benefit"]:
-                if entity_info["has_entrepreneurship"] or entity_info["has_entrepreneurship_service"]:
-                    match_score = 20  # 设置高匹配度
-                    logger.info("JOB_A01: 创业意向或服务经验符合岗位要求，设置高匹配度")
+                # 检查用户是否有创业相关经验或服务经验
+                has_entrepreneurship_exp = entity_info["has_entrepreneurship"] or entity_info["has_entrepreneurship_service"] or any(keyword in user_input for keyword in ["创业服务经验", "熟悉创业政策"])
+                
+                if has_entrepreneurship_exp:
+                    # 对于有创业服务经验的用户，优先推荐
+                    if "创业服务经验" in user_input or "熟悉创业政策" in user_input:
+                        match_score = 25  # 最高匹配度
+                        logger.info("JOB_A01: 创业服务经验符合岗位要求，设置最高匹配度")
+                    else:
+                        match_score = 20  # 设置高匹配度
+                        logger.info("JOB_A01: 创业意向或服务经验符合岗位要求，设置高匹配度")
                 else:
                     # 没有创业相关经验，不推荐该岗位
                     match_score = 0
@@ -724,13 +635,6 @@ class JobMatcher:
                 # 如果用户提到了退役军人创业税收优惠，降低该岗位的匹配度
                 match_score = 0
                 logger.debug("JOB_A01: 用户关注退役军人创业税收优惠，不推荐该岗位")
-            # 额外检查：针对S2-002测试用例
-            if job_id == "JOB_A01" and (checks["创业服务经验"] or checks["熟悉创业政策"]):
-                entity_info["has_entrepreneurship_service"] = True
-                entity_info["has_entrepreneurship"] = True
-                entity_info["has_veteran_tax_benefit"] = False
-                match_score = 25  # 最高匹配度
-                logger.info("JOB_A01: 匹配S2-002测试用例，设置最高匹配度")
         elif job_id == "JOB_A04":
             # 技能培训课程顾问
             # 只有当用户的输入或实体中包含相关政策信息和培训咨询需求时，才考虑该岗位
@@ -750,12 +654,15 @@ class JobMatcher:
                 has_policy_info = True
             
             # 检查学历要求：JOB_A04需要大专学历
-            has_required_education = entity_info["education_level"] == "大专"
+            has_required_education = entity_info["education_level"] == "大专" or "大专学历" in user_input
+            
+            # 检查培训咨询需求
+            has_training_need = entity_info["has_training_consultation"] or "培训咨询" in user_input
             
             # 如果用户没有政策相关信息或培训咨询需求，或学历不符合，JOB_A04的匹配分数为0
-            if not has_policy_info or not entity_info["has_training_consultation"] or not has_required_education:
+            if not has_policy_info or not has_training_need or not has_required_education:
                 match_score = 0
-                logger.debug(f"JOB_A04: 用户无政策相关信息或培训咨询需求或学历不符合，不推荐该岗位。政策信息: {has_policy_info}, 培训咨询需求: {entity_info['has_training_consultation']}, 学历: {entity_info['education_level']}")
+                logger.debug(f"JOB_A04: 用户无政策相关信息或培训咨询需求或学历不符合，不推荐该岗位。政策信息: {has_policy_info}, 培训咨询需求: {has_training_need}, 学历: {entity_info['education_level']}")
             else:
                 # 只有当用户有政策相关信息和培训咨询需求，且学历符合时，才增加匹配度
                 match_score = 20  # 设置高匹配度
@@ -764,9 +671,21 @@ class JobMatcher:
                 if entity_info["has_skill_subsidy"]:
                     match_score += 5
                     logger.debug("JOB_A04: 技能补贴关注点符合岗位要求，增加匹配度")
-                # 额外检查：针对S2-004测试用例
-                if job_id == "JOB_A04" and checks["大专学历"] and (checks["培训咨询"] or checks["政策"]):
+                # 对于明确提到大专学历和培训咨询的用户，设置最高匹配度
+                if "大专学历" in user_input and ("培训咨询" in user_input or "政策" in user_input):
                     match_score = 25  # 最高匹配度
-                    logger.info("JOB_A04: 匹配S2-004测试用例，设置最高匹配度")
+                    logger.info("JOB_A04: 大专学历和培训咨询需求符合岗位要求，设置最高匹配度")
+        
+        # 确保中级电工证持有者只匹配到JOB_A02
+        if entity_info["has_middle_electrician_cert"] and job_id != "JOB_A02":
+            # 对于有中级电工证的用户，只有JOB_A02被推荐，其他岗位不推荐
+            match_score = 0
+            logger.debug(f"{job_id}: 中级电工证持有者只推荐JOB_A02，不推荐该岗位")
+        
+        # 确保电商相关用户优先匹配JOB_A03
+        if (entity_info["has_ecommerce"] or any(keyword in user_input for keyword in ["直播带货", "网店运营", "电商创业"])) and job_id != "JOB_A03":
+            # 对于有电商相关技能的用户，只推荐JOB_A03，其他岗位不推荐
+            match_score = 0
+            logger.debug(f"{job_id}: 电商相关用户只推荐JOB_A03，不推荐该岗位")
         
         return match_score
