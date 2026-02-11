@@ -13,6 +13,62 @@ class ResponseGenerator:
     def __init__(self, chatbot=None):
         """初始化响应生成器"""
         self.chatbot = chatbot if chatbot else ChatBot()
+        
+        # 从jobs.json构建岗位名称映射
+        self.job_name_mapping = self._build_job_name_mapping()
+        
+        # 从jobs.json的policy_relations构建政策与岗位的映射关系
+        self.policy_job_mapping = self._build_policy_job_mapping()
+    
+    def _build_job_name_mapping(self):
+        """从jobs.json构建岗位名称映射"""
+        import json
+        import os
+        job_name_mapping = {}
+        
+        # 读取jobs.json文件
+        jobs_file = os.path.join(os.path.dirname(__file__), 'data', 'jobs.json')
+        try:
+            with open(jobs_file, 'r', encoding='utf-8') as f:
+                jobs = json.load(f)
+                for job in jobs:
+                    job_id = job.get('job_id')
+                    job_title = job.get('title')
+                    if job_id and job_title:
+                        job_name_mapping[job_id] = job_title
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"读取jobs.json失败: {e}")
+        
+        return job_name_mapping
+    
+    def _build_policy_job_mapping(self):
+        """从jobs.json的policy_relations构建政策与岗位的映射关系"""
+        import json
+        import os
+        policy_job_mapping = {}
+        
+        # 读取jobs.json文件
+        jobs_file = os.path.join(os.path.dirname(__file__), 'data', 'jobs.json')
+        try:
+            with open(jobs_file, 'r', encoding='utf-8') as f:
+                jobs = json.load(f)
+                for job in jobs:
+                    job_id = job.get('job_id')
+                    policy_relations = job.get('policy_relations', [])
+                    if job_id and policy_relations:
+                        for policy_id in policy_relations:
+                            if policy_id not in policy_job_mapping:
+                                policy_job_mapping[policy_id] = []
+                            if job_id not in policy_job_mapping[policy_id]:
+                                policy_job_mapping[policy_id].append(job_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"读取jobs.json失败: {e}")
+        
+        return policy_job_mapping
     
     def rg_generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None, recommended_courses=None):
         """生成结构化回答"""
@@ -308,8 +364,24 @@ class ResponseGenerator:
         # 3. 如果有推荐政策但没有推荐课程和岗位，生成申请路径建议
         elif relevant_policies:
             suggestions = "申请路径："
-            # 推荐联系相关岗位获取政策申请指导
-            suggestions += "推荐联系政策咨询岗位（JOB_A01），获取政策申请全程指导。"
+            # 根据符合条件的政策推荐对应的岗位
+            recommended_job_ids = set()
+            for policy in relevant_policies:
+                policy_id = policy.get('policy_id', '')
+                if policy_id in self.policy_job_mapping:
+                    recommended_job_ids.update(self.policy_job_mapping[policy_id])
+            
+            # 如果有推荐的岗位，生成对应的申请路径
+            if recommended_job_ids:
+                job_info = []
+                for job_id in recommended_job_ids:
+                    job_name = self.job_name_mapping.get(job_id, job_id)
+                    job_info.append(f"{job_name}（{job_id}）")
+                job_list = "、".join(job_info)
+                suggestions += f"推荐联系{job_list}，获取政策申请全程指导。"
+            else:
+                # 没有对应岗位时，推荐默认的政策咨询岗位
+                suggestions += "推荐联系创业孵化基地管理员（JOB_A01），获取政策申请全程指导。"
         
         # 4. 其他情况的通用建议
         else:
