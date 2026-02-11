@@ -19,13 +19,13 @@ class PolicyRetriever:
         # 缓存数据
         self._policies_cache = None
         self._policies_loaded = False
-        self.policies = self.load_policies()
+        self.policies = self.pr_load_policies()
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
         self.course_matcher = course_matcher if course_matcher else CourseMatcher()
         self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
         self.chatbot = ChatBot()
     
-    def load_policies(self):
+    def pr_load_policies(self):
         """加载政策数据（带缓存）"""
         if self._policies_loaded and self._policies_cache:
             return self._policies_cache
@@ -42,7 +42,7 @@ class PolicyRetriever:
             print(f"加载政策数据失败: {e}")
             return []
     
-    def retrieve_policies(self, intent, entities, original_input=None):
+    def pr_retrieve_policies(self, intent, entities, original_input=None):
         """检索相关政策"""
         relevant_policies = []
         logger.info(f"开始检索政策，意图: {intent}, 实体: {entities}")
@@ -194,7 +194,7 @@ class PolicyRetriever:
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条符合条件的政策: {[p['policy_id'] for p in relevant_policies]}")
         return relevant_policies if relevant_policies else []
     
-    def process_query(self, user_input, intent_info):
+    def pr_process_query(self, user_input, intent_info):
         """处理用户查询"""
         logger.info(f"处理用户查询: {user_input[:50]}...")
         
@@ -230,7 +230,7 @@ class PolicyRetriever:
         relevant_policies = []
         if needs_policy_recommendation:
             logger.info("用户需要政策推荐，开始处理")
-            relevant_policies = self.retrieve_policies(intent_info["intent"], intent_info["entities"], user_input)
+            relevant_policies = self.pr_retrieve_policies(intent_info["intent"], intent_info["entities"], user_input)
         
         # 3. 生成课程推荐（仅当用户需要时）
         recommended_courses = []
@@ -266,7 +266,7 @@ class PolicyRetriever:
             "recommended_courses": recommended_courses
         }
     
-    def analyze_input(self, user_input, conversation_history=None):
+    def pr_analyze_input(self, user_input, conversation_history=None):
         """分析用户输入，判断是否需要收集更多信息"""
         logger.info(f"分析用户输入: {user_input[:50]}...")
         
@@ -279,7 +279,7 @@ class PolicyRetriever:
             "needs_more_info": False
         }
     
-    def process_analysis(self, analysis_result, user_input, session_id=None):
+    def pr_process_analysis(self, analysis_result, user_input, session_id=None):
         """处理分析结果，生成最终回答"""
         logger.info(f"处理分析结果, session_id: {session_id}")
         
@@ -292,7 +292,7 @@ class PolicyRetriever:
         all_courses = self.course_matcher.get_all_courses()
         
         # 3. 构建分析Prompt
-        prompt = self.build_analysis_prompt(user_input, matched_user, all_policies, all_jobs, all_courses)
+        prompt = self.pr_build_analysis_prompt(user_input, matched_user, all_policies, all_jobs, all_courses)
         
         # 4. 调用LLM进行分析
         llm_response = self.chatbot.chat_with_memory(prompt)
@@ -315,7 +315,7 @@ class PolicyRetriever:
                 "error": str(e)
             }
     
-    def build_analysis_prompt(self, user_input, matched_user, all_policies, all_jobs, all_courses):
+    def pr_build_analysis_prompt(self, user_input, matched_user, all_policies, all_jobs, all_courses):
         """构建分析Prompt"""
         prompt = f"""
 你是一个专业的政策咨询助手，负责根据用户输入和提供的政策、岗位、课程信息，生成结构化的分析结果。

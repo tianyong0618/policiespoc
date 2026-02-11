@@ -94,7 +94,7 @@ class Orchestrator:
             }
         
         # 3. 检索相关政策和推荐
-        retrieve_result = self.policy_retriever.process_query(user_input, intent_info)
+        retrieve_result = self.policy_retriever.pr_process_query(user_input, intent_info)
         relevant_policies = retrieve_result["relevant_policies"]
         recommended_jobs = retrieve_result["recommended_jobs"]
         recommended_courses = retrieve_result["recommended_courses"]
@@ -862,7 +862,7 @@ class Orchestrator:
         intent_info = intent_result["result"]
         
         # 2. 检索相关政策和推荐
-        retrieve_result = self.policy_retriever.process_query(user_input, intent_info)
+        retrieve_result = self.policy_retriever.pr_process_query(user_input, intent_info)
         relevant_policies = retrieve_result["relevant_policies"]
         recommended_jobs = retrieve_result["recommended_jobs"]
         recommended_courses = retrieve_result["recommended_courses"]
@@ -912,7 +912,7 @@ class Orchestrator:
         logger.info(f"处理用户输入: {user_input[:50]}..., session_id: {session_id}")
         
         # 1. 分析用户输入，判断是否需要收集更多信息
-        analysis_result = self.policy_retriever.analyze_input(user_input, conversation_history)
+        analysis_result = self.policy_retriever.pr_analyze_input(user_input, conversation_history)
         
         # 安全处理analysis_result
         needs_more_info = False
@@ -928,7 +928,7 @@ class Orchestrator:
             }
         
         # 2. 收集到足够信息后，进行分析
-        return self.policy_retriever.process_analysis(analysis_result, user_input, session_id)
+        return self.policy_retriever.pr_process_analysis(analysis_result, user_input, session_id)
     
     def process_stream_query(self, user_input, session_id=None, conversation_history=None):
         """处理流式查询"""
@@ -1005,7 +1005,7 @@ class Orchestrator:
             }, ensure_ascii=False)
         else:
             # 3. 分析用户输入
-            analysis_result = self.policy_retriever.analyze_input(user_input, conversation_history)
+            analysis_result = self.policy_retriever.pr_analyze_input(user_input, conversation_history)
             
             # 4. 处理分析结果
             if analysis_result.get('needs_more_info', False):
@@ -1023,7 +1023,7 @@ class Orchestrator:
                 }, ensure_ascii=False)
                 
                 # 5. 检索政策和推荐（仅对需要的服务）
-                retrieve_result = self.policy_retriever.process_query(user_input, intent_info)
+                retrieve_result = self.policy_retriever.pr_process_query(user_input, intent_info)
                 relevant_policies = retrieve_result["relevant_policies"]
                 recommended_jobs = retrieve_result["recommended_jobs"]
                 recommended_courses = retrieve_result["recommended_courses"]
