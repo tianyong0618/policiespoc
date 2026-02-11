@@ -11,7 +11,7 @@
         "JOB_A02"
       ],
       "passed": true,
-      "execution_time": 10.650621891021729
+      "execution_time": 11.518413066864014
     },
     {
       "id": "S2-002",
@@ -21,12 +21,10 @@
         "JOB_A01"
       ],
       "matched_jobs": [
-        "JOB_A01",
-        "JOB_A02",
-        "JOB_A03"
+        "JOB_A01"
       ],
-      "passed": false,
-      "execution_time": 7.760077953338623
+      "passed": true,
+      "execution_time": 10.615009784698486
     },
     {
       "id": "S2-003",
@@ -37,11 +35,10 @@
       ],
       "matched_jobs": [
         "JOB_A03",
-        "JOB_A01",
-        "JOB_A02"
+        "JOB_A01"
       ],
       "passed": false,
-      "execution_time": 7.395297050476074
+      "execution_time": 9.946141004562378
     },
     {
       "id": "S2-004",
@@ -54,7 +51,7 @@
         "JOB_A04"
       ],
       "passed": true,
-      "execution_time": 8.692383050918579
+      "execution_time": 10.465962886810303
     },
     {
       "id": "S2-005",
@@ -63,7 +60,7 @@
       "expected_jobs": [],
       "matched_jobs": [],
       "passed": true,
-      "execution_time": 7.311152219772339
+      "execution_time": 9.737452030181885
     },
     {
       "id": "S2-006",
@@ -76,26 +73,23 @@
         "JOB_A05"
       ],
       "passed": true,
-      "execution_time": 7.055701017379761
+      "execution_time": 10.555637836456299
     },
     {
       "id": "S2-007",
       "description": "非退役军人创业评估岗位推荐（不优先推荐）",
       "input": "我不是退役军人，有8年企业管理经验，熟悉税收优惠政策，想从事创业项目评估相关工作。",
       "expected_jobs": [],
-      "matched_jobs": [
-        "JOB_A01",
-        "JOB_A03"
-      ],
-      "passed": false,
-      "execution_time": 8.521934032440186
+      "matched_jobs": [],
+      "passed": true,
+      "execution_time": 8.182094097137451
     }
   ],
   "summary": {
     "total_cases": 7,
-    "passed_count": 4,
-    "pass_rate": 57.14285714285714,
-    "average_time": 8.198166745049614,
-    "total_time": 57.38716721534729
+    "passed_count": 6,
+    "pass_rate": 85.71428571428571,
+    "average_time": 10.145815815244402,
+    "total_time": 71.02071070671082
   }
 }
