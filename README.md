@@ -91,6 +91,13 @@
 │   │   ├── requirements.txt    # Python依赖
 │   │   ├── test_scenario1.py   # 场景1测试脚本
 │   │   └── test_scenario2.py   # 场景2测试脚本
+│   ├── test/                   # 测试目录
+│   │   ├── test_cases.md       # 测试用例文档
+│   │   ├── test_report.md      # 测试报告
+│   │   ├── test_scenario1_comprehensive.py # 场景1综合测试
+│   │   ├── test_scenario1_results.json # 场景1测试结果
+│   │   ├── test_scenario2_comprehensive.py # 场景2综合测试
+│   │   └── test_scenario2_results.json # 场景2测试结果
 │   └── web_code/               # 前端界面
 │       ├── index.html          # 主页面
 │       ├── app.js              # 前端逻辑
@@ -617,5 +624,5 @@ __all__ = ['app']
 ---
 
 **文档版本**：v1.3  
-**最后更新**：2026-01-27  
+**最后更新**：2026-02-11  
 **维护者**：政策咨询智能体POC团队
