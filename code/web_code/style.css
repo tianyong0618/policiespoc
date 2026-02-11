@@ -1062,6 +1062,9 @@ body {
     background-color: rgba(59, 130, 246, 0.05);
     box-shadow: var(--shadow-sm);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .suggestions-card:hover {
@@ -1081,6 +1084,8 @@ body {
     display: flex;
     align-items: flex-start;
     gap: 8px;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .suggestion-item:last-child {
