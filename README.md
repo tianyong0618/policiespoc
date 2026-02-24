@@ -42,23 +42,45 @@
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      业务逻辑层                              │
+│                     表现层 (Presentation)                   │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │              PolicyMatcher（政策智能体）                 │  │
+│  │                Orchestrator（协调器）                │  │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │  │
-│  │  │意图识别  │  │政策检索  │  │回答生成  │          │  │
+│  │  │请求处理  │  │结果整合  │  │响应格式化│          │  │
 │  │  └──────────┘  └──────────┘  └──────────┘          │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      LLM集成层                               │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              ChatBot（对话机器人）                    │  │
-│  │  ┌──────────────────────────────────────────────┐  │  │
-│  │  │        DeepSeek V3（火山引擎）                │  │  │
-│  │  └──────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────┘  │
+│                      业务逻辑层 (Business)                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐ │
+│  │ PolicyMatcher   │  │   IntentAnalyzer│  │  ResponseGenerator││
+│  │ （政策匹配器）   │  │ （意图分析器）   │  │  （回答生成器）   │ │
+│  └─────────────────┘  └─────────────────┘  └────────────────┘ │
+│  ┌─────────────────┐  ┌─────────────────┐                  │ │
+│  │   JobMatcher    │  │    UserMatcher  │                  │ │
+│  │ （岗位匹配器）   │  │ （用户匹配器）   │                  │ │
+│  └─────────────────┘  └─────────────────┘                  │ │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                     数据访问层 (Data)                       │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐ │
+│  │ PolicyRetriever │  │   JobRetriever  │  │   UserRetriever │ │
+│  │ （政策检索器）   │  │ （岗位检索器）   │  │  （用户检索器）   │ │
+│  └─────────────────┘  └─────────────────┘  └────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                  基础设施层 (Infrastructure)                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐ │
+│  │    ChatBot      │  │ HistoryManager │  │  CacheManager   │ │
+│  │ （对话机器人）   │  │ （历史管理器）   │  │  （缓存管理器）   │ │
+│  └─────────────────┘  └─────────────────┘  └────────────────┘ │
+│  ┌─────────────────┐                                        │ │
+│  │ ConfigManager   │                                        │ │
+│  │ （配置管理器）   │                                        │ │
+│  └─────────────────┘                                        │ │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -75,22 +97,34 @@
 ├── code/                        # 核心代码目录
 │   ├── langchain/              # LangChain业务逻辑
 │   │   ├── __init__.py
-│   │   ├── chatbot.py          # LLM对话集成
-│   │   ├── policy_agent.py     # 政策智能体核心逻辑
-│   │   ├── history_manager.py  # 会话历史管理
-│   │   ├── job_matcher.py      # 岗位匹配器
-│   │   ├── course_matcher.py   # 课程匹配器
-│   │   ├── user_profile.py     # 用户画像管理
-│   │   └── data/               # 数据文件
-│   │       ├── jobs.json       # 岗位数据
-│   │       ├── courses.json    # 课程数据
-│   │       ├── policies.json   # 政策数据
-│   │       └── user_profiles.json # 用户画像数据
+│   │   ├── business/           # 业务逻辑层
+│   │   │   ├── intent_analyzer.py     # 意图分析器
+│   │   │   ├── job_matcher.py          # 岗位匹配器
+│   │   │   ├── policy_matcher.py       # 政策匹配器
+│   │   │   ├── response_generator.py   # 回答生成器
+│   │   │   └── user_matcher.py         # 用户匹配器
+│   │   ├── data/                # 数据访问层
+│   │   │   ├── data_files/      # 数据文件
+│   │   │   │   ├── jobs.json           # 岗位数据
+│   │   │   │   ├── policies.json       # 政策数据
+│   │   │   │   └── user_profiles.json  # 用户画像数据
+│   │   │   ├── models/           # 数据模型
+│   │   │   │   ├── job.py               # 岗位模型
+│   │   │   │   ├── policy.py            # 政策模型
+│   │   │   │   └── user.py              # 用户模型
+│   │   │   ├── job_retriever.py         # 岗位检索器
+│   │   │   ├── policy_retriever.py      # 政策检索器
+│   │   │   └── user_retriever.py        # 用户检索器
+│   │   ├── infrastructure/      # 基础设施层
+│   │   │   ├── chatbot.py               # LLM对话集成
+│   │   │   ├── history_manager.py       # 会话历史管理
+│   │   │   ├── cache_manager.py         # 缓存管理
+│   │   │   └── config_manager.py         # 配置管理
+│   │   └── presentation/         # 表现层
+│   │       └── orchestrator.py          # 协调器
 │   ├── serve_code/             # 后端API服务
 │   │   ├── main.py             # FastAPI主程序
 │   │   ├── requirements.txt    # Python依赖
-│   │   ├── test_scenario1.py   # 场景1测试脚本
-│   │   └── test_scenario2.py   # 场景2测试脚本
 │   ├── test/                   # 测试目录
 │   │   ├── test_cases.md       # 测试用例文档
 │   │   ├── test_report.md      # 测试报告
@@ -140,62 +174,274 @@
 
 ## 4. 核心模块详解
 
-### 4.1 ChatBot模块 ([chatbot.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/chatbot.py))
+### 4.1 表现层 (Presentation)
 
-#### 功能描述
-负责与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能。
+#### Orchestrator模块 ([orchestrator.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/presentation/orchestrator.py))
 
-#### 核心方法
+##### 功能描述
+协调器，负责处理用户请求，整合各模块功能，生成统一的响应格式。
+
+##### 核心方法
+```python
+def process_query(self, user_input):
+    """处理用户查询的完整流程"""
+    # 1. 识别意图和实体
+    # 2. 验证意图是否在服务范围内
+    # 3. 检索相关政策和推荐
+    # 4. 生成结构化回答
+    # 5. 评估结果
+    # 6. 构建思考过程
+    # 7. 返回结果
+
+
+def process_stream_query(self, user_input, session_id=None, conversation_history=None):
+    """处理流式查询，支持实时响应"""
+    # 1. 识别意图
+    # 2. 验证意图是否在服务范围内
+    # 3. 分析用户输入
+    # 4. 检索政策和推荐
+    # 5. 生成回答
+    # 6. 流式返回结果
+```
+
+### 4.2 业务逻辑层 (Business)
+
+#### IntentAnalyzer模块 ([intent_analyzer.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/business/intent_analyzer.py))
+
+##### 功能描述
+意图分析器，负责识别用户意图和提取实体信息。
+
+##### 核心方法
+```python
+def ir_identify_intent(self, user_input):
+    """识别用户意图和实体"""
+    # 1. 生成意图识别提示
+    # 2. 调用大模型
+    # 3. 处理LLM响应
+    # 4. 解析JSON结果
+    # 5. 返回意图信息
+```
+
+#### PolicyMatcher模块 ([policy_matcher.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/business/policy_matcher.py))
+
+##### 功能描述
+政策匹配器，负责基于用户意图和实体匹配相关政策。
+
+##### 核心方法
+```python
+def match_policies(self, intent, entities, original_input=None):
+    """基于意图和实体匹配政策"""
+    # 1. 提取实体值和用户需求关键词
+    # 2. 检查用户具体条件
+    # 3. 逐个检查政策是否符合用户条件
+    # 4. 限制返回的政策数量
+    # 5. 返回符合条件的政策
+```
+
+#### JobMatcher模块 ([job_matcher.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/business/job_matcher.py))
+
+##### 功能描述
+岗位匹配器，负责基于用户画像和技能匹配相关岗位。
+
+##### 核心方法
+```python
+def match_jobs_by_entities(self, entities, user_input=""):
+    """基于实体信息匹配岗位"""
+    # 1. 从实体中提取信息和关键词
+    # 2. 从用户输入中提取额外信息
+    # 3. 计算岗位与用户的匹配度
+    # 4. 按匹配度排序
+    # 5. 返回匹配度最高的岗位
+```
+
+#### UserMatcher模块 ([user_matcher.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/business/user_matcher.py))
+
+##### 功能描述
+用户匹配器，负责创建和管理用户画像，提供个性化推荐。
+
+##### 核心方法
+```python
+def create_or_update_user_profile(self, user_id, user_data):
+    """创建或更新用户画像"""
+    # 1. 构建用户描述
+    # 2. 计算核心需求
+    # 3. 生成关联关系
+    # 4. 保存用户画像
+    # 5. 返回用户画像
+```
+
+#### ResponseGenerator模块 ([response_generator.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/business/response_generator.py))
+
+##### 功能描述
+回答生成器，负责基于政策和推荐生成结构化回答。
+
+##### 核心方法
+```python
+def rg_generate_response(self, user_input, relevant_policies, scenario, recommended_jobs=None):
+    """生成结构化回答"""
+    # 1. 构建回答提示
+    # 2. 调用大模型
+    # 3. 处理LLM响应
+    # 4. 解析JSON结果
+    # 5. 返回结构化回答
+```
+
+### 4.3 数据访问层 (Data)
+
+#### PolicyRetriever模块 ([policy_retriever.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/data/policy_retriever.py))
+
+##### 功能描述
+政策检索器，负责加载和管理政策数据，提供政策检索功能。
+
+##### 核心方法
+```python
+def pr_retrieve_policies(self, intent, entities, original_input=None):
+    """检索相关政策"""
+    # 1. 提取实体值和用户需求关键词
+    # 2. 检查用户具体条件
+    # 3. 逐个检查政策是否符合用户条件
+    # 4. 限制返回的政策数量
+    # 5. 返回符合条件的政策
+
+
+def pr_load_policies(self):
+    """加载政策数据（带缓存）"""
+    # 1. 检查缓存
+    # 2. 从配置中获取政策文件路径
+    # 3. 加载政策数据
+    # 4. 缓存数据
+    # 5. 返回政策数据
+```
+
+#### JobRetriever模块 ([job_retriever.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/data/job_retriever.py))
+
+##### 功能描述
+岗位检索器，负责加载和管理岗位数据。
+
+##### 核心方法
+```python
+def load_jobs(self):
+    """加载岗位数据"""
+    # 1. 从配置中获取岗位文件路径
+    # 2. 加载岗位数据
+    # 3. 返回岗位数据
+```
+
+#### UserRetriever模块 ([user_retriever.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/data/user_retriever.py))
+
+##### 功能描述
+用户检索器，负责加载和管理用户画像数据。
+
+##### 核心方法
+```python
+def load_user_profiles(self):
+    """加载用户画像数据"""
+    # 1. 从配置中获取用户画像文件路径
+    # 2. 加载用户画像数据
+    # 3. 返回用户画像数据
+```
+
+### 4.4 基础设施层 (Infrastructure)
+
+#### ChatBot模块 ([chatbot.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/chatbot.py))
+
+##### 功能描述
+对话机器人，负责与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能。
+
+##### 核心方法
 ```python
 def chat_with_memory(self, user_input):
     """带记忆的对话，返回内容和调用时间"""
-    # 输入截断处理
-    # 添加到对话记忆
-    # 限制历史消息数量
-    # LLM调用
-    # 记录调用时间
-    # 返回结果
+    # 1. 输入截断处理
+    # 2. 添加到对话记忆
+    # 3. 限制历史消息数量
+    # 4. LLM调用
+    # 5. 记录调用时间
+    # 6. 返回结果
 ```
 
-#### 性能优化
+##### 性能优化
 - **输入截断**：超过2000字符自动截断
 - **历史限制**：只保留最近10条消息
 - **简化消息格式**：使用HumanMessage减少上下文长度
 - **超时设置**：1800秒超时保护
 - **Token限制**：最大8192 tokens
 
-### 4.2 PolicyMatcher模块 ([policy_agent.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/policy_agent.py))
+#### HistoryManager模块 ([history_manager.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/history_manager.py))
 
-#### 功能描述
-政策智能体核心逻辑，负责意图识别、政策检索和回答生成。
+##### 功能描述
+历史管理器，负责管理用户会话历史。
 
-#### 核心流程
+##### 核心方法
 ```python
-def process_query(self, user_input):
-    """处理用户查询的完整流程"""
-    # 1. 检查缓存
-    # 2. 合并处理（意图识别 + 回答生成）
-    # 3. 评估结果
-    # 4. 添加计时信息
-    # 5. 缓存结果
-    # 6. 返回结果
+def create_session(self):
+    """创建新会话"""
+    # 1. 生成会话ID
+    # 2. 初始化会话数据
+    # 3. 保存会话
+    # 4. 返回会话ID
+
+
+def add_message(self, session_id, role, content):
+    """添加消息到会话历史"""
+    # 1. 检查会话是否存在
+    # 2. 创建消息对象
+    # 3. 添加消息到会话
+    # 4. 限制消息数量
+    # 5. 保存会话
+
+
+def get_session(self, session_id):
+    """获取会话历史"""
+    # 1. 检查会话是否存在
+    # 2. 返回会话数据
 ```
 
-#### 意图识别
-- 基于LLM的意图识别和实体提取
-- 支持多种政策咨询场景的意图识别
+#### CacheManager模块 ([cache_manager.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/cache_manager.py))
 
-#### 政策检索
-- 基于意图匹配政策
-- 基于实体匹配政策
-- 支持多政策组合匹配
+##### 功能描述
+缓存管理器，负责缓存LLM响应和计算结果，提升系统性能。
 
-#### 回答生成
-- 生成结构化回答，包含肯定、否定和建议
-- 支持政策叠加分析
-- 提供个性化建议
+##### 核心方法
+```python
+def get(self, key):
+    """获取缓存数据"""
+    # 1. 检查缓存是否存在
+    # 2. 检查缓存是否过期
+    # 3. 返回缓存数据
 
-### 4.3 API服务模块 ([main.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code/main.py))
+
+def set(self, key, value, ttl=3600):
+    """设置缓存数据"""
+    # 1. 检查缓存大小
+    # 2. 如果缓存已满，清理最久未使用的缓存
+    # 3. 设置缓存数据
+    # 4. 设置过期时间
+```
+
+#### ConfigManager模块 ([config_manager.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/config_manager.py))
+
+##### 功能描述
+配置管理器，负责加载和管理系统配置。
+
+##### 核心方法
+```python
+def get(self, key, default=None):
+    """获取配置值"""
+    # 1. 按层级查找配置
+    # 2. 如果不存在，返回默认值
+    # 3. 返回配置值
+
+
+def load_config(self):
+    """加载配置"""
+    # 1. 加载环境变量
+    # 2. 加载默认配置
+    # 3. 合并配置
+    # 4. 返回配置
+```
+
+### 4.5 API服务模块 ([main.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code/main.py))
 
 #### API端点
 
@@ -229,8 +475,8 @@ POST /api/chat
   "response": {"positive": "...", "negative": "...", "suggestions": "..."},
   "evaluation": {...},
   "execution_time": 3.45,
-  "timing": {...},
-  "llm_calls": [...]
+  "thinking_process": [...],
+  "recommended_jobs": [...]
 }
 ```
 
@@ -269,7 +515,7 @@ GET /api/users/{user_id}/recommendations
 GET /api/recommendations
 ```
 
-### 4.4 前端模块 ([app.js](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/web_code/app.js))
+### 4.6 前端模块 ([app.js](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/web_code/app.js))
 
 #### 核心功能
 1. **场景选择**：快速选择标准场景
@@ -300,14 +546,11 @@ const API_BASE_URL = (() => {
     ↓
 API接收请求，开始计时
     ↓
-PolicyMatcher.process_query()
-    ↓
-检查缓存
-    ↓
-缓存未命中 → combined_process()
+Orchestrator.process_stream_query()
     ↓
 ┌─────────────────────────────────┐
 │ 1. 意图识别 (LLM调用1)          │
+│    - 调用IntentAnalyzer        │
 │    - 生成提示词                  │
 │    - 调用ChatBot.chat_with_memory()
 │    - 解析JSON响应                │
@@ -315,31 +558,40 @@ PolicyMatcher.process_query()
 └─────────────────────────────────┘
     ↓
 ┌─────────────────────────────────┐
-│ 2. 政策检索                      │
-│    - 基于意图匹配                │
-│    - 基于实体匹配                │
-│    - 返回相关政策列表            │
+│ 2. 验证意图                      │
+│    - 检查意图是否在服务范围内    │
+│    - 确定需要的服务类型          │
 └─────────────────────────────────┘
     ↓
 ┌─────────────────────────────────┐
-│ 3. 回答生成 (LLM调用2)           │
-│    - 简化政策格式                │
-│    - 生成结构化提示词            │
+│ 3. 检索政策和推荐                │
+│    - 调用PolicyRetriever        │
+│    - 基于意图匹配政策            │
+│    - 基于实体匹配政策            │
+│    - 返回相关政策列表            │
+│    - 调用JobMatcher生成岗位推荐  │
+└─────────────────────────────────┘
+    ↓
+┌─────────────────────────────────┐
+│ 4. 生成回答 (LLM调用2)           │
+│    - 调用ResponseGenerator      │
+│    - 构建回答提示                │
 │    - 调用ChatBot.chat_with_memory()
 │    - 解析JSON响应                │
 │    - 记录调用时间                │
 └─────────────────────────────────┘
     ↓
 ┌─────────────────────────────────┐
-│ 4. 结果评估                      │
-│    - 评估回答质量                │
-│    - 生成评估指标                │
+│ 5. 构建思考过程                  │
+│    - 组织意图识别结果            │
+│    - 组织政策检索结果            │
+│    - 组织岗位推荐结果            │
 └─────────────────────────────────┘
     ↓
 ┌─────────────────────────────────┐
-│ 5. 缓存结果                      │
-│    - 存储到内存缓存              │
-│    - 限制缓存大小                │
+│ 6. 结果评估                      │
+│    - 评估回答质量                │
+│    - 生成评估指标                │
 └─────────────────────────────────┘
     ↓
 通过SSE流式返回响应

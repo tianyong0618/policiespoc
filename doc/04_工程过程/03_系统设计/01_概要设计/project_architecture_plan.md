@@ -28,7 +28,7 @@
 
 ### 2.1 系统分层
 
-系统采用分层架构设计，各层职责明确，边界清晰。以下是系统的分层结构：
+系统采用四层架构设计，各层职责明确，边界清晰。以下是系统的分层结构：
 
 #### 1. 用户界面层
 - **前端界面**：提供用户与系统交互的界面
@@ -45,19 +45,28 @@
 - **用户API (/api/users)**：管理用户画像
 - **历史API (/api/history)**：管理会话历史
 
-#### 3. 业务逻辑层
-- **协调器 (Orchestrator)**：协调各模块工作，处理场景化请求
-- **政策智能体 (PolicyAgent)**：核心业务逻辑，负责意图识别、政策检索和回答生成
-- **对话机器人 (ChatBot)**：与LLM交互，提供对话记忆功能
+#### 3. 表现层 (Presentation)
+- **协调器 (Orchestrator)**：协调各模块工作，处理场景化请求，整合各模块功能
+
+#### 4. 业务逻辑层 (Business)
+- **政策匹配器 (PolicyMatcher)**：负责基于用户意图和实体匹配相关政策
+- **意图分析器 (IntentAnalyzer)**：负责识别用户意图和提取实体信息
+- **回答生成器 (ResponseGenerator)**：负责基于政策和推荐生成结构化回答
 - **岗位匹配器 (JobMatcher)**：基于政策和用户需求推荐岗位
-- **用户画像管理 (UserMatcher)**：管理用户画像，提供个性化推荐
+- **用户匹配器 (UserMatcher)**：管理用户画像，提供个性化推荐
+
+#### 5. 数据访问层 (Data)
+- **政策检索器 (PolicyRetriever)**：负责加载和管理政策数据，提供政策检索功能
+- **岗位检索器 (JobRetriever)**：负责加载和管理岗位数据
+- **用户检索器 (UserRetriever)**：负责加载和管理用户画像数据
+
+#### 6. 基础设施层 (Infrastructure)
+- **对话机器人 (ChatBot)**：与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能
 - **会话历史管理 (HistoryManager)**：管理用户会话历史
+- **缓存管理器 (CacheManager)**：负责缓存LLM响应和计算结果，提升系统性能
+- **配置管理器 (ConfigManager)**：负责加载和管理系统配置
 
-#### 4. LLM集成层
-- **DeepSeek V3模型**：大语言模型，提供自然语言处理能力
-- **LangChain框架**：LLM应用框架，简化LLM集成和管理
-
-#### 5. 数据层
+#### 7. 数据层
 - **政策数据 (policies.json)**：存储政策信息
 - **岗位数据 (jobs.json)**：存储岗位信息
 - **用户数据 (user_profiles.json)**：存储用户画像数据
@@ -68,21 +77,30 @@
 | 层级 | 主要组件 | 依赖关系 | 职责 |
 |------|---------|---------|------|
 | 用户界面层 | 前端界面 | 调用API服务层 | 用户交互、场景选择、结果展示 |
-| API服务层 | FastAPI服务 | 调用业务逻辑层 | 处理HTTP请求、路由管理、响应格式化 |
-| 业务逻辑层 | 政策智能体、协调器等 | 调用LLM集成层和数据层 | 业务逻辑处理、政策匹配、岗位推荐 |
-| LLM集成层 | DeepSeek V3模型 | 无依赖 | 自然语言处理、意图识别、回答生成 |
-| 数据层 | 政策数据、岗位数据等 | 无依赖 | 数据存储、数据访问 |
+| API服务层 | FastAPI服务 | 调用表现层 | 处理HTTP请求、路由管理、响应格式化 |
+| 表现层 | 协调器 (Orchestrator) | 调用业务逻辑层 | 协调各模块工作，处理场景化请求，整合各模块功能 |
+| 业务逻辑层 | 政策匹配器、意图分析器等 | 调用数据访问层和基础设施层 | 业务逻辑处理、政策匹配、岗位推荐、意图识别、回答生成 |
+| 数据访问层 | 政策检索器、岗位检索器、用户检索器 | 无依赖 | 数据加载、数据管理、数据检索 |
+| 基础设施层 | 对话机器人、缓存管理器、配置管理器 | 无依赖 | LLM集成、缓存管理、配置管理、会话历史管理 |
+| 数据层 | 政策数据、岗位数据、用户数据 | 无依赖 | 数据存储、数据持久化 |
 
 ### 2.2 核心模块职责
 
 | 模块                     | 主要职责                             | 文件位置                               | 关键方法                                                                     |
 | ---------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| **PolicyMatcher**        | 政策智能体核心逻辑，负责意图识别、政策检索和回答生成       | code/langchain/policy\_agent.py    | process\_query, identify\_intent, retrieve\_policies, generate\_response |
-| **ChatBot**            | 与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能 | code/langchain/chatbot.py          | chat\_with\_memory                                                       |
-| **Orchestrator**       | 协调器，处理不同场景的请求，整合各模块功能            | code/langchain/orchestrator.py     | process\_query, process\_stream\_query, handle\_scenario                 |
-| **JobMatcher**         | 岗位匹配器，基于政策和用户需求推荐岗位              | code/langchain/job\_matcher.py     | match\_jobs\_by\_policy, get\_all\_jobs                                  |
-| **UserMatcher** | 用户画像管理，创建和管理用户画像                 | code/langchain/user\_profile.py    | match\_user\_profile, create\_or\_update\_user\_profile                  |
-| **HistoryManager**     | 会话历史管理，记录和管理用户对话历史               | code/langchain/history\_manager.py | create\_session, add\_message, get\_session                              |
+| **Orchestrator**       | 协调器，处理不同场景的请求，整合各模块功能            | code/langchain/presentation/orchestrator.py     | process\_query, process\_stream\_query, handle\_scenario                 |
+| **PolicyMatcher**        | 负责基于用户意图和实体匹配相关政策       | code/langchain/business/policy_matcher.py    | match\_policies                                                        |
+| **IntentAnalyzer**        | 负责识别用户意图和提取实体信息       | code/langchain/business/intent_analyzer.py    | ir\_identify\_intent                                                        |
+| **ResponseGenerator**        | 负责基于政策和推荐生成结构化回答       | code/langchain/business/response_generator.py    | rg\_generate\_response                                                        |
+| **JobMatcher**         | 岗位匹配器，基于政策和用户需求推荐岗位              | code/langchain/business/job_matcher.py     | match\_jobs\_by\_entities                                  |
+| **UserMatcher** | 用户画像管理，创建和管理用户画像                 | code/langchain/business/user_matcher.py    | create\_or\_update\_user\_profile                  |
+| **PolicyRetriever** | 负责加载和管理政策数据，提供政策检索功能                 | code/langchain/data/policy_retriever.py    | pr\_retrieve\_policies, pr\_load\_policies                  |
+| **JobRetriever** | 负责加载和管理岗位数据                 | code/langchain/data/job_retriever.py    | load\_jobs                  |
+| **UserRetriever** | 负责加载和管理用户画像数据                 | code/langchain/data/user_retriever.py    | load\_user\_profiles                  |
+| **ChatBot**            | 与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能 | code/langchain/infrastructure/chatbot.py          | chat\_with\_memory                                                       |
+| **HistoryManager**     | 会话历史管理，记录和管理用户对话历史               | code/langchain/infrastructure/history_manager.py | create\_session, add\_message, get\_session                              |
+| **CacheManager**     | 负责缓存LLM响应和计算结果，提升系统性能               | code/langchain/infrastructure/cache_manager.py | get, set                              |
+| **ConfigManager**     | 负责加载和管理系统配置               | code/langchain/infrastructure/config_manager.py | get, load\_config                              |
 
 ## 3. 核心业务流程
 
@@ -94,7 +112,11 @@ sequenceDiagram
     participant Frontend as 前端
     participant API as API服务
     participant Orchestrator as 协调器
-    participant PolicyMatcher as 政策智能体
+    participant IntentAnalyzer as 意图分析器
+    participant PolicyMatcher as 政策匹配器
+    participant PolicyRetriever as 政策检索器
+    participant JobMatcher as 岗位匹配器
+    participant ResponseGenerator as 回答生成器
     participant ChatBot as 对话机器人
     participant LLM as DeepSeek V3
     participant Data as 数据层
@@ -102,26 +124,33 @@ sequenceDiagram
     User->>Frontend: 输入查询
     Frontend->>API: POST /api/chat/stream
     API->>Orchestrator: process_stream_query()
-    Orchestrator->>PolicyMatcher: process_query()
-    PolicyMatcher->>PolicyMatcher: identify_intent()
-    PolicyMatcher->>ChatBot: chat_with_memory()
+    Orchestrator->>IntentAnalyzer: ir_identify_intent()
+    IntentAnalyzer->>ChatBot: chat_with_memory()
     
-    ChatBot->>LLM: 发送处理后的查询
-    LLM-->>ChatBot: 返回LLM响应
+    ChatBot->>LLM: 发送意图识别提示
+    LLM-->>ChatBot: 返回意图识别结果
     
-    ChatBot-->>PolicyMatcher: 返回处理结果
-    PolicyMatcher->>PolicyMatcher: retrieve_policies()
-    PolicyMatcher->>Data: 加载政策数据
-    Data-->>PolicyMatcher: 返回政策数据
+    ChatBot-->>IntentAnalyzer: 返回处理结果
+    IntentAnalyzer-->>Orchestrator: 返回意图信息
+    Orchestrator->>PolicyMatcher: match_policies()
+    PolicyMatcher->>PolicyRetriever: pr_retrieve_policies()
+    PolicyRetriever->>Data: 加载政策数据
+    Data-->>PolicyRetriever: 返回政策数据
+    PolicyRetriever-->>PolicyMatcher: 返回检索结果
     PolicyMatcher->>PolicyMatcher: 匹配相关政策
-    PolicyMatcher->>PolicyMatcher: generate_response()
-    PolicyMatcher->>ChatBot: chat_with_memory()
+    PolicyMatcher-->>Orchestrator: 返回匹配政策
+    Orchestrator->>JobMatcher: match_jobs_by_entities()
+    JobMatcher->>Data: 加载岗位数据
+    Data-->>JobMatcher: 返回岗位数据
+    JobMatcher-->>Orchestrator: 返回岗位推荐
+    Orchestrator->>ResponseGenerator: rg_generate_response()
+    ResponseGenerator->>ChatBot: chat_with_memory()
     
-    ChatBot->>LLM: 发送政策和问题
-    LLM-->>ChatBot: 返回基于政策的回答
+    ChatBot->>LLM: 发送回答生成提示
+    LLM-->>ChatBot: 返回结构化回答
     
-    ChatBot-->>PolicyMatcher: 返回处理结果
-    PolicyMatcher-->>Orchestrator: 返回完整结果
+    ChatBot-->>ResponseGenerator: 返回处理结果
+    ResponseGenerator-->>Orchestrator: 返回回答结果
     Orchestrator-->>API: 返回流式响应
     API-->>Frontend: 流式返回结果
     Frontend-->>User: 展示结构化回答
@@ -138,17 +167,41 @@ flowchart TD
     CheckScenario -->|培训课程匹配| Scenario4[处理场景4]
     CheckScenario -->|通用场景| General[处理通用场景]
     
-    Scenario1 --> PolicyMatcher1[调用PolicyMatcher]
-    Scenario2 --> PolicyMatcher2[调用PolicyMatcher]
-    Scenario3 --> PolicyMatcher3[调用PolicyMatcher]
-    Scenario4 --> PolicyMatcher4[调用PolicyMatcher]
-    General --> PolicyMatcher5[调用PolicyMatcher]
+    Scenario1 --> Orchestrator1[调用协调器]
+    Scenario2 --> Orchestrator2[调用协调器]
+    Scenario3 --> Orchestrator3[调用协调器]
+    Scenario4 --> Orchestrator4[调用协调器]
+    General --> Orchestrator5[调用协调器]
     
-    PolicyMatcher1 --> Result1[生成场景1结果]
-    PolicyMatcher2 --> Result2[生成场景2结果]
-    PolicyMatcher3 --> Result3[生成场景3结果]
-    PolicyMatcher4 --> Result4[生成场景4结果]
-    PolicyMatcher5 --> Result5[生成通用结果]
+    Orchestrator1 --> IntentAnalyzer1[识别意图]
+    Orchestrator2 --> IntentAnalyzer2[识别意图]
+    Orchestrator3 --> IntentAnalyzer3[识别意图]
+    Orchestrator4 --> IntentAnalyzer4[识别意图]
+    Orchestrator5 --> IntentAnalyzer5[识别意图]
+    
+    IntentAnalyzer1 --> PolicyMatcher1[匹配政策]
+    IntentAnalyzer2 --> PolicyMatcher2[匹配政策]
+    IntentAnalyzer3 --> PolicyMatcher3[匹配政策]
+    IntentAnalyzer4 --> PolicyMatcher4[匹配政策]
+    IntentAnalyzer5 --> PolicyMatcher5[匹配政策]
+    
+    PolicyMatcher1 --> JobMatcher1[推荐岗位]
+    PolicyMatcher2 --> JobMatcher2[推荐岗位]
+    PolicyMatcher3 --> JobMatcher3[推荐岗位]
+    PolicyMatcher4 --> JobMatcher4[推荐岗位]
+    PolicyMatcher5 --> JobMatcher5[推荐岗位]
+    
+    JobMatcher1 --> ResponseGenerator1[生成回答]
+    JobMatcher2 --> ResponseGenerator2[生成回答]
+    JobMatcher3 --> ResponseGenerator3[生成回答]
+    JobMatcher4 --> ResponseGenerator4[生成回答]
+    JobMatcher5 --> ResponseGenerator5[生成回答]
+    
+    ResponseGenerator1 --> Result1[生成场景1结果]
+    ResponseGenerator2 --> Result2[生成场景2结果]
+    ResponseGenerator3 --> Result3[生成场景3结果]
+    ResponseGenerator4 --> Result4[生成场景4结果]
+    ResponseGenerator5 --> Result5[生成通用结果]
     
     Result1 --> Return[返回结果]
     Result2 --> Return
@@ -163,29 +216,35 @@ flowchart TD
 
 ```mermaid
 graph LR
-    UserInput[用户输入] --> IntentRecognition[意图识别]
-    IntentRecognition --> EntityExtraction[实体提取]
-    EntityExtraction --> PolicyRetrieval[政策检索]
-    PolicyRetrieval --> PolicyMatching[政策匹配]
-    PolicyMatching --> JobRecommendation[岗位推荐]
-    JobRecommendation --> AnswerGeneration[回答生成]
-    AnswerGeneration --> StructuredResponse[结构化响应]
+    UserInput[用户输入] --> Orchestrator[协调器]
+    Orchestrator --> IntentAnalyzer[意图分析器]
+    IntentAnalyzer --> EntityExtraction[实体提取]
+    EntityExtraction --> PolicyMatcher[政策匹配器]
+    PolicyMatcher --> PolicyRetriever[政策检索器]
+    PolicyRetriever --> PolicyData[政策数据]
+    PolicyMatcher --> JobMatcher[岗位匹配器]
+    JobMatcher --> JobData[岗位数据]
+    JobMatcher --> UserMatcher[用户匹配器]
+    UserMatcher --> UserProfile[用户画像]
+    PolicyMatcher --> ResponseGenerator[回答生成器]
+    JobMatcher --> ResponseGenerator
+    ResponseGenerator --> StructuredResponse[结构化响应]
     StructuredResponse --> UserOutput[用户输出]
     
-    UserProfile[用户画像] -.-> JobRecommendation
-    PolicyData[政策数据] -.-> PolicyRetrieval
-    JobData[岗位数据] -.-> JobRecommendation
-    LLM[大语言模型] -.-> IntentRecognition
-    LLM -.-> AnswerGeneration
+    IntentAnalyzer --> ChatBot[对话机器人]
+    ResponseGenerator --> ChatBot
+    ChatBot --> LLM[大语言模型]
+    LLM --> IntentAnalyzer
+    LLM --> ResponseGenerator
 ```
 
 ### 4.2 数据存储
 
 | 数据类型  | 存储方式   | 文件位置                                    | 用途                      |
 | ----- | ------ | --------------------------------------- | ----------------------- |
-| 政策数据  | JSON文件 | code/langchain/data/policies.json       | 存储政策信息，包括政策ID、标题、条件、福利等 |
-| 岗位数据  | JSON文件 | code/langchain/data/jobs.json           | 存储岗位信息，包括岗位ID、标题、要求、特点等 |
-| 用户画像  | JSON文件 | code/langchain/data/user\_profiles.json | 存储用户画像信息，包括基本信息、技能、需求等  |
+| 政策数据  | JSON文件 | code/langchain/data/data_files/policies.json       | 存储政策信息，包括政策ID、标题、条件、福利等 |
+| 岗位数据  | JSON文件 | code/langchain/data/data_files/jobs.json           | 存储岗位信息，包括岗位ID、标题、要求、特点等 |
+| 用户画像  | JSON文件 | code/langchain/data/data_files/user_profiles.json | 存储用户画像信息，包括基本信息、技能、需求等  |
 | 会话历史  | 内存存储   | 运行时内存                                   | 存储用户会话历史，支持多会话管理        |
 | LLM缓存 | 内存存储   | 运行时内存                                   | 缓存LLM响应，提升重复查询的响应速度     |
 
