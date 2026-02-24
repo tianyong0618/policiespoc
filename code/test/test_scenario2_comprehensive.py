@@ -87,7 +87,7 @@ def test_scenario2_comprehensive():
         
         # 执行测试
         # 对于所有场景2的测试用例，使用handle_scenario方法以获得更精确的岗位推荐
-        result = agent.handle_scenario("scenario2", test_case['input'])
+        result = agent.process_query(test_case['input'])
         
         # 记录结束时间
         end_time = time.time()

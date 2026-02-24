@@ -2,13 +2,13 @@
 
 ## 1. 系统概述
 
-政策咨询智能体POC是一个基于大语言模型的智能政策咨询系统，旨在为用户提供精准的政策咨询建议。系统集成了DeepSeek V3模型，通过LangChain框架实现智能对话和场景化政策推荐。
+政策咨询智能体POC是一个基于大语言模型的智能政策咨询系统，旨在为用户提供精准的政策咨询建议。系统集成了DeepSeek V3模型，通过LangChain框架实现智能对话和智能政策推荐。
 
 ### 1.1 核心功能
 
 * **智能对话**：基于LLM的自然语言交互
 
-* **场景化咨询**：支持四种标准场景的精准咨询
+* **智能咨询**：基于意图识别的精准咨询
 
 * **政策匹配**：基于意图识别和实体提取的政策检索
 
@@ -30,13 +30,13 @@
 
 系统采用四层架构设计，各层职责明确，边界清晰。以下是系统的分层结构：
 
-#### 1. 用户界面层
+#### 2.1.1 用户界面层
 - **前端界面**：提供用户与系统交互的界面
-- **场景选择**：支持用户快速选择标准咨询场景
+- **预设模板**：提供常用咨询模板，方便用户快速输入
 - **对话交互**：处理用户输入和系统响应的展示
 - **结果展示**：结构化展示政策咨询结果和岗位推荐
 
-#### 2. API服务层
+#### 2.1.2 API服务层
 - **FastAPI服务**：整个系统的API网关
 - **流式API (/api/chat/stream)**：处理流式对话请求，支持实时响应
 - **REST API (/api/chat)**：处理非流式对话请求
@@ -45,50 +45,50 @@
 - **用户API (/api/users)**：管理用户画像
 - **历史API (/api/history)**：管理会话历史
 
-#### 3. 表现层 (Presentation)
-- **协调器 (Orchestrator)**：协调各模块工作，处理场景化请求，整合各模块功能
+#### 2.1.3 表现层 (Presentation)
+- **协调器 (Orchestrator)**：协调各模块工作，处理用户请求，整合各模块功能
 
-#### 4. 业务逻辑层 (Business)
+#### 2.1.4 业务逻辑层 (Business)
 - **政策匹配器 (PolicyMatcher)**：负责基于用户意图和实体匹配相关政策
 - **意图分析器 (IntentAnalyzer)**：负责识别用户意图和提取实体信息
 - **回答生成器 (ResponseGenerator)**：负责基于政策和推荐生成结构化回答
 - **岗位匹配器 (JobMatcher)**：基于政策和用户需求推荐岗位
 - **用户匹配器 (UserMatcher)**：管理用户画像，提供个性化推荐
 
-#### 5. 数据访问层 (Data)
+#### 2.1.5 数据访问层 (Data)
 - **政策检索器 (PolicyRetriever)**：负责加载和管理政策数据，提供政策检索功能
 - **岗位检索器 (JobRetriever)**：负责加载和管理岗位数据
 - **用户检索器 (UserRetriever)**：负责加载和管理用户画像数据
 
-#### 6. 基础设施层 (Infrastructure)
+#### 2.1.6 基础设施层 (Infrastructure)
 - **对话机器人 (ChatBot)**：与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能
 - **会话历史管理 (HistoryManager)**：管理用户会话历史
 - **缓存管理器 (CacheManager)**：负责缓存LLM响应和计算结果，提升系统性能
 - **配置管理器 (ConfigManager)**：负责加载和管理系统配置
 
-#### 7. 数据层
+#### 2.1.7 数据层
 - **政策数据 (policies.json)**：存储政策信息
 - **岗位数据 (jobs.json)**：存储岗位信息
 - **用户数据 (user_profiles.json)**：存储用户画像数据
 - **会话数据 (内存存储)**：存储会话历史
 
-### 2.1.1 系统分层关系
+### 2.2 系统分层关系
 
 | 层级 | 主要组件 | 依赖关系 | 职责 |
 |------|---------|---------|------|
-| 用户界面层 | 前端界面 | 调用API服务层 | 用户交互、场景选择、结果展示 |
+| 用户界面层 | 前端界面 | 调用API服务层 | 用户交互、预设模板、结果展示 |
 | API服务层 | FastAPI服务 | 调用表现层 | 处理HTTP请求、路由管理、响应格式化 |
-| 表现层 | 协调器 (Orchestrator) | 调用业务逻辑层 | 协调各模块工作，处理场景化请求，整合各模块功能 |
+| 表现层 | 协调器 (Orchestrator) | 调用业务逻辑层 | 协调各模块工作，处理用户请求，整合各模块功能 |
 | 业务逻辑层 | 政策匹配器、意图分析器等 | 调用数据访问层和基础设施层 | 业务逻辑处理、政策匹配、岗位推荐、意图识别、回答生成 |
 | 数据访问层 | 政策检索器、岗位检索器、用户检索器 | 无依赖 | 数据加载、数据管理、数据检索 |
 | 基础设施层 | 对话机器人、缓存管理器、配置管理器 | 无依赖 | LLM集成、缓存管理、配置管理、会话历史管理 |
 | 数据层 | 政策数据、岗位数据、用户数据 | 无依赖 | 数据存储、数据持久化 |
 
-### 2.2 核心模块职责
+### 2.3 核心模块职责
 
 | 模块                     | 主要职责                             | 文件位置                               | 关键方法                                                                     |
 | ---------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| **Orchestrator**       | 协调器，处理不同场景的请求，整合各模块功能            | code/langchain/presentation/orchestrator.py     | process\_query, process\_stream\_query, handle\_scenario                 |
+| **Orchestrator**       | 协调器，处理用户请求，整合各模块功能            | code/langchain/presentation/orchestrator.py     | process\_query, process\_stream\_query                 |
 | **PolicyMatcher**        | 负责基于用户意图和实体匹配相关政策       | code/langchain/business/policy_matcher.py    | match\_policies                                                        |
 | **IntentAnalyzer**        | 负责识别用户意图和提取实体信息       | code/langchain/business/intent_analyzer.py    | ir\_identify\_intent                                                        |
 | **ResponseGenerator**        | 负责基于政策和推荐生成结构化回答       | code/langchain/business/response_generator.py    | rg\_generate\_response                                                        |
@@ -116,6 +116,7 @@ sequenceDiagram
     participant PolicyMatcher as 政策匹配器
     participant PolicyRetriever as 政策检索器
     participant JobMatcher as 岗位匹配器
+    participant JobRetriever as 岗位检索器
     participant ResponseGenerator as 回答生成器
     participant ChatBot as 对话机器人
     participant LLM as DeepSeek V3
@@ -140,8 +141,10 @@ sequenceDiagram
     PolicyMatcher->>PolicyMatcher: 匹配相关政策
     PolicyMatcher-->>Orchestrator: 返回匹配政策
     Orchestrator->>JobMatcher: match_jobs_by_entities()
-    JobMatcher->>Data: 加载岗位数据
-    Data-->>JobMatcher: 返回岗位数据
+    JobMatcher->>JobRetriever: get_all_jobs()
+    JobRetriever->>Data: 加载岗位数据
+    Data-->>JobRetriever: 返回岗位数据
+    JobRetriever-->>JobMatcher: 返回岗位数据
     JobMatcher-->>Orchestrator: 返回岗位推荐
     Orchestrator->>ResponseGenerator: rg_generate_response()
     ResponseGenerator->>ChatBot: chat_with_memory()
@@ -154,60 +157,6 @@ sequenceDiagram
     Orchestrator-->>API: 返回流式响应
     API-->>Frontend: 流式返回结果
     Frontend-->>User: 展示结构化回答
-```
-
-### 3.2 场景化处理流程
-
-```mermaid
-flowchart TD
-    Start[开始] --> CheckScenario{检查场景类型}
-    CheckScenario -->|技能培训岗位推荐| Scenario1[处理场景1]
-    CheckScenario -->|创业扶持政策| Scenario2[处理场景2]
-    CheckScenario -->|多重政策叠加| Scenario3[处理场景3]
-    CheckScenario -->|培训课程匹配| Scenario4[处理场景4]
-    CheckScenario -->|通用场景| General[处理通用场景]
-    
-    Scenario1 --> Orchestrator1[调用协调器]
-    Scenario2 --> Orchestrator2[调用协调器]
-    Scenario3 --> Orchestrator3[调用协调器]
-    Scenario4 --> Orchestrator4[调用协调器]
-    General --> Orchestrator5[调用协调器]
-    
-    Orchestrator1 --> IntentAnalyzer1[识别意图]
-    Orchestrator2 --> IntentAnalyzer2[识别意图]
-    Orchestrator3 --> IntentAnalyzer3[识别意图]
-    Orchestrator4 --> IntentAnalyzer4[识别意图]
-    Orchestrator5 --> IntentAnalyzer5[识别意图]
-    
-    IntentAnalyzer1 --> PolicyMatcher1[匹配政策]
-    IntentAnalyzer2 --> PolicyMatcher2[匹配政策]
-    IntentAnalyzer3 --> PolicyMatcher3[匹配政策]
-    IntentAnalyzer4 --> PolicyMatcher4[匹配政策]
-    IntentAnalyzer5 --> PolicyMatcher5[匹配政策]
-    
-    PolicyMatcher1 --> JobMatcher1[推荐岗位]
-    PolicyMatcher2 --> JobMatcher2[推荐岗位]
-    PolicyMatcher3 --> JobMatcher3[推荐岗位]
-    PolicyMatcher4 --> JobMatcher4[推荐岗位]
-    PolicyMatcher5 --> JobMatcher5[推荐岗位]
-    
-    JobMatcher1 --> ResponseGenerator1[生成回答]
-    JobMatcher2 --> ResponseGenerator2[生成回答]
-    JobMatcher3 --> ResponseGenerator3[生成回答]
-    JobMatcher4 --> ResponseGenerator4[生成回答]
-    JobMatcher5 --> ResponseGenerator5[生成回答]
-    
-    ResponseGenerator1 --> Result1[生成场景1结果]
-    ResponseGenerator2 --> Result2[生成场景2结果]
-    ResponseGenerator3 --> Result3[生成场景3结果]
-    ResponseGenerator4 --> Result4[生成场景4结果]
-    ResponseGenerator5 --> Result5[生成通用结果]
-    
-    Result1 --> Return[返回结果]
-    Result2 --> Return
-    Result3 --> Return
-    Result4 --> Return
-    Result5 --> Return
 ```
 
 ## 4. 数据流
@@ -223,7 +172,8 @@ graph LR
     PolicyMatcher --> PolicyRetriever[政策检索器]
     PolicyRetriever --> PolicyData[政策数据]
     PolicyMatcher --> JobMatcher[岗位匹配器]
-    JobMatcher --> JobData[岗位数据]
+    JobMatcher --> JobRetriever[岗位检索器]
+    JobRetriever --> JobData[岗位数据]
     JobMatcher --> UserMatcher[用户匹配器]
     UserMatcher --> UserProfile[用户画像]
     PolicyMatcher --> ResponseGenerator[回答生成器]
@@ -283,9 +233,11 @@ graph LR
 * **流程**：
 
   1. 根据用户意图判断是否需要岗位推荐
-  2. 基于政策ID匹配相关岗位
-  3. 去重并限制推荐数量
-  4. 生成岗位推荐结果
+  2. 通过 JobRetriever 获取岗位数据
+  3. 基于政策ID匹配相关岗位
+  4. 计算岗位与用户的匹配度
+  5. 按匹配度排序并限制推荐数量
+  6. 生成岗位推荐结果
 
 * **应用**：为用户推荐与政策相关的岗位
 
@@ -400,7 +352,7 @@ graph LR
 
 ### 9.1 功能测试
 
-* **场景测试**：测试四种标准场景的处理能力
+* **意图测试**：测试不同意图类型的处理能力
 
 * **政策匹配测试**：测试政策匹配的准确性
 
@@ -426,7 +378,7 @@ graph LR
 
 ## 10. 总结
 
-政策咨询智能体POC系统是一个基于大语言模型的智能政策咨询系统，通过分层架构和模块化设计，实现了智能对话、场景化咨询、政策匹配、结构化回答等核心功能。系统采用了多种优化策略，提升了响应速度和用户体验。
+政策咨询智能体POC系统是一个基于大语言模型的智能政策咨询系统，通过分层架构和模块化设计，实现了智能对话、智能咨询、政策匹配、结构化回答等核心功能。系统采用了多种优化策略，提升了响应速度和用户体验。
 
 未来，系统可以通过增强多轮对话能力、构建知识图谱、提供个性化推荐等方式进一步提升性能和用户体验。同时，通过异步处理、分布式缓存等技术，可以提升系统的并发性能和可扩展性。
 

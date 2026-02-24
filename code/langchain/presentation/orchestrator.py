@@ -672,39 +672,7 @@ class Orchestrator:
             "recommended_jobs": recommended_jobs
         }
     
-    def handle_scenario(self, scenario, user_input):
-        """处理特定场景"""
-        logger.info(f"处理场景: {scenario}, 用户输入: {user_input[:50]}...")
-        
-        # 1. 识别意图和实体
-        intent_result = self.intent_recognizer.ir_identify_intent(user_input)
-        intent_info = intent_result["result"]
-        
-        # 2. 检索相关政策和推荐
-        retrieve_result = self.policy_retriever.pr_process_query(user_input, intent_info)
-        relevant_policies = retrieve_result["relevant_policies"]
-        recommended_jobs = retrieve_result["recommended_jobs"]
-        
-        # 3. 生成结构化回答
-        response = self.response_generator.rg_generate_response(
-            user_input,
-            relevant_policies,
-            scenario,
-            recommended_jobs=recommended_jobs
-        )
-        
-        # 生成评估结果
-        evaluation = self.evaluate_response(user_input, response)
-        
-        return {
-            "intent": intent_info,
-            "relevant_policies": relevant_policies,
-            "response": response,
-            "evaluation": evaluation,
-            "recommended_jobs": recommended_jobs,
-            "recommended_courses": []
-        }
-    
+
     def evaluate_response(self, user_input, response):
         """评估回答质量"""
         # 简单的评估逻辑
