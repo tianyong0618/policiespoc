@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class HistoryManager:
-    def __init__(self, storage_file='data/chat_history.json'):
+    def __init__(self, storage_file='../data/data_files/chat_history.json'):
         self.storage_file = os.path.join(os.path.dirname(__file__), storage_file)
         self.sessions = self._load_history()
 

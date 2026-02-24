@@ -245,7 +245,7 @@ graph LR
 | 政策数据  | JSON文件 | code/langchain/data/data_files/policies.json       | 存储政策信息，包括政策ID、标题、条件、福利等 |
 | 岗位数据  | JSON文件 | code/langchain/data/data_files/jobs.json           | 存储岗位信息，包括岗位ID、标题、要求、特点等 |
 | 用户画像  | JSON文件 | code/langchain/data/data_files/user_profiles.json | 存储用户画像信息，包括基本信息、技能、需求等  |
-| 会话历史  | 内存存储   | 运行时内存                                   | 存储用户会话历史，支持多会话管理        |
+| 会话历史  | JSON文件 | code/langchain/data/data_files/chat_history.json | 存储用户会话历史，支持多会话管理        |
 | LLM缓存 | 内存存储   | 运行时内存                                   | 缓存LLM响应，提升重复查询的响应速度     |
 
 ## 5. 核心算法与技术
