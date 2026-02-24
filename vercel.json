@@ -20,6 +20,10 @@
       "dest": "main.py"
     },
     {
+      "src": "/static/(.*)",
+      "dest": "code/web_code/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "code/web_code/$1"
     },
