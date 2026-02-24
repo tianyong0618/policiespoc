@@ -167,25 +167,41 @@ sequenceDiagram
 graph LR
     UserInput[用户输入] --> Orchestrator[协调器]
     Orchestrator --> IntentAnalyzer[意图分析器]
-    IntentAnalyzer --> EntityExtraction[实体提取]
-    EntityExtraction --> PolicyMatcher[政策匹配器]
-    PolicyMatcher --> PolicyRetriever[政策检索器]
-    PolicyRetriever --> PolicyData[政策数据]
-    PolicyMatcher --> JobMatcher[岗位匹配器]
-    JobMatcher --> JobRetriever[岗位检索器]
-    JobRetriever --> JobData[岗位数据]
-    JobMatcher --> UserMatcher[用户匹配器]
-    UserMatcher --> UserProfile[用户画像]
-    PolicyMatcher --> ResponseGenerator[回答生成器]
-    JobMatcher --> ResponseGenerator
-    ResponseGenerator --> StructuredResponse[结构化响应]
-    StructuredResponse --> UserOutput[用户输出]
-    
     IntentAnalyzer --> ChatBot[对话机器人]
-    ResponseGenerator --> ChatBot
     ChatBot --> LLM[大语言模型]
-    LLM --> IntentAnalyzer
-    LLM --> ResponseGenerator
+    LLM --> ChatBot
+    ChatBot --> IntentAnalyzer
+    IntentAnalyzer --> Orchestrator
+    
+    Orchestrator --> PolicyRetriever[政策检索器]
+    PolicyRetriever --> PolicyData[政策数据]
+    PolicyData --> PolicyRetriever
+    PolicyRetriever --> Orchestrator
+    
+    Orchestrator --> ChatBot
+    ChatBot --> LLM
+    LLM --> ChatBot
+    ChatBot --> Orchestrator
+    
+    Orchestrator --> ResponseGenerator[回答生成器]
+    ResponseGenerator --> ChatBot
+    ChatBot --> LLM
+    LLM --> ChatBot
+    ChatBot --> ResponseGenerator
+    ResponseGenerator --> Orchestrator
+    
+    Orchestrator --> JobRetriever[岗位检索器]
+    JobRetriever --> JobData[岗位数据]
+    JobData --> JobRetriever
+    JobRetriever --> Orchestrator
+    
+    Orchestrator --> UserMatcher[用户匹配器]
+    UserMatcher --> UserProfile[用户画像]
+    UserProfile --> UserMatcher
+    UserMatcher --> Orchestrator
+    
+    Orchestrator --> StructuredResponse[结构化响应]
+    StructuredResponse --> UserOutput[用户输出]
 ```
 
 ### 4.2 数据存储
