@@ -18,14 +18,14 @@ project_root = os.path.dirname(code_dir)
 sys.path.insert(0, code_dir)
 print(f"添加到Python路径：{code_dir}")
 
-from langchain.policy_agent import PolicyAgent
+from langchain.business.policy_matcher import PolicyMatcher
 
 def test_scenario1_comprehensive():
     """综合测试场景1的所有测试用例"""
     print("=== 场景1综合测试：创业扶持政策精准咨询 ===")
     
     # 初始化政策智能体
-    agent = PolicyAgent()
+    agent = PolicyMatcher()
     
     # 测试用例列表
     test_cases = [

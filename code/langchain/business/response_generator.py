@@ -1,6 +1,6 @@
 import json
 import logging
-from .chatbot import ChatBot
+from ..infrastructure.chatbot import ChatBot
 
 # 配置日志
 logging.basicConfig(

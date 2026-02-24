@@ -21,10 +21,10 @@ base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, os.path.join(base_dir, 'code'))
 
 # 直接导入模块
-from langchain.orchestrator import Orchestrator
-from langchain.job_matcher import JobMatcher
-from langchain.user_profile import UserProfileManager
-from langchain.history_manager import HistoryManager
+from langchain.presentation.orchestrator import Orchestrator
+from langchain.business.job_matcher import JobMatcher
+from langchain.business.user_matcher import UserMatcher
+from langchain.infrastructure.history_manager import HistoryManager
 
 # 初始化应用
 app = FastAPI(title="政策咨询智能体API", description="政策咨询智能体POC服务")
@@ -60,7 +60,7 @@ else:
 job_matcher = JobMatcher()
 # 初始化用户画像管理器
 try:
-    user_profile_manager = UserProfileManager(job_matcher)
+    user_profile_manager = UserMatcher(job_matcher)
 except Exception as e:
     logger.error(f"初始化用户画像管理器失败: {e}")
     user_profile_manager = None

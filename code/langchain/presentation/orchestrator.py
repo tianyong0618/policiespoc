@@ -1,11 +1,11 @@
 import time
 import json
 import logging
-from .intent_recognizer import IntentRecognizer
-from .policy_retriever import PolicyRetriever
-from .response_generator import ResponseGenerator
-from .job_matcher import JobMatcher
-from .user_profile import UserProfileManager
+from ..business.intent_analyzer import IntentAnalyzer
+from ..data.policy_retriever import PolicyRetriever
+from ..business.response_generator import ResponseGenerator
+from ..business.job_matcher import JobMatcher
+from ..business.user_matcher import UserMatcher
 
 # 配置日志
 logging.basicConfig(
@@ -19,10 +19,10 @@ class Orchestrator:
         """初始化协调器"""
         # 初始化依赖
         self.job_matcher = JobMatcher()
-        self.user_profile_manager = UserProfileManager(job_matcher=self.job_matcher)
+        self.user_profile_manager = UserMatcher(job_matcher=self.job_matcher)
         
         # 初始化三个核心模块
-        self.intent_recognizer = intent_recognizer if intent_recognizer else IntentRecognizer()
+        self.intent_recognizer = intent_recognizer if intent_recognizer else IntentAnalyzer()
         self.policy_retriever = policy_retriever if policy_retriever else PolicyRetriever(
             job_matcher=self.job_matcher,
             user_profile_manager=self.user_profile_manager
@@ -102,7 +102,7 @@ class Orchestrator:
         needs_policy_recommendation = intent_info.get("needs_policy_recommendation", False)
         
         # 直接构建prompt并调用chatbot来获取分析结果
-        from .chatbot import ChatBot
+        from ..infrastructure.chatbot import ChatBot
         
         chatbot = ChatBot()
         
@@ -702,7 +702,7 @@ class Orchestrator:
             "response": response,
             "evaluation": evaluation,
             "recommended_jobs": recommended_jobs,
-            "recommended_courses": recommended_courses
+            "recommended_courses": []
         }
     
     def evaluate_response(self, user_input, response):
@@ -1283,7 +1283,7 @@ class Orchestrator:
                 ]
                 
                 # 直接构建prompt并调用chatbot来获取分析结果
-                from .chatbot import ChatBot
+                from ..infrastructure.chatbot import ChatBot
                 
                 chatbot = ChatBot()
                 

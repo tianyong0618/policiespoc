@@ -18,7 +18,7 @@ project_root = os.path.dirname(code_dir)
 sys.path.insert(0, code_dir)
 print(f"添加到Python路径：{code_dir}")
 
-from langchain.orchestrator import Orchestrator
+from langchain.presentation.orchestrator import Orchestrator
 
 def test_scenario2_comprehensive():
     """综合测试场景2的所有测试用例"""

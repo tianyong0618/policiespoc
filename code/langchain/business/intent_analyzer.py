@@ -1,6 +1,6 @@
 import json
 import logging
-from .chatbot import ChatBot
+from ..infrastructure.chatbot import ChatBot
 
 # 配置日志
 logging.basicConfig(
@@ -9,7 +9,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class IntentRecognizer:
+class IntentAnalyzer:
     def __init__(self, chatbot=None):
         """初始化意图识别器"""
         self.chatbot = chatbot if chatbot else ChatBot()
@@ -106,6 +106,6 @@ class IntentRecognizer:
         except Exception as e:
             logger.error(f"解析意图识别结果失败: {str(e)}")
             return {
-                "result": {"intent": "政策咨询", "needs_job_recommendation": False, "entities": []},
+                "result": {"intent": "政策咨询", "needs_job_recommendation": False, "needs_course_recommendation": False, "needs_policy_recommendation": False, "entities": []},
                 "time": llm_time
             }

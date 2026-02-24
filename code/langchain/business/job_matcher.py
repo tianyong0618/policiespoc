@@ -34,7 +34,7 @@ class JobMatcher:
         Returns:
             list: 岗位数据列表
         """
-        job_file = os.path.join(os.path.dirname(__file__), 'data', 'jobs.json')
+        job_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_files', 'jobs.json')
         try:
             with open(job_file, 'r', encoding='utf-8') as f:
                 return json.load(f)

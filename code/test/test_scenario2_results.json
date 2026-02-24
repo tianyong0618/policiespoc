@@ -11,7 +11,7 @@
         "JOB_A02"
       ],
       "passed": true,
-      "execution_time": 24.77692484855652
+      "execution_time": 29.363706827163696
     },
     {
       "id": "S2-002",
@@ -24,7 +24,7 @@
         "JOB_A01"
       ],
       "passed": true,
-      "execution_time": 21.04727578163147
+      "execution_time": 25.736759185791016
     },
     {
       "id": "S2-003",
@@ -37,7 +37,7 @@
         "JOB_A03"
       ],
       "passed": true,
-      "execution_time": 24.060422897338867
+      "execution_time": 18.371569871902466
     },
     {
       "id": "S2-004",
@@ -50,7 +50,7 @@
         "JOB_A04"
       ],
       "passed": true,
-      "execution_time": 31.24907898902893
+      "execution_time": 21.02383303642273
     },
     {
       "id": "S2-005",
@@ -59,7 +59,7 @@
       "expected_jobs": [],
       "matched_jobs": [],
       "passed": true,
-      "execution_time": 18.8822021484375
+      "execution_time": 11.094997882843018
     },
     {
       "id": "S2-006",
@@ -72,7 +72,7 @@
         "JOB_A05"
       ],
       "passed": true,
-      "execution_time": 27.51318097114563
+      "execution_time": 20.064401865005493
     },
     {
       "id": "S2-007",
@@ -81,14 +81,14 @@
       "expected_jobs": [],
       "matched_jobs": [],
       "passed": true,
-      "execution_time": 28.915776014328003
+      "execution_time": 26.983768701553345
     }
   ],
   "summary": {
     "total_cases": 7,
     "passed_count": 7,
     "pass_rate": 100.0,
-    "average_time": 25.20640880720956,
-    "total_time": 176.44486165046692
+    "average_time": 21.80557676724025,
+    "total_time": 152.63903737068176
   }
 }

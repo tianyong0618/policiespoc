@@ -44,7 +44,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      业务逻辑层                              │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │              PolicyAgent（政策智能体）                 │  │
+│  │              PolicyMatcher（政策智能体）                 │  │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │  │
 │  │  │意图识别  │  │政策检索  │  │回答生成  │          │  │
 │  │  └──────────┘  └──────────┘  └──────────┘          │  │
@@ -164,7 +164,7 @@ def chat_with_memory(self, user_input):
 - **超时设置**：1800秒超时保护
 - **Token限制**：最大8192 tokens
 
-### 4.2 PolicyAgent模块 ([policy_agent.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/policy_agent.py))
+### 4.2 PolicyMatcher模块 ([policy_agent.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/policy_agent.py))
 
 #### 功能描述
 政策智能体核心逻辑，负责意图识别、政策检索和回答生成。
@@ -300,7 +300,7 @@ const API_BASE_URL = (() => {
     ↓
 API接收请求，开始计时
     ↓
-PolicyAgent.process_query()
+PolicyMatcher.process_query()
     ↓
 检查缓存
     ↓

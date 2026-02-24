@@ -1,10 +1,9 @@
 import json
 import os
 import logging
-from .job_matcher import JobMatcher
-
-from .user_profile import UserProfileManager
-from .chatbot import ChatBot
+from ..infrastructure.cache_manager import CacheManager
+from ..infrastructure.config_manager import ConfigManager
+from ..infrastructure.chatbot import ChatBot
 
 # 配置日志
 logging.basicConfig(
@@ -14,14 +13,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class PolicyRetriever:
-    def __init__(self, job_matcher=None, user_profile_manager=None, course_matcher=None):
+    def __init__(self, cache_manager=None, config_manager=None, job_matcher=None, user_profile_manager=None):
         """初始化政策检索器"""
+        # 初始化缓存和配置
+        self.cache_manager = cache_manager or CacheManager()
+        self.config_manager = config_manager or ConfigManager()
+        # 初始化岗位匹配器和用户画像管理器
+        self.job_matcher = job_matcher
+        self.user_profile_manager = user_profile_manager
         # 缓存数据
         self._policies_cache = None
         self._policies_loaded = False
         self.policies = self.pr_load_policies()
-        self.job_matcher = job_matcher if job_matcher else JobMatcher()
-        self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
         self.chatbot = ChatBot()
     
     def pr_load_policies(self):
@@ -29,13 +32,16 @@ class PolicyRetriever:
         if self._policies_loaded and self._policies_cache:
             return self._policies_cache
         
-        policy_file = os.path.join(os.path.dirname(__file__), 'data', 'policies.json')
+        # 从配置中获取政策文件路径
+        policy_file = self.config_manager.get('data.policy_file')
         try:
             with open(policy_file, 'r', encoding='utf-8') as f:
                 policies = json.load(f)
                 # 缓存数据
                 self._policies_cache = policies
                 self._policies_loaded = True
+                # 缓存到缓存管理器
+                self.cache_manager.set('policies', policies)
                 return policies
         except Exception as e:
             print(f"加载政策数据失败: {e}")
@@ -206,7 +212,7 @@ class PolicyRetriever:
         
         # 1. 生成岗位推荐（仅当用户需要时）
         recommended_jobs = []
-        if needs_job_recommendation:
+        if needs_job_recommendation and self.job_matcher:
             logger.info("用户需要岗位推荐，开始处理")
             # 直接基于用户输入和实体匹配岗位，不依赖政策
             # 提取实体信息用于岗位匹配
@@ -262,7 +268,7 @@ class PolicyRetriever:
         
         # 2. 获取所有数据
         all_policies = self.policies
-        all_jobs = self.job_matcher.get_all_jobs()
+        all_jobs = self.job_matcher.get_all_jobs() if self.job_matcher else []
         
         # 3. 构建分析Prompt
         prompt = self.pr_build_analysis_prompt(user_input, matched_user, all_policies, all_jobs)

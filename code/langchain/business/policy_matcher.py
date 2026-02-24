@@ -2,39 +2,38 @@ import json
 import os
 import time
 import logging
-from .chatbot import ChatBot
+from ..infrastructure.chatbot import ChatBot
 from .job_matcher import JobMatcher
-
-from .user_profile import UserProfileManager
+from .user_matcher import UserMatcher
+from ..data.policy_retriever import PolicyRetriever
+from ..data.job_retriever import JobRetriever
+from ..data.user_retriever import UserRetriever
 
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - PolicyAgent - %(levelname)s - %(message)s'
+    format='%(asctime)s - PolicyMatcher - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-class PolicyAgent:
-    def __init__(self, job_matcher=None, user_profile_manager=None):
+class PolicyMatcher:
+    def __init__(self, job_matcher=None, user_matcher=None):
         self.chatbot = ChatBot()
-        # 加载并缓存政策数据
-        self.policies = self.load_policies()
+        # 初始化数据访问层组件
+        self.policy_retriever = PolicyRetriever()
+        self.job_retriever = JobRetriever()
+        self.user_retriever = UserRetriever()
         # 缓存LLM响应
         self.llm_cache = {}
         # 初始化岗位匹配器
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
         # 初始化用户画像管理器
-        self.user_profile_manager = user_profile_manager if user_profile_manager else UserProfileManager(self.job_matcher)
+        self.user_matcher = user_matcher if user_matcher else UserMatcher()
     
     def load_policies(self):
         """加载政策数据"""
-        policy_file = os.path.join(os.path.dirname(__file__), 'data', 'policies.json')
-        try:
-            with open(policy_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"加载政策数据失败: {e}")
-            return []
+        # 使用政策检索器加载政策数据
+        return self.policy_retriever.pr_load_policies()
     
     def identify_intent(self, user_input):
         """识别用户意图和实体"""
@@ -111,149 +110,10 @@ class PolicyAgent:
     
     def retrieve_policies(self, intent, entities, original_input=None):
         """检索相关政策"""
-        relevant_policies = []
         logger.info(f"开始检索政策，意图: {intent}, 实体: {entities}")
         
-        # 提取实体值和用户可能的需求关键词
-        entity_values = [entity["value"] for entity in entities]
-        logger.info(f"实体值列表: {entity_values}")
-        
-        # 检查用户具体条件 - 同时考虑实体值和原始用户输入
-        entity_input_str = "".join(entity_values)
-        # 使用原始用户输入作为备用，确保所有信息都被考虑
-        user_input_str = original_input if original_input else entity_input_str
-        logger.info(f"使用的用户输入字符串: {user_input_str}")
-        
-        # 从实体中提取信息
-        has_veteran_entity = False
-        has_migrant_entity = False
-        for entity in entities:
-            entity_type = entity.get('type', '')
-            entity_value = entity.get('value', '')
-            if entity_type == 'employment_status' and ('退役军人' in entity_value):
-                has_veteran_entity = True
-            elif entity_type == 'employment_status' and ('返乡农民工' in entity_value or '农民工' in entity_value or '返乡' in entity_value):
-                # 避免因为用户提到"返乡创业补贴"政策名称而错误识别为返乡农民工
-                if "返乡创业补贴" not in entity_value:
-                    has_migrant_entity = True
-        
-        has_certificate = "电工证" in user_input_str or "证书" in user_input_str
-        is_unemployed = "失业" in user_input_str
-        # 检查用户是否是在职人员
-        is_employed = "在职" in user_input_str or "工作" in user_input_str
-        # 检查用户是否明确提到自己是返乡农民工
-        # 注意：避免因为用户提到"返乡创业补贴"政策名称而错误识别
-        has_return_home = False
-        
-        # 首先检查用户是否是在职人员，如果是，直接不识别为返乡人员
-        if not is_employed:
-            # 检查用户是否只是提到政策名称，而不是自己的身份
-            mentions_policy_only = "返乡创业补贴" in user_input_str
-            mentions_identity = "返乡农民工" in user_input_str or ("返乡" in user_input_str and "农民工" in user_input_str)
-            
-            # 如果用户只是提到政策名称，而没有提到自己的身份，不识别为返乡人员
-            if not (mentions_policy_only and not mentions_identity):
-                # 检查用户是否明确表示自己是返乡农民工
-                explicitly_mentions_identity = (
-                    "返乡农民工" in user_input_str or
-                    ("我是" in user_input_str and "返乡" in user_input_str and "农民工" in user_input_str) or
-                    ("是" in user_input_str and "返乡" in user_input_str and "农民工" in user_input_str) or
-                    ("返乡" in user_input_str and "农民工" in user_input_str) or
-                    ("回来" in user_input_str and "农民工" in user_input_str)
-                )
-                
-                # 检查实体中是否包含返乡农民工
-                has_migrant_entity_check = has_migrant_entity
-                
-                # 只有明确提到自己是返乡农民工，才识别为返乡人员
-                if explicitly_mentions_identity or has_migrant_entity_check:
-                    has_return_home = True
-        has_entrepreneurship = "创业" in user_input_str or "小微企业" in user_input_str or "创业税收优惠" in user_input_str
-        has_incubator = "场地补贴" in user_input_str or "孵化基地" in user_input_str or "租金" in user_input_str
-        has_veteran = "退役军人" in user_input_str or has_veteran_entity
-        has_individual_business = "个体经营" in user_input_str or "开店" in user_input_str or "汽车维修店" in user_input_str or "维修店" in user_input_str or "开店" in user_input_str
-        
-        logger.info(f"用户条件检测: 证书={has_certificate}, 失业={is_unemployed}, 在职={is_employed}, 返乡={has_return_home}, 创业={has_entrepreneurship}, 孵化基地={has_incubator}, 退役军人={has_veteran}, 个体经营={has_individual_business}")
-        
-        # 逐个检查政策是否符合用户条件
-        for policy in self.policies:
-            policy_id = policy["policy_id"]
-            title = policy["title"]
-            conditions = policy.get("conditions", [])
-            
-            logger.info(f"检查政策: {policy_id} - {title}")
-            
-            # 根据政策ID和用户条件判断是否符合
-            is_eligible = False
-            
-            if policy_id == "POLICY_A02":  # 职业技能提升补贴政策
-                # 条件：持有职业资格证书或失业人员
-                if has_certificate or is_unemployed:
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 持有证书或失业")
-            
-            elif policy_id == "POLICY_A03":  # 返乡创业扶持补贴政策
-                # 条件：返乡人员，创办小微企业，经营满1年，带动3人以上就业
-                logger.info(f"检查POLICY_A03条件: has_return_home={has_return_home}, has_entrepreneurship={has_entrepreneurship}, is_employed={is_employed}")
-                if has_return_home and has_entrepreneurship and not is_employed:
-                    # 检查是否提到带动就业
-                    has_employment = "带动就业" in user_input_str or "就业" in user_input_str
-                    if has_employment:
-                        is_eligible = True
-                        logger.info(f"用户符合 {policy_id} 条件: 返乡创业且提到带动就业")
-                    else:
-                        # 用户未提带动就业，但仍将政策加入相关列表，后续在展示时指出缺失条件
-                        is_eligible = True
-                        logger.info(f"用户符合 {policy_id} 基本条件，但未提带动就业，需指出缺失条件")
-                else:
-                    logger.info(f"用户不符合 {policy_id} 条件: 返乡={has_return_home}, 创业={has_entrepreneurship}, 在职={is_employed}")
-            
-            elif policy_id == "POLICY_A04":  # 创业场地租金补贴政策
-                # 条件：入驻创业孵化基地
-                if has_incubator:
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 入驻孵化基地")
-            
-            elif policy_id == "POLICY_A01":  # 创业担保贷款贴息政策
-                # 条件：创业者身份（高校毕业生/返乡农民工/退役军人）+ 创业需求
-                if (has_return_home or has_veteran) and has_entrepreneurship and not is_employed:
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 返乡人员或退役军人且有创业需求")
-                else:
-                    # 检查实体中是否有返乡农民工或退役军人
-                    has_relevant_entity = False
-                    for entity in entities:
-                        entity_value = entity.get('value', '')
-                        # 避免因为用户提到"返乡创业补贴"政策名称而错误识别
-                        if "返乡创业补贴" not in entity_value:
-                            if entity.get('type') == 'employment_status' and ('返乡农民工' in entity_value or '退役军人' in entity_value):
-                                has_relevant_entity = True
-                                break
-                    if has_relevant_entity and has_entrepreneurship and not is_employed:
-                        is_eligible = True
-                        logger.info(f"用户符合 {policy_id} 条件: 实体中包含返乡农民工或退役军人且有创业需求")
-                    else:
-                        logger.info(f"用户不符合 {policy_id} 条件: 未提及返乡农民工或退役军人身份或创业需求，或为在职人员")
-            
-            elif policy_id == "POLICY_A05":  # 技能培训生活费补贴政策
-                # 条件：脱贫人口、低保家庭成员、残疾人等
-                if any(keyword in user_input_str for keyword in ["脱贫", "低保", "残疾"]):
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 特殊群体")
-            
-            elif policy_id == "POLICY_A06":  # 退役军人创业税收优惠
-                # 条件：退役军人且有创业相关需求
-                if has_veteran and (has_individual_business or has_entrepreneurship):
-                    is_eligible = True
-                    logger.info(f"用户符合 {policy_id} 条件: 退役军人且有创业需求")
-            
-            # 如果符合条件，添加到相关政策列表
-            if is_eligible:
-                relevant_policies.append(policy)
-                logger.info(f"添加符合条件的政策: {policy_id} - {title}")
-        
-        # 限制返回的政策数量
-        relevant_policies = relevant_policies[:3]
+        # 使用政策检索器检索相关政策
+        relevant_policies = self.policy_retriever.pr_retrieve_policies(intent, entities, original_input)
         
         logger.info(f"政策检索完成，找到 {len(relevant_policies)} 条符合条件的政策: {[p['policy_id'] for p in relevant_policies]}")
         return relevant_policies if relevant_policies else []
@@ -439,10 +299,11 @@ class PolicyAgent:
                     unique_jobs.append(job)
             recommended_jobs = unique_jobs[:3]  # 最多返回3个岗位
         
-
+        # 4. 匹配用户画像
+        matched_user = self.user_matcher.match_user_profile(user_input)
         
         # 5. 生成回答
-        response = self.generate_response(user_input, relevant_policies, "通用场景", recommended_jobs=recommended_jobs)
+        response = self.generate_response(user_input, relevant_policies, "通用场景", matched_user, recommended_jobs)
         
         end_time = time.time()
         execution_time = end_time - start_time
@@ -465,7 +326,11 @@ class PolicyAgent:
                 "content": f"生成 {len(recommended_jobs)} 个岗位推荐",
                 "status": "completed"
             },
-
+            {
+                "step": "用户画像匹配",
+                "content": f"匹配到用户画像: {matched_user.get('user_id') if matched_user else '无'}",
+                "status": "completed"
+            },
             {
                 "step": "回答生成",
                 "content": "基于检索结果生成结构化回答",
@@ -479,7 +344,8 @@ class PolicyAgent:
             "response": response,
             "execution_time": execution_time,
             "thinking_process": thinking_process,
-            "recommended_jobs": recommended_jobs
+            "recommended_jobs": recommended_jobs,
+            "matched_user": matched_user
         }
     
     def evaluate_response(self, user_input, response):
@@ -532,7 +398,7 @@ class PolicyAgent:
         intent_info = self._identify_intent_and_entities(user_input)
         
         # 2. 匹配用户画像
-        matched_user = self.user_profile_manager.match_user_profile(user_input)
+        matched_user = self.user_matcher.match_user_profile(user_input)
         
         # 3. 分析需要的信息
         required_info = self._initialize_required_info()

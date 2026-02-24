@@ -50,7 +50,7 @@
 - **政策智能体 (PolicyAgent)**：核心业务逻辑，负责意图识别、政策检索和回答生成
 - **对话机器人 (ChatBot)**：与LLM交互，提供对话记忆功能
 - **岗位匹配器 (JobMatcher)**：基于政策和用户需求推荐岗位
-- **用户画像管理 (UserProfileManager)**：管理用户画像，提供个性化推荐
+- **用户画像管理 (UserMatcher)**：管理用户画像，提供个性化推荐
 - **会话历史管理 (HistoryManager)**：管理用户会话历史
 
 #### 4. LLM集成层
@@ -77,11 +77,11 @@
 
 | 模块                     | 主要职责                             | 文件位置                               | 关键方法                                                                     |
 | ---------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| **PolicyAgent**        | 政策智能体核心逻辑，负责意图识别、政策检索和回答生成       | code/langchain/policy\_agent.py    | process\_query, identify\_intent, retrieve\_policies, generate\_response |
+| **PolicyMatcher**        | 政策智能体核心逻辑，负责意图识别、政策检索和回答生成       | code/langchain/policy\_agent.py    | process\_query, identify\_intent, retrieve\_policies, generate\_response |
 | **ChatBot**            | 与DeepSeek V3模型的集成，提供对话记忆和LLM调用功能 | code/langchain/chatbot.py          | chat\_with\_memory                                                       |
 | **Orchestrator**       | 协调器，处理不同场景的请求，整合各模块功能            | code/langchain/orchestrator.py     | process\_query, process\_stream\_query, handle\_scenario                 |
 | **JobMatcher**         | 岗位匹配器，基于政策和用户需求推荐岗位              | code/langchain/job\_matcher.py     | match\_jobs\_by\_policy, get\_all\_jobs                                  |
-| **UserProfileManager** | 用户画像管理，创建和管理用户画像                 | code/langchain/user\_profile.py    | match\_user\_profile, create\_or\_update\_user\_profile                  |
+| **UserMatcher** | 用户画像管理，创建和管理用户画像                 | code/langchain/user\_profile.py    | match\_user\_profile, create\_or\_update\_user\_profile                  |
 | **HistoryManager**     | 会话历史管理，记录和管理用户对话历史               | code/langchain/history\_manager.py | create\_session, add\_message, get\_session                              |
 
 ## 3. 核心业务流程
@@ -94,7 +94,7 @@ sequenceDiagram
     participant Frontend as 前端
     participant API as API服务
     participant Orchestrator as 协调器
-    participant PolicyAgent as 政策智能体
+    participant PolicyMatcher as 政策智能体
     participant ChatBot as 对话机器人
     participant LLM as DeepSeek V3
     participant Data as 数据层
@@ -102,22 +102,26 @@ sequenceDiagram
     User->>Frontend: 输入查询
     Frontend->>API: POST /api/chat/stream
     API->>Orchestrator: process_stream_query()
-    Orchestrator->>PolicyAgent: process_query()
-    PolicyAgent->>PolicyAgent: identify_intent()
-    PolicyAgent->>ChatBot: chat_with_memory()
-    ChatBot->>LLM: 调用LLM进行意图识别
-    LLM-->>ChatBot: 返回意图识别结果
-    ChatBot-->>PolicyAgent: 返回处理结果
-    PolicyAgent->>PolicyAgent: retrieve_policies()
-    PolicyAgent->>Data: 加载政策数据
-    Data-->>PolicyAgent: 返回政策数据
-    PolicyAgent->>PolicyAgent: 匹配相关政策
-    PolicyAgent->>PolicyAgent: generate_response()
-    PolicyAgent->>ChatBot: chat_with_memory()
-    ChatBot->>LLM: 调用LLM生成回答
-    LLM-->>ChatBot: 返回回答结果
-    ChatBot-->>PolicyAgent: 返回处理结果
-    PolicyAgent-->>Orchestrator: 返回完整结果
+    Orchestrator->>PolicyMatcher: process_query()
+    PolicyMatcher->>PolicyMatcher: identify_intent()
+    PolicyMatcher->>ChatBot: chat_with_memory()
+    
+    ChatBot->>LLM: 发送处理后的查询
+    LLM-->>ChatBot: 返回LLM响应
+    
+    ChatBot-->>PolicyMatcher: 返回处理结果
+    PolicyMatcher->>PolicyMatcher: retrieve_policies()
+    PolicyMatcher->>Data: 加载政策数据
+    Data-->>PolicyMatcher: 返回政策数据
+    PolicyMatcher->>PolicyMatcher: 匹配相关政策
+    PolicyMatcher->>PolicyMatcher: generate_response()
+    PolicyMatcher->>ChatBot: chat_with_memory()
+    
+    ChatBot->>LLM: 发送政策和问题
+    LLM-->>ChatBot: 返回基于政策的回答
+    
+    ChatBot-->>PolicyMatcher: 返回处理结果
+    PolicyMatcher-->>Orchestrator: 返回完整结果
     Orchestrator-->>API: 返回流式响应
     API-->>Frontend: 流式返回结果
     Frontend-->>User: 展示结构化回答
@@ -134,17 +138,17 @@ flowchart TD
     CheckScenario -->|培训课程匹配| Scenario4[处理场景4]
     CheckScenario -->|通用场景| General[处理通用场景]
     
-    Scenario1 --> PolicyAgent1[调用PolicyAgent]
-    Scenario2 --> PolicyAgent2[调用PolicyAgent]
-    Scenario3 --> PolicyAgent3[调用PolicyAgent]
-    Scenario4 --> PolicyAgent4[调用PolicyAgent]
-    General --> PolicyAgent5[调用PolicyAgent]
+    Scenario1 --> PolicyMatcher1[调用PolicyMatcher]
+    Scenario2 --> PolicyMatcher2[调用PolicyMatcher]
+    Scenario3 --> PolicyMatcher3[调用PolicyMatcher]
+    Scenario4 --> PolicyMatcher4[调用PolicyMatcher]
+    General --> PolicyMatcher5[调用PolicyMatcher]
     
-    PolicyAgent1 --> Result1[生成场景1结果]
-    PolicyAgent2 --> Result2[生成场景2结果]
-    PolicyAgent3 --> Result3[生成场景3结果]
-    PolicyAgent4 --> Result4[生成场景4结果]
-    PolicyAgent5 --> Result5[生成通用结果]
+    PolicyMatcher1 --> Result1[生成场景1结果]
+    PolicyMatcher2 --> Result2[生成场景2结果]
+    PolicyMatcher3 --> Result3[生成场景3结果]
+    PolicyMatcher4 --> Result4[生成场景4结果]
+    PolicyMatcher5 --> Result5[生成通用结果]
     
     Result1 --> Return[返回结果]
     Result2 --> Return

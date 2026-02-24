@@ -2,6 +2,7 @@ import json
 import os
 import logging
 from .job_matcher import JobMatcher
+from ..data.user_retriever import UserRetriever
 
 # 配置日志
 logging.basicConfig(
@@ -10,28 +11,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class UserProfileManager:
+class UserMatcher:
     def __init__(self, job_matcher=None):
+        # 初始化用户检索器
+        self.user_retriever = UserRetriever()
+        # 加载用户画像数据
         self.user_profiles = self.load_user_profiles()
+        # 初始化岗位匹配器
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
         logger.info(f"加载用户画像数据完成，共 {len(self.user_profiles)} 个用户")
     
     def load_user_profiles(self):
         """加载用户画像数据"""
-        profile_file = os.path.join(os.path.dirname(__file__), 'data', 'user_profiles.json')
-        try:
-            with open(profile_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"加载用户画像数据失败: {e}")
-            return []
+        # 使用用户检索器加载用户画像数据
+        return self.user_retriever.get_all_user_profiles()
     
     def get_user_profile(self, user_id):
         """根据用户ID获取用户画像"""
-        for profile in self.user_profiles:
-            if profile.get("user_id") == user_id:
-                return profile
-        return None
+        # 使用用户检索器获取用户画像
+        return self.user_retriever.get_user_profile_by_id(user_id)
     
     def create_or_update_user_profile(self, user_id, profile_data):
         """创建或更新用户画像"""
