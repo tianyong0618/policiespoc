@@ -49,6 +49,29 @@ function initEventListeners() {
                 sendMessage();
             }
         });
+        
+        // 输入框变化监听，控制发送按钮状态
+        userInput.addEventListener('input', function() {
+            updateSendButtonState();
+        });
+        
+        // 初始化时检查按钮状态
+        updateSendButtonState();
+    }
+    
+    // 更新发送按钮状态
+    function updateSendButtonState() {
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        if (userInput && sendBtn) {
+            const hasContent = userInput.value.trim().length > 0;
+            if (hasContent) {
+                sendBtn.classList.add('active');
+                sendBtn.disabled = false;
+            } else {
+                sendBtn.classList.remove('active');
+            }
+        }
     }
 
     // 新建对话
