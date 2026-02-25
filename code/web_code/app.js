@@ -389,30 +389,39 @@ async function sendMessage() {
                                 break;
                                 
                             case 'analysis_start':
-                                // 显示分析开始
-                                aiMessageDiv.innerHTML = `
-                                    <div class="message-avatar">🤖</div>
-                                    <div class="message-content">
-                                        <div class="thinking-container">
-                                            <div class="thinking-header">
-                                                <span class="thinking-title">正在分析...</span>
-                                                <span class="thinking-toggle-icon"></span>
-                                            </div>
-                                            <div class="thinking-content">
-                                                <div class="thinking-dots">
-                                                    <div class="typing-dot"></div>
-                                                    <div class="typing-dot"></div>
-                                                    <div class="typing-dot"></div>
+                                // 显示分析开始，添加更明显的加载动画
+                                // 只有当还没有任何思考过程时才显示加载动画
+                                if (!thinkingElement && !aiMessageDiv.querySelector('.thinking-container')) {
+                                    aiMessageDiv.innerHTML = `
+                                        <div class="message-avatar">🤖</div>
+                                        <div class="message-content">
+                                            <div class="thinking-container active">
+                                                <div class="thinking-header">
+                                                    <span class="thinking-title">正在分析...</span>
+                                                    <span class="thinking-toggle-icon"></span>
+                                                </div>
+                                                <div class="thinking-content">
+                                                    <div class="loading-indicator">
+                                                        <div class="typing-dots">
+                                                            <div class="typing-dot"></div>
+                                                            <div class="typing-dot"></div>
+                                                            <div class="typing-dot"></div>
+                                                        </div>
+                                                        <div class="loading-text">正在分析您的需求，请稍候...</div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                `;
+                                    `;
+                                }
                                 scrollToBottom();
                                 break;
                                 
                             case 'thinking':
                                 // 显示思考过程 - 流式动态显示
+                                console.log('收到thinking事件:', data);
+                                
+                                // 确保aiMessageDiv有message-content元素
                                 if (!aiMessageDiv.querySelector('.message-content')) {
                                     // 如果message-content不存在，重新创建整个结构
                                     aiMessageDiv.innerHTML = `
@@ -421,31 +430,64 @@ async function sendMessage() {
                                         </div>
                                     `;
                                 }
+                                
+                                // 确保有思考过程容器
                                 if (!thinkingElement) {
-                                    // 清空之前的内容，创建思考过程容器
-                                    aiMessageDiv.querySelector('.message-content').innerHTML = '';
-                                    const thinkingContainer = document.createElement('div');
-                                    thinkingContainer.className = 'thinking-container active';
-                                    thinkingContainer.innerHTML = `
-                                        <div class="thinking-header">
-                                            <span class="thinking-title">思考过程</span>
-                                            <span class="thinking-toggle-icon" style="transform: rotate(180deg);"></span>
-                                        </div>
-                                        <div class="thinking-content has-content"></div>
-                                    `;
-                                    aiMessageDiv.querySelector('.message-content').appendChild(thinkingContainer);
-                                    thinkingElement = thinkingContainer.querySelector('.thinking-content');
-                                    // 添加点击事件
-                                    if (thinkingContainer.querySelector('.thinking-header')) {
-                                        thinkingContainer.querySelector('.thinking-header').addEventListener('click', function() {
-                                            thinkingContainer.classList.toggle('active');
-                                        });
+                                    // 检查是否已经有思考过程容器
+                                    let thinkingContainer = aiMessageDiv.querySelector('.thinking-container');
+                                    if (!thinkingContainer) {
+                                        // 创建思考过程容器
+                                        thinkingContainer = document.createElement('div');
+                                        thinkingContainer.className = 'thinking-container active';
+                                        thinkingContainer.innerHTML = `
+                                            <div class="thinking-header">
+                                                <span class="thinking-title">思考过程</span>
+                                                <span class="thinking-toggle-icon" style="transform: rotate(180deg);"></span>
+                                            </div>
+                                            <div class="thinking-content has-content"></div>
+                                        `;
+                                        aiMessageDiv.querySelector('.message-content').appendChild(thinkingContainer);
+                                        // 添加点击事件
+                                        if (thinkingContainer.querySelector('.thinking-header')) {
+                                            thinkingContainer.querySelector('.thinking-header').addEventListener('click', function() {
+                                                thinkingContainer.classList.toggle('active');
+                                            });
+                                        }
                                     }
+                                    thinkingElement = thinkingContainer.querySelector('.thinking-content');
                                 }
-                                // 流式添加思考内容
+                                
+                                // 流式添加思考内容，使用打字机效果
                                 if (thinkingElement) {
-                                    thinkingElement.innerHTML += `<div class="thinking-step">${data.content}</div>`;
-                                    scrollToBottom();
+                                    console.log('添加思考内容:', data.content);
+                                    // 为每个思考步骤创建一个新的元素
+                                    const stepElement = document.createElement('div');
+                                    stepElement.className = 'thinking-step';
+                                    thinkingElement.appendChild(stepElement);
+                                    
+                                    // 实现打字机效果
+                                    const content = data.content;
+                                    let index = 0;
+                                    const typingSpeed = 30; // 打字速度（毫秒/字符）
+                                    
+                                    console.log('开始打字机效果，内容长度:', content.length);
+                                    
+                                    function typeWriter() {
+                                        if (index < content.length) {
+                                            console.log('打字机效果：添加字符:', content.charAt(index));
+                                            stepElement.textContent += content.charAt(index);
+                                            index++;
+                                            setTimeout(typeWriter, typingSpeed);
+                                            scrollToBottom();
+                                        } else {
+                                            console.log('打字机效果完成');
+                                        }
+                                    }
+                                    
+                                    // 立即开始打字机效果
+                                    typeWriter();
+                                } else {
+                                    console.log('thinkingElement不存在');
                                 }
                                 break;
                                 
@@ -626,82 +668,6 @@ function renderAnalysisResult(data, container) {
         recommendedCourses
     });
     
-    // 构建思考过程HTML
-    let thinkingProcessHtml = '';
-    if (thinkingProcess.length > 0) {
-        thinkingProcessHtml = `
-        <div class="thinking-container finished">
-            <div class="thinking-header" onclick="toggleThinking(this)">
-                <span class="thinking-title">思考过程</span>
-                <span class="thinking-toggle-icon"></span>
-            </div>
-            <div class="thinking-content has-content">
-        `;
-        
-        // 递归函数处理步骤和子步骤
-        function renderSteps(steps, level = 0) {
-            let html = '';
-            const indentClass = level === 0 ? 'thinking-step' : level === 1 ? 'thinking-substep' : 'thinking-subsubstep';
-            
-            steps.forEach(step => {
-                if (level === 0) {
-                    // 主步骤 - 使用标题和内容分离的结构
-                    html += `<div class="${indentClass}">
-                        <div class="thinking-step-title">${step.step}</div>
-                        <div class="thinking-step-content">${step.content}</div>
-                    </div>`;
-                } else {
-                    // 子步骤和子子步骤
-                    html += `<div class="${indentClass}">
-                        <strong>${step.step}:</strong> ${step.content}
-                    </div>`;
-                }
-                
-                // 递归处理子步骤
-                if (step.substeps && step.substeps.length > 0) {
-                    html += renderSteps(step.substeps, level + 1);
-                }
-            });
-            
-            return html;
-        }
-        
-        // 使用递归函数渲染所有步骤
-        thinkingProcessHtml += renderSteps(thinkingProcess);
-        
-        thinkingProcessHtml += `
-            </div>
-        </div>
-        `;
-    } else if (intentData) {
-        // 兼容意图数据格式
-        thinkingProcessHtml = `
-        <div class="thinking-container finished">
-            <div class="thinking-header" onclick="toggleThinking(this)">
-                <span class="thinking-title">思考过程</span>
-                <span class="thinking-toggle-icon"></span>
-            </div>
-            <div class="thinking-content has-content">
-                <div class="thinking-step"><strong>意图与实体识别:</strong> 核心意图 "${intentData.intent}"，提取实体: ${intentData.entities && intentData.entities.length > 0 ? intentData.entities.map(entity => `${entity.value}(${entity.type})`).join(', ') : '无'}${!intentData.entities || !intentData.entities.some(e => e.value && e.value.includes('就业')) ? ', 带动就业（未提及）' : ''}</div>
-                ${relevantPolicies.length > 0 ? `
-                <div class="thinking-step"><strong>精准检索与推理:</strong></div>
-                <div class="thinking-substeps">
-                    ${relevantPolicies.map(policy => {
-                        if (policy.policy_id === 'POLICY_A03') {
-                            return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 判断"创办小微企业+正常经营1年+带动3人以上就业"可申领2万一次性补贴，用户未提"带动就业"，需指出缺失条件</div>`;
-                        } else if (policy.policy_id === 'POLICY_A01') {
-                            return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 确认其"返乡农民工"身份符合贷款申请条件，说明额度（≤50万）、期限（≤3年）及贴息规则</div>`;
-                        } else {
-                            return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 分析${policy.title || '政策'}的适用条件</div>`;
-                        }
-                    }).join('')}
-                </div>
-                ` : ''}
-            </div>
-        </div>
-        `;
-    }
-    
     // 生成动态主动建议
     let dynamicSuggestions = '';
     const suggestions = [];
@@ -859,104 +825,201 @@ function renderAnalysisResult(data, container) {
     // 优先使用后端返回的简历优化建议，确保基于推荐岗位的具体方案能够显示
     const finalSuggestionsContent = suggestionsContent || dynamicSuggestions;
     
-    // 构建HTML
-    let html = `
-        <div class="message-avatar">🤖</div>
-        <div class="message-content">
-            <div class="analysis-result">
-                ${thinkingProcessHtml}
-                
-                ${answerContent && typeof answerContent === 'string' && answerContent.trim() !== '' ? `
-                <div class="card-section">
-                    <div class="answer-card">
-                        <div class="answer-content">${answerContent}</div>
-                    </div>
+    // 构建分析结果HTML（不包含思考过程，因为我们要保留原有的思考过程）
+    let analysisHtml = `
+        <div class="analysis-result">
+            ${answerContent && typeof answerContent === 'string' && answerContent.trim() !== '' ? `
+            <div class="card-section">
+                <div class="answer-card">
+                    <div class="answer-content">${answerContent}</div>
                 </div>
-                ` : ''}
-                
-                ${recommendedJobs.length > 0 ? `
-                <div class="card-section">
-                    <h3>💼 推荐岗位</h3>
-                    <div class="jobs-card">
-                        ${recommendedJobs.map((job, index) => `
-                        <div class="job-item">
-                            <div class="job-title">${job.title} <span class="job-id">(${job.job_id || 'ID未提供'})</span> <span class="job-priority">优先级: ${index + 1}</span></div>
-                            <div class="job-reasons">
-                                <strong>推荐理由:</strong> ${job.reasons && job.reasons.positive ? job.reasons.positive : '无具体推荐理由'}
-                            </div>
-                            <div class="job-features">
-                                <strong>特点:</strong> ${job.features || '无具体特点'}
-                            </div>
-                        </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${recommendedCourses.length > 0 ? `
-                <div class="card-section">
-                    <h3>📚 推荐课程</h3>
-                    <div class="courses-card">
-                        ${recommendedCourses.map((course, index) => `
-                        <div class="course-item">
-                            <div class="course-title">${course.title} <span class="course-id">(${course.course_id || 'ID未提供'})</span> <span class="course-priority">优先级: ${index + 1}</span></div>
-                            <div class="course-reasons">
-                                <strong>推荐理由:</strong> ${course.reasons && course.reasons.positive ? course.reasons.positive : '无具体推荐理由'}
-                            </div>
-                            <div class="course-features">
-                                <strong>成长路径:</strong> ${course.growth_path || '无具体成长路径'}
-                            </div>
-                        </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无' ? `
-                <div class="card-section">
-                    <h3>✅ 符合条件的政策</h3>
-                    <div class="policy-card">
-                        <div class="policy-reasons">
-                            <div class="reason positive">
-                                <div class="reason-content">
-                                    <div class="reason-text">${positiveContent}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${typeof negativeContent === 'string' && negativeContent.trim() !== '' && negativeContent.trim() !== '无' ? `
-                <div class="card-section">
-                    <h3>❌ 不符合条件的政策</h3>
-                    <div class="policy-card">
-                        <div class="policy-reasons">
-                            <div class="reason negative">
-                                <div class="reason-content">
-                                    <div class="reason-text">${negativeContent}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${typeof finalSuggestionsContent === 'string' && finalSuggestionsContent.trim() !== '' && finalSuggestionsContent.trim() !== '无' ? `
-                <div class="card-section">
-                    <h3>💡 主动建议</h3>
-                    <div class="suggestions-card">
-                        <div class="suggestion-item">${finalSuggestionsContent}</div>
-                    </div>
-                </div>
-                ` : ''}
             </div>
+            ` : ''}
+            
+            ${recommendedJobs.length > 0 ? `
+            <div class="card-section">
+                <h3>💼 推荐岗位</h3>
+                <div class="jobs-card">
+                    ${recommendedJobs.map((job, index) => `
+                    <div class="job-item">
+                        <div class="job-title">${job.title} <span class="job-id">(${job.job_id || 'ID未提供'})</span> <span class="job-priority">优先级: ${index + 1}</span></div>
+                        <div class="job-reasons">
+                            <strong>推荐理由:</strong> ${job.reasons && job.reasons.positive ? job.reasons.positive : '无具体推荐理由'}
+                        </div>
+                        <div class="job-features">
+                            <strong>特点:</strong> ${job.features || '无具体特点'}
+                        </div>
+                    </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${recommendedCourses.length > 0 ? `
+            <div class="card-section">
+                <h3>📚 推荐课程</h3>
+                <div class="courses-card">
+                    ${recommendedCourses.map((course, index) => `
+                    <div class="course-item">
+                        <div class="course-title">${course.title} <span class="course-id">(${course.course_id || 'ID未提供'})</span> <span class="course-priority">优先级: ${index + 1}</span></div>
+                        <div class="course-reasons">
+                            <strong>推荐理由:</strong> ${course.reasons && course.reasons.positive ? course.reasons.positive : '无具体推荐理由'}
+                        </div>
+                        <div class="course-features">
+                            <strong>成长路径:</strong> ${course.growth_path || '无具体成长路径'}
+                        </div>
+                    </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${typeof positiveContent === 'string' && positiveContent.trim() !== '' && positiveContent.trim() !== '无' ? `
+            <div class="card-section">
+                <h3>✅ 符合条件的政策</h3>
+                <div class="policy-card">
+                    <div class="policy-reasons">
+                        <div class="reason positive">
+                            <div class="reason-content">
+                                <div class="reason-text">${positiveContent}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${typeof negativeContent === 'string' && negativeContent.trim() !== '' && negativeContent.trim() !== '无' ? `
+            <div class="card-section">
+                <h3>❌ 不符合条件的政策</h3>
+                <div class="policy-card">
+                    <div class="policy-reasons">
+                        <div class="reason negative">
+                            <div class="reason-content">
+                                <div class="reason-text">${negativeContent}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${typeof finalSuggestionsContent === 'string' && finalSuggestionsContent.trim() !== '' && finalSuggestionsContent.trim() !== '无' ? `
+            <div class="card-section">
+                <h3>💡 主动建议</h3>
+                <div class="suggestions-card">
+                    <div class="suggestion-item">${finalSuggestionsContent}</div>
+                </div>
+            </div>
+            ` : ''}
         </div>
     `;
     
-    console.log('生成的HTML:', html);
+    console.log('生成的分析结果HTML:', analysisHtml);
     
-    container.innerHTML = html;
+    // 检查容器中是否已经有思考过程
+    const existingThinkingContainer = container.querySelector('.thinking-container');
+    
+    if (existingThinkingContainer) {
+        // 如果已经有思考过程，只添加分析结果部分
+        // 找到message-content元素
+        const messageContent = container.querySelector('.message-content');
+        if (messageContent) {
+            // 创建分析结果容器
+            const analysisContainer = document.createElement('div');
+            analysisContainer.innerHTML = analysisHtml;
+            // 将分析结果添加到message-content中，在思考过程容器之后
+            messageContent.appendChild(analysisContainer);
+        }
+    } else {
+        // 如果没有思考过程，使用完整的HTML
+        // 构建思考过程HTML
+        let thinkingProcessHtml = '';
+        if (thinkingProcess.length > 0) {
+            thinkingProcessHtml = `
+            <div class="thinking-container finished">
+                <div class="thinking-header" onclick="toggleThinking(this)">
+                    <span class="thinking-title">思考过程</span>
+                    <span class="thinking-toggle-icon"></span>
+                </div>
+                <div class="thinking-content has-content">
+            `;
+            
+            // 递归函数处理步骤和子步骤
+            function renderSteps(steps, level = 0) {
+                let html = '';
+                const indentClass = level === 0 ? 'thinking-step' : level === 1 ? 'thinking-substep' : 'thinking-subsubstep';
+                
+                steps.forEach(step => {
+                    if (level === 0) {
+                        // 主步骤 - 使用标题和内容分离的结构
+                        html += `<div class="${indentClass}">
+                            <div class="thinking-step-title">${step.step}</div>
+                            <div class="thinking-step-content">${step.content}</div>
+                        </div>`;
+                    } else {
+                        // 子步骤和子子步骤
+                        html += `<div class="${indentClass}">
+                            <strong>${step.step}:</strong> ${step.content}
+                        </div>`;
+                    }
+                    
+                    // 递归处理子步骤
+                    if (step.substeps && step.substeps.length > 0) {
+                        html += renderSteps(step.substeps, level + 1);
+                    }
+                });
+                
+                return html;
+            }
+            
+            // 使用递归函数渲染所有步骤
+            thinkingProcessHtml += renderSteps(thinkingProcess);
+            
+            thinkingProcessHtml += `
+                </div>
+            </div>
+            `;
+        } else if (intentData) {
+            // 兼容意图数据格式
+            thinkingProcessHtml = `
+            <div class="thinking-container finished">
+                <div class="thinking-header" onclick="toggleThinking(this)">
+                    <span class="thinking-title">思考过程</span>
+                    <span class="thinking-toggle-icon"></span>
+                </div>
+                <div class="thinking-content has-content">
+                    <div class="thinking-step"><strong>意图与实体识别:</strong> 核心意图 "${intentData.intent}"，提取实体: ${intentData.entities && intentData.entities.length > 0 ? intentData.entities.map(entity => `${entity.value}(${entity.type})`).join(', ') : '无'}${!intentData.entities || !intentData.entities.some(e => e.value && e.value.includes('就业')) ? ', 带动就业（未提及）' : ''}</div>
+                    ${relevantPolicies.length > 0 ? `
+                    <div class="thinking-step"><strong>精准检索与推理:</strong></div>
+                    <div class="thinking-substeps">
+                        ${relevantPolicies.map(policy => {
+                            if (policy.policy_id === 'POLICY_A03') {
+                                return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 判断"创办小微企业+正常经营1年+带动3人以上就业"可申领2万一次性补贴，用户未提"带动就业"，需指出缺失条件</div>`;
+                            } else if (policy.policy_id === 'POLICY_A01') {
+                                return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 确认其"返乡农民工"身份符合贷款申请条件，说明额度（≤50万）、期限（≤3年）及贴息规则</div>`;
+                            } else {
+                                return `<div class="thinking-substep"><strong>检索${policy.policy_id}:</strong> 分析${policy.title || '政策'}的适用条件</div>`;
+                            }
+                        }).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+        }
+        
+        // 构建完整的HTML
+        let fullHtml = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                ${thinkingProcessHtml}
+                ${analysisHtml}
+            </div>
+        `;
+        
+        container.innerHTML = fullHtml;
+    }
     
     scrollToBottom();
 }
