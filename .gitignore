@@ -60,7 +60,7 @@ node_modules/
 *.backup
 doc/04_工程过程/01_项目调研/01_技术预研/.~演示.docx
 code/langchain/data/chat_history.json
+code/langchain/data/data_files/chat_history.json
 doc/04_工程过程/01_项目调研/01_技术预研/.~演示1-24.docx
 doc/04_工程过程/01_项目调研/01_技术预研/.~因素和标准2-2.docx
 doc/04_工程过程/01_项目调研/01_技术预研/.~投标人自行演示环境的最低要求.docx
-code/langchain/data/data_files/chat_history.json

@@ -346,7 +346,31 @@ async function sendMessage() {
         const chatHistory = document.getElementById('chat-history');
         const aiMessageDiv = document.createElement('div');
         aiMessageDiv.className = 'message ai';
+        
+        // 立即显示加载动画，提供即时反馈
+        aiMessageDiv.innerHTML = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="thinking-container active">
+                    <div class="thinking-header">
+                        <span class="thinking-title">正在分析...</span>
+                        <span class="thinking-toggle-icon"></span>
+                    </div>
+                    <div class="thinking-content">
+                        <div class="loading-indicator">
+                            <div class="typing-dots">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                            <div class="loading-text">正在分析您的需求，请稍候...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         chatHistory.appendChild(aiMessageDiv);
+        scrollToBottom();
         
         // 处理流数据
         while (true) {
@@ -391,32 +415,8 @@ async function sendMessage() {
                                 break;
                                 
                             case 'analysis_start':
-                                // 显示分析开始，添加更明显的加载动画
-                                // 只有当还没有任何思考过程时才显示加载动画
-                                if (!thinkingElement && !aiMessageDiv.querySelector('.thinking-container')) {
-                                    aiMessageDiv.innerHTML = `
-                                        <div class="message-avatar">🤖</div>
-                                        <div class="message-content">
-                                            <div class="thinking-container active">
-                                                <div class="thinking-header">
-                                                    <span class="thinking-title">正在分析...</span>
-                                                    <span class="thinking-toggle-icon"></span>
-                                                </div>
-                                                <div class="thinking-content">
-                                                    <div class="loading-indicator">
-                                                        <div class="typing-dots">
-                                                            <div class="typing-dot"></div>
-                                                            <div class="typing-dot"></div>
-                                                            <div class="typing-dot"></div>
-                                                        </div>
-                                                        <div class="loading-text">正在分析您的需求，请稍候...</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                                scrollToBottom();
+                                // 加载动画已在创建AI消息容器时显示，跳过重复显示
+                                console.log('收到分析开始事件');
                                 break;
                                 
                             case 'thinking':
