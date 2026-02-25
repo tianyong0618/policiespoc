@@ -13,6 +13,8 @@ const APP_VERSION = '1.0.1';
 let currentSessionId = null;
 let eventSource = null;
 let isStreaming = false;
+let thinkingQueue = [];
+let isProcessingQueue = false;
 
 // 初始化页面
 document.addEventListener('DOMContentLoaded', function() {
@@ -418,77 +420,8 @@ async function sendMessage() {
                                 break;
                                 
                             case 'thinking':
-                                // 显示思考过程 - 流式动态显示
-                                console.log('收到thinking事件:', data);
-                                
-                                // 确保aiMessageDiv有message-content元素
-                                if (!aiMessageDiv.querySelector('.message-content')) {
-                                    // 如果message-content不存在，重新创建整个结构
-                                    aiMessageDiv.innerHTML = `
-                                        <div class="message-avatar">🤖</div>
-                                        <div class="message-content">
-                                        </div>
-                                    `;
-                                }
-                                
-                                // 确保有思考过程容器
-                                if (!thinkingElement) {
-                                    // 检查是否已经有思考过程容器
-                                    let thinkingContainer = aiMessageDiv.querySelector('.thinking-container');
-                                    if (!thinkingContainer) {
-                                        // 创建思考过程容器
-                                        thinkingContainer = document.createElement('div');
-                                        thinkingContainer.className = 'thinking-container active';
-                                        thinkingContainer.innerHTML = `
-                                            <div class="thinking-header">
-                                                <span class="thinking-title">思考过程</span>
-                                                <span class="thinking-toggle-icon" style="transform: rotate(180deg);"></span>
-                                            </div>
-                                            <div class="thinking-content has-content"></div>
-                                        `;
-                                        aiMessageDiv.querySelector('.message-content').appendChild(thinkingContainer);
-                                        // 添加点击事件
-                                        if (thinkingContainer.querySelector('.thinking-header')) {
-                                            thinkingContainer.querySelector('.thinking-header').addEventListener('click', function() {
-                                                thinkingContainer.classList.toggle('active');
-                                            });
-                                        }
-                                    }
-                                    thinkingElement = thinkingContainer.querySelector('.thinking-content');
-                                }
-                                
-                                // 流式添加思考内容，使用打字机效果
-                                if (thinkingElement) {
-                                    console.log('添加思考内容:', data.content);
-                                    // 为每个思考步骤创建一个新的元素
-                                    const stepElement = document.createElement('div');
-                                    stepElement.className = 'thinking-step';
-                                    thinkingElement.appendChild(stepElement);
-                                    
-                                    // 实现打字机效果
-                                    const content = data.content;
-                                    let index = 0;
-                                    const typingSpeed = 30; // 打字速度（毫秒/字符）
-                                    
-                                    console.log('开始打字机效果，内容长度:', content.length);
-                                    
-                                    function typeWriter() {
-                                        if (index < content.length) {
-                                            console.log('打字机效果：添加字符:', content.charAt(index));
-                                            stepElement.textContent += content.charAt(index);
-                                            index++;
-                                            setTimeout(typeWriter, typingSpeed);
-                                            scrollToBottom();
-                                        } else {
-                                            console.log('打字机效果完成');
-                                        }
-                                    }
-                                    
-                                    // 立即开始打字机效果
-                                    typeWriter();
-                                } else {
-                                    console.log('thinkingElement不存在');
-                                }
+                                // 忽略简单的思考过程，等待详细的思考过程
+                                console.log('收到thinking事件，忽略简单思考过程:', data);
                                 break;
                                 
                             case 'analysis_result':
@@ -503,14 +436,202 @@ async function sendMessage() {
                                         console.error('解析data失败:', error);
                                     }
                                 }
-                                renderAnalysisResult(data, aiMessageDiv);
+                                
+                                // 直接清空现有的思考过程，使用详细的思考过程
+                                let thinkingContainer = aiMessageDiv.querySelector('.thinking-container');
+                                if (thinkingContainer) {
+                                    const thinkingContent = thinkingContainer.querySelector('.thinking-content');
+                                    if (thinkingContent) {
+                                        // 为思考过程容器添加点击事件监听器
+                                        const thinkingHeader = thinkingContainer.querySelector('.thinking-header');
+                                        if (thinkingHeader) {
+                                            // 使用与历史记录相同的点击事件处理方式
+                                            thinkingHeader.setAttribute('onclick', 'toggleThinking(this)');
+                                        }
+                                        // 清空现有的简单思考过程
+                                        thinkingContent.innerHTML = '';
+                                        
+                                        // 获取详细的思考过程数据
+                                        const thinkingProcess = data.thinking_process || [];
+                                        console.log('详细思考过程数据:', thinkingProcess);
+                                        
+                                        // 重新按照详细的思考过程内容进行打字显示
+                                        function typeThinkingProcess(steps, index = 0) {
+                                            if (index >= steps.length) {
+                                                // 所有步骤完成后，标记思考过程为完成状态
+                                                const thinkingContainer = aiMessageDiv.querySelector('.thinking-container');
+                                                if (thinkingContainer) {
+                                                    thinkingContainer.classList.add('finished');
+                                                    // 更新思考过程标题，与历史记录保持一致
+                                                    const thinkingTitle = thinkingContainer.querySelector('.thinking-title');
+                                                    if (thinkingTitle) {
+                                                        thinkingTitle.textContent = '思考过程';
+                                                    }
+                                                }
+                                                
+                                                // 短暂延迟后，渲染分析结果
+                                                setTimeout(() => {
+                                                    renderAnalysisResult(data, aiMessageDiv);
+                                                }, 1000);
+                                                return;
+                                            }
+                                            
+                                            const step = steps[index];
+                                            
+                                            // 创建主步骤元素
+                                            const stepElement = document.createElement('div');
+                                            stepElement.className = 'thinking-step';
+                                            stepElement.innerHTML = `
+                                                <div class="thinking-step-title">${step.step}</div>
+                                                <div class="thinking-step-content">
+                                                    <span class="typing-text"></span>
+                                                </div>
+                                            `;
+                                            thinkingContent.appendChild(stepElement);
+                                            
+                                            // 获取文本容器
+                                            const textContainer = stepElement.querySelector('.typing-text');
+                                            const content = step.content || '';
+                                            let charIndex = 0;
+                                            
+                                            // 实现打字机效果
+                                            function type() {
+                                                if (charIndex < content.length) {
+                                                    textContainer.textContent += content.charAt(charIndex);
+                                                    charIndex++;
+                                                    // 随机打字速度，模拟真实打字效果
+                                                    const delay = Math.random() * 30 + 10;
+                                                    setTimeout(type, delay);
+                                                } else {
+                                                    // 当前步骤完成，处理子步骤
+                                                    if (step.substeps && step.substeps.length > 0) {
+                                                        function typeSubsteps(substeps, subIndex = 0) {
+                                                            if (subIndex >= substeps.length) {
+                                                                // 所有子步骤完成，处理下一个主步骤
+                                                                setTimeout(() => {
+                                                                    typeThinkingProcess(steps, index + 1);
+                                                                }, 300);
+                                                                return;
+                                                            }
+                                                            
+                                                            const substep = substeps[subIndex];
+                                                            
+                                                            // 创建子步骤元素
+                                                            const substepElement = document.createElement('div');
+                                                            // 根据层级确定类名
+                                                            substepElement.className = 'thinking-substep';
+                                                            substepElement.innerHTML = `
+                                                                <strong>${substep.step}:</strong> <span class="typing-text"></span>
+                                                            `;
+                                                            stepElement.appendChild(substepElement);
+                                                            
+                                                            // 获取子步骤文本容器
+                                                            const substepTextContainer = substepElement.querySelector('.typing-text');
+                                                            const substepContent = substep.content || '';
+                                                            let substepCharIndex = 0;
+                                                            
+                                                            // 实现子步骤打字机效果
+                                                            function typeSubstep() {
+                                                                if (substepCharIndex < substepContent.length) {
+                                                                    substepTextContainer.textContent += substepContent.charAt(substepCharIndex);
+                                                                    substepCharIndex++;
+                                                                    // 随机打字速度，模拟真实打字效果
+                                                                    const delay = Math.random() * 20 + 5;
+                                                                    setTimeout(typeSubstep, delay);
+                                                                } else {
+                                                                    // 当前子步骤完成，处理子子步骤
+                                                                    if (substep.substeps && substep.substeps.length > 0) {
+                                                                        function typeSubsubsteps(subsubsteps, subsubIndex = 0) {
+                                                                            if (subsubIndex >= subsubsteps.length) {
+                                                                                // 所有子子步骤完成，处理下一个子步骤
+                                                                                setTimeout(() => {
+                                                                                    typeSubsteps(substeps, subIndex + 1);
+                                                                                }, 200);
+                                                                                return;
+                                                                            }
+                                                                            
+                                                                            const subsubstep = subsubsteps[subsubIndex];
+                                                                            
+                                                                            // 创建子子步骤元素
+                                                                            const subsubstepElement = document.createElement('div');
+                                                                            subsubstepElement.className = 'thinking-subsubstep';
+                                                                            subsubstepElement.innerHTML = `
+                                                                                <strong>${subsubstep.step}:</strong> <span class="typing-text"></span>
+                                                                            `;
+                                                                            substepElement.appendChild(subsubstepElement);
+                                                                            
+                                                                            // 获取子子步骤文本容器
+                                                                            const subsubstepTextContainer = subsubstepElement.querySelector('.typing-text');
+                                                                            const subsubstepContent = subsubstep.content || '';
+                                                                            let subsubstepCharIndex = 0;
+                                                                            
+                                                                            // 实现子子步骤打字机效果
+                                                                            function typeSubsubstep() {
+                                                                                if (subsubstepCharIndex < subsubstepContent.length) {
+                                                                                    subsubstepTextContainer.textContent += subsubstepContent.charAt(subsubstepCharIndex);
+                                                                                    subsubstepCharIndex++;
+                                                                                    // 随机打字速度，模拟真实打字效果
+                                                                                    const delay = Math.random() * 15 + 3;
+                                                                                    setTimeout(typeSubsubstep, delay);
+                                                                                } else {
+                                                                                    // 当前子子步骤完成，处理下一个子子步骤
+                                                                                    setTimeout(() => {
+                                                                                        typeSubsubsteps(subsubsteps, subsubIndex + 1);
+                                                                                    }, 150);
+                                                                                }
+                                                                            }
+                                                                            
+                                                                            // 开始子子步骤打字
+                                                                            typeSubsubstep();
+                                                                        }
+                                                                        
+                                                                        // 开始处理子子步骤
+                                                                        typeSubsubsteps(substep.substeps);
+                                                                    } else {
+                                                                        // 没有子子步骤，处理下一个子步骤
+                                                                        setTimeout(() => {
+                                                                            typeSubsteps(substeps, subIndex + 1);
+                                                                        }, 200);
+                                                                    }
+                                                                }
+                                                            }
+                                                            
+                                                            // 开始子步骤打字
+                                                            typeSubstep();
+                                                        }
+                                                        
+                                                        // 开始处理子步骤
+                                                        typeSubsteps(step.substeps);
+                                                    } else {
+                                                        // 没有子步骤，处理下一个主步骤
+                                                        setTimeout(() => {
+                                                            typeThinkingProcess(steps, index + 1);
+                                                        }, 300);
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // 开始打字
+                                            type();
+                                        }
+                                        
+                                        // 为thinking-content添加has-content类，与历史记录保持一致
+                                        thinkingContent.classList.add('has-content');
+                                        
+                                        // 开始按照详细的思考过程内容进行打字显示
+                                        typeThinkingProcess(thinkingProcess);
+                                    }
+                                } else {
+                                    // 如果没有思考过程容器，直接渲染分析结果
+                                    renderAnalysisResult(data, aiMessageDiv);
+                                }
                                 break;
                                 
                             case 'analysis_complete':
                                 // 分析完成，更新思考过程状态
-                                const thinkingContainer = aiMessageDiv.querySelector('.thinking-container');
-                                if (thinkingContainer) {
-                                    thinkingContainer.classList.add('finished');
+                                const analysisCompleteThinkingContainer = aiMessageDiv.querySelector('.thinking-container');
+                                if (analysisCompleteThinkingContainer) {
+                                    analysisCompleteThinkingContainer.classList.add('finished');
                                 }
                                 break;
                                 
@@ -916,12 +1037,33 @@ function renderAnalysisResult(data, container) {
     `;
     
     console.log('生成的分析结果HTML:', analysisHtml);
+    console.log('思考过程数据:', thinkingProcess);
+    console.log('思考过程长度:', thinkingProcess.length);
     
     // 检查容器中是否已经有思考过程
     const existingThinkingContainer = container.querySelector('.thinking-container');
+    console.log('existingThinkingContainer:', existingThinkingContainer);
     
-    if (existingThinkingContainer) {
-        // 如果已经有思考过程，只添加分析结果部分
+    if (existingThinkingContainer && thinkingProcess.length > 0) {
+        console.log('已存在思考过程，跳过重复渲染');
+        // 如果已经有思考过程且已完成，直接添加分析结果，跳过重复渲染
+        // 检查思考过程是否已经有内容
+        const thinkingContent = existingThinkingContainer.querySelector('.thinking-content');
+        if (thinkingContent && thinkingContent.innerHTML.trim() !== '') {
+            console.log('思考过程已有内容，直接添加分析结果');
+        }
+        
+        // 找到message-content元素
+        const messageContent = container.querySelector('.message-content');
+        if (messageContent) {
+            // 创建分析结果容器
+            const analysisContainer = document.createElement('div');
+            analysisContainer.innerHTML = analysisHtml;
+            // 将分析结果添加到message-content中，在思考过程容器之后
+            messageContent.appendChild(analysisContainer);
+        }
+    } else if (existingThinkingContainer) {
+        // 如果已经有思考过程，且没有更详细的思考过程数据，只添加分析结果部分
         // 找到message-content元素
         const messageContent = container.querySelector('.message-content');
         if (messageContent) {
@@ -1046,6 +1188,92 @@ function toggleThinking(header) {
         icon.style.transform = 'rotate(180deg)';
     } else {
         icon.style.transform = 'rotate(0)';
+    }
+}
+
+// 处理思考过程队列
+function processThinkingQueue() {
+    // 如果队列为空或正在处理，直接返回
+    if (thinkingQueue.length === 0 || isProcessingQueue) {
+        return;
+    }
+    
+    // 标记为正在处理
+    isProcessingQueue = true;
+    
+    // 取出队列中的第一个元素
+    const thinkingData = thinkingQueue.shift();
+    // 获取最后一个AI消息容器中的思考过程容器
+    const aiMessages = document.querySelectorAll('.message.ai');
+    let thinkingElement = null;
+    
+    if (aiMessages.length > 0) {
+        const lastAiMessage = aiMessages[aiMessages.length - 1];
+        thinkingElement = lastAiMessage.querySelector('.thinking-content');
+    }
+    
+    if (thinkingElement) {
+        // 创建新的思考步骤元素
+        const stepElement = document.createElement('div');
+        stepElement.className = 'thinking-step';
+        
+        // 解析思考内容，提取标题和内容
+        let title = '';
+        let content = thinkingData.content || '';
+        
+        // 尝试从内容中提取标题
+        if (content.includes(':')) {
+            const parts = content.split(':');
+            title = parts[0].trim();
+            content = parts.slice(1).join(':').trim();
+        }
+        
+        // 根据是否有标题构建不同的HTML结构
+        if (title) {
+            stepElement.innerHTML = `
+                <div class="thinking-step-title">${title}</div>
+                <div class="thinking-step-content">
+                    <span class="typing-text"></span>
+                </div>
+            `;
+        } else {
+            stepElement.innerHTML = `
+                <div class="thinking-step-content">
+                    <span class="typing-text"></span>
+                </div>
+            `;
+        }
+        
+        thinkingElement.appendChild(stepElement);
+        
+        // 获取文本容器
+        const textContainer = stepElement.querySelector('.typing-text');
+        let index = 0;
+        
+        // 实现打字机效果
+        function type() {
+            if (index < content.length) {
+                textContainer.textContent += content.charAt(index);
+                index++;
+                // 随机打字速度，模拟真实打字效果
+                const delay = Math.random() * 30 + 10;
+                setTimeout(type, delay);
+            } else {
+                // 当前步骤完成，处理下一个
+                setTimeout(() => {
+                    isProcessingQueue = false;
+                    processThinkingQueue();
+                }, 200); // 短暂延迟，让用户有时间阅读
+            }
+        }
+        
+        // 开始打字
+        type();
+        scrollToBottom();
+    } else {
+        // 如果没有找到思考元素，标记为处理完成
+        isProcessingQueue = false;
+        processThinkingQueue();
     }
 }
 
