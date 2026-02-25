@@ -1,0 +1,24 @@
+{
+  "api": {
+    "timeout": 30,
+    "retry_count": 3
+  },
+  "model": {
+    "temperature": 0.7,
+    "max_tokens": 2000,
+    "top_p": 0.9
+  },
+  "cache": {
+    "default_ttl": 3600,
+    "max_size": 1000
+  },
+  "data": {
+    "policy_file": "data/data_files/policies.json",
+    "job_file": "data/data_files/jobs.json",
+    "user_file": "data/data_files/user_profiles.json"
+  },
+  "log": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}

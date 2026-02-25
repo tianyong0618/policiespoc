@@ -90,6 +90,15 @@ class ConfigManager:
                 logger.info(f"配置项不存在: {key}，使用默认值: {default}")
                 return default
         
+        # 处理相对路径，使其相对于配置文件的位置
+        if isinstance(value, str) and (value.endswith('.json') or '/' in value or '\\' in value):
+            # 检查是否是相对路径
+            if not os.path.isabs(value):
+                # 构建绝对路径
+                config_dir = os.path.dirname(self.config_file)
+                value = os.path.join(config_dir, value)
+                value = os.path.abspath(value)
+        
         logger.info(f"获取配置项: {key} = {value}")
         return value
     

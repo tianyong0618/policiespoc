@@ -27,7 +27,7 @@ class ResponseGenerator:
         job_name_mapping = {}
         
         # 读取jobs.json文件
-        jobs_file = os.path.join(os.path.dirname(__file__), 'data', 'jobs.json')
+        jobs_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_files', 'jobs.json')
         try:
             with open(jobs_file, 'r', encoding='utf-8') as f:
                 jobs = json.load(f)
@@ -50,7 +50,7 @@ class ResponseGenerator:
         policy_job_mapping = {}
         
         # 读取jobs.json文件
-        jobs_file = os.path.join(os.path.dirname(__file__), 'data', 'jobs.json')
+        jobs_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_files', 'jobs.json')
         try:
             with open(jobs_file, 'r', encoding='utf-8') as f:
                 jobs = json.load(f)

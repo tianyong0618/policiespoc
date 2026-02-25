@@ -29,6 +29,8 @@ class PolicyMatcher:
         self.job_matcher = job_matcher if job_matcher else JobMatcher()
         # 初始化用户画像管理器
         self.user_matcher = user_matcher if user_matcher else UserMatcher()
+        # 初始化课程匹配器（预留）
+        self.course_matcher = None
     
     def load_policies(self):
         """加载政策数据"""
@@ -970,7 +972,7 @@ class PolicyMatcher:
         # 2. 获取所有数据
         all_policies = self.policies
         all_jobs = self.job_matcher.get_all_jobs()
-        all_courses = self.course_matcher.get_all_courses()
+        all_courses = []
         
         # 3. 构建分析Prompt
         prompt = self.build_analysis_prompt(intent_info, matched_user, all_policies, all_jobs, all_courses)
@@ -1288,7 +1290,8 @@ class PolicyMatcher:
             all_jobs = []
         
         try:
-            all_courses = self.course_matcher.get_all_courses()
+            # 课程匹配器暂时未实现，返回空列表
+            all_courses = []
         except Exception as e:
             logger.error(f"获取课程数据失败: {e}")
             all_courses = []
