@@ -164,44 +164,54 @@ sequenceDiagram
 ### 4.1 数据流向
 
 ```mermaid
-graph LR
-    UserInput[用户输入] --> Orchestrator[协调器]
-    Orchestrator --> IntentAnalyzer[意图分析器]
-    IntentAnalyzer --> ChatBot[对话机器人]
-    ChatBot --> LLM[大语言模型]
-    LLM --> ChatBot
-    ChatBot --> IntentAnalyzer
-    IntentAnalyzer --> Orchestrator
+graph TD
+    subgraph 用户交互层
+        A[用户输入] -->|输入查询| B[结构化响应]
+        B -->|展示结果| C[用户输出]
+    end
     
-    Orchestrator --> PolicyRetriever[政策检索器]
-    PolicyRetriever --> PolicyData[政策数据]
-    PolicyData --> PolicyRetriever
-    PolicyRetriever --> Orchestrator
+    subgraph 核心协调层
+        D[协调器 Orchestrator] -->|生成响应| B
+        A -->|接收请求| D
+    end
     
-    Orchestrator --> ChatBot
-    ChatBot --> LLM
-    LLM --> ChatBot
-    ChatBot --> Orchestrator
+    subgraph 业务逻辑层
+        E[意图分析器 IntentAnalyzer] -->|返回意图信息| D
+        F[政策匹配器 PolicyMatcher] -->|返回匹配政策| D
+        G[岗位匹配器 JobMatcher] -->|返回推荐岗位| D
+        H[用户匹配器 UserMatcher] -->|返回用户画像| D
+        I[回答生成器 ResponseGenerator] -->|返回结构化回答| D
+    end
     
-    Orchestrator --> ResponseGenerator[回答生成器]
-    ResponseGenerator --> ChatBot
-    ChatBot --> LLM
-    LLM --> ChatBot
-    ChatBot --> ResponseGenerator
-    ResponseGenerator --> Orchestrator
+    subgraph 数据访问层
+        J[政策检索器 PolicyRetriever] -->|提供政策数据| F
+        K[岗位检索器 JobRetriever] -->|提供岗位数据| G
+        L[用户检索器 UserRetriever] -->|提供用户数据| H
+        
+        J -->|读取| M[政策数据 policies.json]
+        K -->|读取| N[岗位数据 jobs.json]
+        L -->|读取| O[用户画像 user_profiles.json]
+    end
     
-    Orchestrator --> JobRetriever[岗位检索器]
-    JobRetriever --> JobData[岗位数据]
-    JobData --> JobRetriever
-    JobRetriever --> Orchestrator
+    subgraph 基础设施层
+        P[对话机器人 ChatBot] -->|提供LLM服务| E
+        P -->|提供LLM服务| I
+        Q[大语言模型 LLM] -->|处理请求| P
+        R[历史管理器 HistoryManager] -->|提供会话历史| D
+        S[缓存管理器 CacheManager] -->|优化性能| D
+    end
     
-    Orchestrator --> UserMatcher[用户匹配器]
-    UserMatcher --> UserProfile[用户画像]
-    UserProfile --> UserMatcher
-    UserMatcher --> Orchestrator
+    %% 核心数据流
+    D -->|分析意图| E
+    D -->|匹配政策| F
+    D -->|推荐岗位| G
+    D -->|匹配用户| H
+    D -->|生成回答| I
     
-    Orchestrator --> StructuredResponse[结构化响应]
-    StructuredResponse --> UserOutput[用户输出]
+    E -->|调用LLM| P
+    I -->|调用LLM| P
+    P -->|请求处理| Q
+    Q -->|返回结果| P
 ```
 
 ### 4.2 数据存储
