@@ -16,8 +16,7 @@ class IntentAnalyzer:
     
     def ir_identify_intent(self, user_input):
         """识别用户意图和实体"""
-        logger.info("开始识别意图和实体，调用大模型")
-        # 使用普通字符串拼接，避免f-string格式化问题
+        # 生成意图识别提示
         prompt = """
 请分析用户输入，识别核心意图和实体，并判断用户是否需要以下服务：
 1. 岗位推荐
@@ -58,31 +57,46 @@ class IntentAnalyzer:
 - investment: 投资信息（如租金、投资额等）
 """
 
-        logger.info(f"生成的意图识别提示: {prompt[:100]}...")
-        response = self.chatbot.chat_with_memory(prompt)
+        # 检查缓存
+        from ..infrastructure.cache_manager import CacheManager
+        cache_manager = CacheManager()
+        cached_response = cache_manager.get_llm_cache(prompt)
         
-        # 处理返回的新格式
-        content = ""
-        llm_time = 0
-        
-        try:
-            if isinstance(response, dict) and 'content' in response:
-                content = response['content']
-                llm_time = response.get('time', 0)
-                logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
-                logger.info(f"意图识别LLM调用耗时: {llm_time:.2f}秒")
-            else:
-                # 处理字符串响应
-                content = response if isinstance(response, str) else str(response)
-                llm_time = 0
-                if isinstance(content, str):
-                    logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
-                else:
-                    logger.info(f"大模型返回的意图识别结果: {str(content)[:100]}...")
-        except Exception as e:
-            logger.error(f"处理LLM响应失败: {e}")
+        if cached_response:
+            logger.info("使用缓存的LLM响应")
+            # 处理缓存的响应
+            content = cached_response
+            llm_time = 0
+        else:
+            logger.info("开始识别意图和实体，调用大模型")
+            logger.info(f"生成的意图识别提示: {prompt[:100]}...")
+            response = self.chatbot.chat_with_memory(prompt)
+            
+            # 处理返回的新格式
             content = ""
             llm_time = 0
+            
+            try:
+                if isinstance(response, dict) and 'content' in response:
+                    content = response['content']
+                    llm_time = response.get('time', 0)
+                    logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+                    logger.info(f"意图识别LLM调用耗时: {llm_time:.2f}秒")
+                else:
+                    # 处理字符串响应
+                    content = response if isinstance(response, str) else str(response)
+                    llm_time = 0
+                    if isinstance(content, str):
+                        logger.info(f"大模型返回的意图识别结果: {content[:100]}...")
+                    else:
+                        logger.info(f"大模型返回的意图识别结果: {str(content)[:100]}...")
+            except Exception as e:
+                logger.error(f"处理LLM响应失败: {e}")
+                content = ""
+                llm_time = 0
+            
+            # 缓存LLM响应
+            cache_manager.set_llm_cache(prompt, content)
         
         try:
             if isinstance(content, dict):

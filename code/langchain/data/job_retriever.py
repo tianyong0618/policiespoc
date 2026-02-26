@@ -37,7 +37,7 @@ class JobRetriever:
                     jobs = json.load(f)
                 logger.info(f"加载岗位数据成功，共 {len(jobs)} 个岗位")
                 # 缓存岗位数据
-                self.cache_manager.set('jobs', jobs)
+                self.cache_manager.set_jobs_cache(jobs)
                 return jobs
             else:
                 logger.warning(f"岗位数据文件不存在: {job_file}")
@@ -53,8 +53,9 @@ class JobRetriever:
             岗位数据列表
         """
         # 尝试从缓存获取
-        cached_jobs = self.cache_manager.get('jobs')
+        cached_jobs = self.cache_manager.get_jobs_cache()
         if cached_jobs:
+            logger.info("使用缓存的岗位数据")
             return cached_jobs
         
         # 缓存不存在，重新加载
@@ -70,9 +71,9 @@ class JobRetriever:
             岗位数据字典，如果不存在则返回None
         """
         # 尝试从缓存获取
-        cache_key = f'job_{job_id}'
-        cached_job = self.cache_manager.get(cache_key)
+        cached_job = self.cache_manager.get_job_cache(job_id)
         if cached_job:
+            logger.info(f"使用缓存的岗位数据: {job_id}")
             return cached_job
         
         # 缓存不存在，从所有岗位中查找
@@ -80,7 +81,7 @@ class JobRetriever:
         for job in jobs:
             if job.get('job_id') == job_id:
                 # 缓存找到的岗位
-                self.cache_manager.set(cache_key, job)
+                self.cache_manager.set_job_cache(job_id, job)
                 return job
         
         logger.info(f"岗位不存在: {job_id}")

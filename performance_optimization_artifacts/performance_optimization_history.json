@@ -1,0 +1,126 @@
+[
+  {
+    "timestamp": "2026-02-26T13:32:40.016982",
+    "current_metrics": {
+      "timestamp": "2026-02-26T13:32:39.011156",
+      "uptime": 302.110161,
+      "request_metrics": {
+        "total_requests": 14,
+        "error_rate": 0.0,
+        "avg_response_time": 0.002071976661682129,
+        "p95_response_time": 0.006644010543823242,
+        "p99_response_time": 0.006644010543823242,
+        "max_concurrent_requests": 2,
+        "current_concurrent_requests": 0
+      },
+      "system_metrics": {
+        "memory": {
+          "timestamp": "2026-02-26T13:32:35.208085",
+          "used_percent": 80.4,
+          "used_mb": 5099.6875,
+          "total_mb": 16384.0
+        },
+        "cpu": {
+          "timestamp": "2026-02-26T13:32:35.312444",
+          "percent": 27.2
+        },
+        "load": {
+          "timestamp": "2026-02-26T13:32:35.312486",
+          "1min": 2.08056640625,
+          "5min": 2.658203125,
+          "15min": 2.673828125
+        }
+      },
+      "route_stats": {
+        "/": {
+          "count": 2,
+          "total_time": 0.007298946380615234,
+          "min_time": 0.0006549358367919922,
+          "max_time": 0.006644010543823242,
+          "avg_time": 0.003649473190307617
+        },
+        "/static/style.css": {
+          "count": 2,
+          "total_time": 0.00419306755065918,
+          "min_time": 0.0015969276428222656,
+          "max_time": 0.002596139907836914,
+          "avg_time": 0.00209653377532959
+        },
+        "/static/app.js": {
+          "count": 2,
+          "total_time": 0.004268169403076172,
+          "min_time": 0.0012979507446289062,
+          "max_time": 0.0029702186584472656,
+          "avg_time": 0.002134084701538086
+        },
+        "/api/history": {
+          "count": 4,
+          "total_time": 0.006032705307006836,
+          "min_time": 0.0005049705505371094,
+          "max_time": 0.0026509761810302734,
+          "avg_time": 0.001508176326751709
+        },
+        "/@vite/client": {
+          "count": 2,
+          "total_time": 0.0007765293121337891,
+          "min_time": 0.00037097930908203125,
+          "max_time": 0.0004055500030517578,
+          "avg_time": 0.00038826465606689453
+        },
+        "/api/chat/stream": {
+          "count": 2,
+          "total_time": 0.006438255310058594,
+          "min_time": 0.0023021697998046875,
+          "max_time": 0.004136085510253906,
+          "avg_time": 0.003219127655029297
+        }
+      },
+      "error_counts": {}
+    },
+    "recommendations": [
+      {
+        "type": "memory_optimization",
+        "severity": "high",
+        "description": "内存使用率超过阈值: 80.40%",
+        "suggestions": [
+          "检查内存泄漏，特别是长时间运行的进程",
+          "优化数据结构，减少内存占用",
+          "实现数据分页，避免一次性加载大量数据",
+          "考虑增加服务器内存"
+        ],
+        "priority": 2
+      }
+    ],
+    "applied_strategies": [
+      {
+        "strategy": {
+          "type": "memory_management",
+          "description": "优化内存管理，减少内存占用",
+          "actions": [
+            "实现对象池，减少对象创建",
+            "优化数据结构，减少内存占用",
+            "及时释放不再使用的资源"
+          ],
+          "impact": "内存使用减少20-40%"
+        },
+        "recommendation": {
+          "type": "memory_optimization",
+          "severity": "high",
+          "description": "内存使用率超过阈值: 80.40%",
+          "suggestions": [
+            "检查内存泄漏，特别是长时间运行的进程",
+            "优化数据结构，减少内存占用",
+            "实现数据分页，避免一次性加载大量数据",
+            "考虑增加服务器内存"
+          ],
+          "priority": 2
+        },
+        "applied_at": "2026-02-26T13:32:40.016935"
+      }
+    ],
+    "summary": {
+      "recommendation_count": 1,
+      "applied_strategy_count": 1
+    }
+  }
+]

@@ -6,44 +6,26 @@ import logging
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - CacheManager - %(levelname)s - %(message)s'
+    format='%(asctime)s - TestCache - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 class CacheManager:
-    """缓存管理器（单例模式）"""
-    _instance = None
-    
-    def __new__(cls, max_cache_size=1000):
-        """创建单例实例"""
-        if cls._instance is None:
-            cls._instance = super(CacheManager, cls).__new__(cls)
-            # 初始化单例
-            cls._instance.cache = {}
-            cls._instance.max_cache_size = max_cache_size
-            cls._instance.default_ttl = 3600  # 默认缓存时间1小时
-            cls._instance.llm_ttl = 7200  # LLM响应缓存时间2小时
-            cls._instance.query_ttl = 3600  # 查询结果缓存时间1小时（延长）
-            cls._instance.policy_ttl = 86400  # 政策数据缓存时间24小时
-            cls._instance.job_ttl = 86400  # 岗位数据缓存时间24小时
-            cls._instance.mapping_ttl = 86400  # 映射数据缓存时间24小时（延长）
-            
-            # 缓存统计
-            cls._instance.hit_count = 0
-            cls._instance.miss_count = 0
-            
-            # 缓存预热
-            cls._instance._prewarm_cache()
-        return cls._instance
-    
+    """缓存管理器"""
     def __init__(self, max_cache_size=1000):
         """初始化缓存管理器
         
         Args:
             max_cache_size: 最大缓存项数量
         """
-        # 单例模式下，__init__可能会被调用多次，所以这里不需要重复初始化
-        pass
+        self.cache = {}
+        self.max_cache_size = max_cache_size
+        self.default_ttl = 3600  # 默认缓存时间1小时
+        self.llm_ttl = 7200  # LLM响应缓存时间2小时
+        self.query_ttl = 1800  # 查询结果缓存时间30分钟
+        self.policy_ttl = 86400  # 政策数据缓存时间24小时
+        self.job_ttl = 86400  # 岗位数据缓存时间24小时
+        self.mapping_ttl = 43200  # 映射数据缓存时间12小时
     
     def set(self, key, value, ttl=None):
         """设置缓存
@@ -81,18 +63,15 @@ class CacheManager:
         item = self.cache.get(key)
         if not item:
             logger.debug(f"缓存不存在: {key}")
-            self.miss_count += 1
             return None
         
         # 检查缓存是否过期
         if time.time() > item['expiry']:
             del self.cache[key]
             logger.debug(f"缓存已过期: {key}")
-            self.miss_count += 1
             return None
         
         logger.debug(f"获取缓存: {key}")
-        self.hit_count += 1
         return item['value']
     
     def delete(self, key):
@@ -138,26 +117,6 @@ class CacheManager:
         del self.cache[oldest_key]
         logger.debug(f"缓存达到上限，移除最旧缓存: {oldest_key}")
     
-    def _prewarm_cache(self):
-        """缓存预热，提前缓存常用数据"""
-        logger.info("开始缓存预热...")
-        
-        # 预热常用查询缓存
-        common_queries = [
-            "我熟悉直播带货和网店运营，有场地补贴落地经验，想从事电商创业相关工作。",
-            "我有中级电工证，想了解技能补贴政策",
-            "我想找一份兼职工作",
-            "我是一名失业人员，有什么政策可以申请"
-        ]
-        
-        for query in common_queries:
-            # 为常用查询生成缓存键，实际缓存会在首次查询时填充
-            key = self.generate_cache_key('query_prewarm', query)
-            # 设置一个空值，标记为预热
-            self.set(key, {}, ttl=3600)
-        
-        logger.info("缓存预热完成")
-    
     def generate_cache_key(self, prefix, *args, **kwargs):
         """生成缓存键
         
@@ -169,14 +128,6 @@ class CacheManager:
         Returns:
             生成的缓存键
         """
-        # 优化：对于简单参数，直接使用参数值作为键的一部分
-        if len(args) == 1 and isinstance(args[0], str) and not kwargs:
-            # 对于单个字符串参数，直接使用字符串的哈希
-            key_str = args[0]
-            key_hash = hashlib.md5(key_str.encode('utf-8')).hexdigest()
-            return f"{prefix}:{key_hash}"
-        
-        # 对于复杂参数，使用原来的方法
         # 构建键的内容
         key_content = {
             'prefix': prefix,
@@ -364,27 +315,176 @@ class CacheManager:
         """
         key = self.generate_cache_key('mapping', mapping_type)
         return self.get(key)
+
+class TestCacheMechanism:
+    def __init__(self):
+        """初始化测试类"""
+        self.cache_manager = CacheManager()
     
-    def get_cache_stats(self):
-        """获取缓存统计信息
+    def test_cache_basic(self):
+        """测试基本缓存功能"""
+        logger.info("开始测试基本缓存功能...")
         
-        Returns:
-            缓存统计信息字典
-        """
-        total_requests = self.hit_count + self.miss_count
-        hit_rate = (self.hit_count / total_requests * 100) if total_requests > 0 else 0
+        # 设置缓存
+        test_key = "test_key"
+        test_value = "test_value"
+        self.cache_manager.set(test_key, test_value)
         
-        return {
-            'hit_count': self.hit_count,
-            'miss_count': self.miss_count,
-            'total_requests': total_requests,
-            'hit_rate': hit_rate,
-            'cache_size': len(self.cache),
-            'max_cache_size': self.max_cache_size
+        # 获取缓存
+        cached_value = self.cache_manager.get(test_key)
+        assert cached_value == test_value, "缓存设置或获取失败"
+        logger.info("基本缓存功能测试通过！")
+        
+        return True
+    
+    def test_cache_expiry(self):
+        """测试缓存过期机制"""
+        logger.info("开始测试缓存过期机制...")
+        
+        # 设置一个短期缓存
+        test_key = "test_expiry_key"
+        test_value = "test_expiry_value"
+        self.cache_manager.set(test_key, test_value, ttl=1)  # 1秒过期
+        
+        # 立即获取缓存（应该存在）
+        value1 = self.cache_manager.get(test_key)
+        assert value1 == test_value, "缓存设置失败"
+        logger.info("缓存设置成功！")
+        
+        # 等待缓存过期
+        time.sleep(2)
+        
+        # 再次获取缓存（应该不存在）
+        value2 = self.cache_manager.get(test_key)
+        assert value2 is None, "缓存过期机制失败"
+        logger.info("缓存过期机制测试通过！")
+        
+        return True
+    
+    def test_cache_size(self):
+        """测试缓存大小限制"""
+        logger.info("开始测试缓存大小限制...")
+        
+        # 创建一个小容量的缓存管理器
+        small_cache = CacheManager(max_cache_size=3)
+        
+        # 添加多个缓存项
+        for i in range(5):
+            small_cache.set(f"key_{i}", f"value_{i}")
+        
+        # 检查缓存大小
+        cache_size = small_cache.get_cache_size()
+        assert cache_size <= 3, "缓存大小限制失败"
+        logger.info(f"缓存大小限制测试通过！当前缓存大小: {cache_size}")
+        
+        return True
+    
+    def test_llm_cache(self):
+        """测试LLM响应缓存"""
+        logger.info("开始测试LLM响应缓存...")
+        
+        # 模拟LLM提示和响应
+        test_prompt = "What is the capital of France?"
+        test_response = "The capital of France is Paris."
+        
+        # 设置LLM缓存
+        self.cache_manager.set_llm_cache(test_prompt, test_response)
+        
+        # 获取LLM缓存
+        cached_response = self.cache_manager.get_llm_cache(test_prompt)
+        assert cached_response == test_response, "LLM缓存设置或获取失败"
+        logger.info("LLM响应缓存测试通过！")
+        
+        return True
+    
+    def test_policy_cache(self):
+        """测试政策数据缓存"""
+        logger.info("开始测试政策数据缓存...")
+        
+        # 模拟政策数据
+        test_policy = {
+            "policy_id": "POLICY_A01",
+            "title": "创业担保贷款贴息政策",
+            "category": "创业扶持",
+            "key_info": "最高贷50万、期限3年，LPR-150BP以上部分财政贴息"
         }
+        
+        # 设置政策缓存
+        self.cache_manager.set_policy_cache(test_policy["policy_id"], test_policy)
+        
+        # 获取政策缓存
+        cached_policy = self.cache_manager.get_policy_cache(test_policy["policy_id"])
+        assert cached_policy == test_policy, "政策缓存设置或获取失败"
+        logger.info("政策数据缓存测试通过！")
+        
+        return True
     
-    def reset_cache_stats(self):
-        """重置缓存统计信息"""
-        self.hit_count = 0
-        self.miss_count = 0
-        logger.info("缓存统计信息已重置")
+    def test_jobs_cache(self):
+        """测试岗位数据缓存"""
+        logger.info("开始测试岗位数据缓存...")
+        
+        # 模拟岗位数据
+        test_jobs = [
+            {
+                "job_id": "JOB_A01",
+                "title": "创业孵化基地管理员",
+                "requirements": ["有创业经验", "熟悉政策法规"],
+                "features": "稳定工作环境"
+            },
+            {
+                "job_id": "JOB_A02",
+                "title": "兼职电工",
+                "requirements": ["持有电工证", "有相关工作经验"],
+                "features": "灵活工作时间"
+            }
+        ]
+        
+        # 设置岗位数据缓存
+        self.cache_manager.set_jobs_cache(test_jobs)
+        
+        # 获取岗位数据缓存
+        cached_jobs = self.cache_manager.get_jobs_cache()
+        assert cached_jobs == test_jobs, "岗位数据缓存设置或获取失败"
+        logger.info("岗位数据缓存测试通过！")
+        
+        return True
+    
+    def test_mapping_cache(self):
+        """测试映射数据缓存"""
+        logger.info("开始测试映射数据缓存...")
+        
+        # 模拟映射数据
+        test_mapping = {
+            "JOB_A01": "创业孵化基地管理员",
+            "JOB_A02": "兼职电工"
+        }
+        
+        # 设置映射缓存
+        self.cache_manager.set_mapping_cache('job_name', test_mapping)
+        
+        # 获取映射缓存
+        cached_mapping = self.cache_manager.get_mapping_cache('job_name')
+        assert cached_mapping == test_mapping, "映射数据缓存设置或获取失败"
+        logger.info("映射数据缓存测试通过！")
+        
+        return True
+    
+    def run_all_tests(self):
+        """运行所有测试"""
+        logger.info("开始运行所有缓存机制测试...")
+        
+        # 运行各项测试
+        self.test_cache_basic()
+        self.test_cache_expiry()
+        self.test_cache_size()
+        self.test_llm_cache()
+        self.test_policy_cache()
+        self.test_jobs_cache()
+        self.test_mapping_cache()
+        
+        logger.info("所有缓存机制测试通过！")
+
+if __name__ == "__main__":
+    # 运行测试
+    tester = TestCacheMechanism()
+    tester.run_all_tests()

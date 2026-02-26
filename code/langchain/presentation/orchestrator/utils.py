@@ -1,4 +1,6 @@
 import json
+from ...infrastructure.llm_batch_processor import LMBatchProcessor
+
 
 
 def extract_user_preferences(intent_info, user_input):
@@ -198,3 +200,103 @@ def clean_policy_content(reasons):
     # 更新推荐理由
     reasons['positive'] = positive_reasons
     return reasons
+
+
+def build_job_analysis_prompt(user_input, recommended_jobs, time_preference, certificate_level):
+    """构建岗位分析的prompt"""
+    # 简洁的系统指令
+    prompt = f"你是专业政策咨询助手，为用户生成岗位推荐理由。\n\n"
+    
+    # 限制用户输入长度
+    prompt += f"用户输入: {user_input[:80]}...\n\n"
+    
+    # 只包含必要的岗位信息
+    simplified_jobs = []
+    for job in recommended_jobs[:5]:  # 限制最多5个岗位
+        simplified_job = {
+            "job_id": job.get("job_id"),
+            "title": job.get("title"),
+            "req": job.get("requirements", [])[:2],  # 只取前2个要求
+            "feat": job.get("features", "")[:50]  # 限制特点长度
+        }
+        simplified_jobs.append(simplified_job)
+    
+    prompt += f"岗位: {json.dumps(simplified_jobs, ensure_ascii=False, separators=(',', ':'))}\n\n"
+    
+    # 简洁的用户偏好信息
+    pref_str = []
+    if time_preference:
+        pref_str.append(f"时间:{time_preference}")
+    if certificate_level:
+        pref_str.append(f"证书:{certificate_level}")
+    if pref_str:
+        prompt += f"偏好: {'; '.join(pref_str)}\n\n"
+    
+    # 核心分析要求
+    prompt += f"要求：\n"
+    prompt += f"1. 为每个岗位生成3条简洁推荐理由\n"
+    prompt += f"2. 使用①②③编号格式\n"
+    prompt += f"3. 严格按JSON输出，无其他内容\n\n"
+    
+    # 简洁的输出结构
+    prompt += f"输出结构：{{\"job_analysis\":[{{\"id\":\"岗位ID\",\"title\":\"岗位标题\",\"reasons\":{{\"positive\":\"推荐理由\",\"negative\":\"\"}}}}]}}\n\n"
+    
+    # 简洁的示例
+    prompt += f"示例：{{\"job_analysis\":[{{\"id\":\"JOB_A02\",\"title\":\"职业技能培训讲师\",\"reasons\":{{\"positive\":\"①持有中级电工证符合要求；②兼职模式满足灵活时间；③岗位特点与经验匹配\",\"negative\":\"\"}}}}]}}"
+    
+    return prompt
+
+
+def generate_job_recommendations(user_input, intent_info, recommended_jobs):
+    """生成岗位推荐理由，使用批处理机制"""
+    # 提取用户偏好
+    preferences = extract_user_preferences(intent_info, user_input)
+    time_preference = preferences["time_preference"]
+    certificate_level = preferences["certificate_level"]
+    
+    # 如果没有推荐岗位，直接返回
+    if not recommended_jobs:
+        return recommended_jobs
+    
+    # 构建分析prompt
+    prompt = build_job_analysis_prompt(user_input, recommended_jobs, time_preference, certificate_level)
+    
+    # 使用批处理器处理任务
+    batch_processor = LMBatchProcessor()
+    tasks = [{
+        "id": 1,
+        "type": "job_analysis",
+        "prompt": prompt
+    }]
+    
+    # 批量处理
+    results = batch_processor.batch_process(tasks)
+    
+    # 处理结果
+    if results and results[0].get("result"):
+        analysis_result = results[0]["result"]
+        job_analysis = analysis_result.get('job_analysis', [])
+        
+        # 将推荐理由添加到推荐岗位中
+        for job in recommended_jobs:
+            job_id = job.get('job_id')
+            if job_id:
+                for analysis in job_analysis:
+                    # 同时检查'id'和'job_id'字段，确保兼容性
+                    analysis_id = analysis.get('id') or analysis.get('job_id')
+                    if analysis_id == job_id:
+                        # 获取推荐理由
+                        reasons = analysis.get('reasons', {'positive': '', 'negative': ''})
+                        # 清理岗位推荐理由，移除政策相关内容
+                        reasons = clean_policy_content(reasons)
+                        # 更新推荐理由
+                        job['reasons'] = reasons
+                        break
+    
+    # 为没有推荐理由的岗位添加默认推荐理由
+    for job in recommended_jobs:
+        if 'reasons' not in job:
+            job['reasons'] = generate_job_reasons(job)
+    
+    # 返回更新后的推荐岗位列表
+    return recommended_jobs

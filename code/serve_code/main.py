@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(base_dir, 'code'))
 
+# 导入性能监控组件
+from langchain.infrastructure.performance import PerformanceMiddleware, performance_monitor, PerformanceAnalyzer, PerformanceOptimizer
+
+# 初始化性能分析器
+performance_analyzer = PerformanceAnalyzer(performance_monitor)
+
+# 初始化性能优化器
+performance_optimizer = PerformanceOptimizer(performance_monitor, performance_analyzer)
+
 # 直接导入模块
 from langchain.presentation.orchestrator import Orchestrator
 from langchain.business.job_matcher import JobMatcher
@@ -37,6 +46,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加性能监控中间件
+app.add_middleware(PerformanceMiddleware)
+
+# 启动性能监控器
+performance_monitor.start_monitoring(interval=5)
+
+# 启动性能优化器
+performance_optimizer.start_optimization(interval=30)
 
 # 配置静态文件服务
 web_dir = os.path.join(base_dir, 'code', 'web_code')
@@ -86,6 +104,13 @@ class UserProfileRequest(BaseModel):
     policy_interest: list = []
     job_interest: list = []
 
+class BatchRequest(BaseModel):
+    requests: list
+
+class BatchItem(BaseModel):
+    type: str  # 支持的类型: chat, policies, jobs, user_profile, recommendations
+    params: dict = {}
+
 # 响应模型
 class ChatResponse(BaseModel):
     intent: dict
@@ -120,6 +145,22 @@ class UserProfileResponse(BaseModel):
 class RecommendationsResponse(BaseModel):
     policies: list
     jobs: list
+
+class BatchResponse(BaseModel):
+    results: list
+    total_execution_time: float
+
+class OptimizedResponse(BaseModel):
+    success: bool
+    data: dict = {}
+    error: str = None
+    execution_time: float = 0
+
+class CombinedDataResponse(BaseModel):
+    policies: list = []
+    jobs: list = []
+    recommendations: dict = {}
+    execution_time: float = 0
 
 from fastapi.responses import StreamingResponse
 
@@ -213,7 +254,7 @@ async def delete_session(session_id: str):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Session not found")
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat", response_model=OptimizedResponse)
 async def chat(request: ChatRequest, raw_request: Request):
     """处理用户对话"""
     start_time = time.time()
@@ -232,103 +273,489 @@ async def chat(request: ChatRequest, raw_request: Request):
         # 添加执行时间到结果
         result["execution_time"] = execution_time
         
-        return ChatResponse(**result)
+        # 优化响应数据，只返回必要的字段
+        optimized_result = {
+            "intent": result.get("intent", {}),
+            "relevant_policies": result.get("relevant_policies", []),
+            "response": result.get("response", {}),
+            "recommended_jobs": result.get("recommended_jobs", [])
+        }
+        
+        return OptimizedResponse(
+            success=True,
+            data=optimized_result,
+            execution_time=execution_time
+        )
     except Exception as e:
         end_time = time.time()
         execution_time = end_time - start_time
         logger.error(f"处理请求失败，耗时: {execution_time:.2f}秒, 错误: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理请求失败: {str(e)}")
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=execution_time
+        )
 
-@app.get("/api/policies", response_model=PoliciesResponse)
+@app.get("/api/policies", response_model=OptimizedResponse)
 async def get_policies():
     """获取政策列表"""
+    start_time = time.time()
     try:
-        return PoliciesResponse(policies=agent.policies)
+        policies = agent.policies
+        # 优化政策数据，只返回必要字段
+        optimized_policies = []
+        for policy in policies:
+            optimized_policy = {
+                "id": policy.get("id"),
+                "title": policy.get("title"),
+                "category": policy.get("category"),
+                "summary": policy.get("summary")
+            }
+            optimized_policies.append(optimized_policy)
+        
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data={"policies": optimized_policies},
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取政策失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.post("/api/evaluate", response_model=EvaluateResponse)
+@app.post("/api/evaluate", response_model=OptimizedResponse)
 async def evaluate(request: EvaluateRequest):
     """评估演示结果"""
+    start_time = time.time()
     try:
         evaluation = agent.evaluate_response(request.user_input, request.response)
-        return EvaluateResponse(**evaluation)
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=evaluation,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"评估失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=OptimizedResponse)
 async def health_check():
     """健康检查"""
-    return {"status": "healthy"}
+    return OptimizedResponse(
+        success=True,
+        data={"status": "healthy"}
+    )
 
-@app.get("/api/jobs", response_model=JobsResponse)
+@app.get("/api/performance/metrics", response_model=OptimizedResponse)
+async def get_performance_metrics():
+    """获取性能指标"""
+    try:
+        metrics = performance_monitor.get_metrics()
+        return OptimizedResponse(
+            success=True,
+            data=metrics
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/performance/report", response_model=OptimizedResponse)
+async def get_performance_report():
+    """获取性能报告"""
+    try:
+        report = performance_monitor.generate_report()
+        return OptimizedResponse(
+            success=True,
+            data=report
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.post("/api/performance/save-report", response_model=OptimizedResponse)
+async def save_performance_report():
+    """保存性能报告到文件"""
+    try:
+        filename = performance_monitor.save_report()
+        return OptimizedResponse(
+            success=True,
+            data={"filename": filename}
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/performance/comprehensive-report", response_model=OptimizedResponse)
+async def get_comprehensive_report():
+    """获取综合性能报告"""
+    try:
+        report = performance_analyzer.generate_comprehensive_report()
+        return OptimizedResponse(
+            success=True,
+            data=report
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/performance/optimization/strategies", response_model=OptimizedResponse)
+async def get_optimization_strategies():
+    """获取当前应用的优化策略"""
+    try:
+        strategies = performance_optimizer.get_current_strategies()
+        return OptimizedResponse(
+            success=True,
+            data={"strategies": strategies}
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/performance/optimization/history", response_model=OptimizedResponse)
+async def get_optimization_history():
+    """获取优化历史"""
+    try:
+        history = performance_optimizer.get_optimization_history()
+        return OptimizedResponse(
+            success=True,
+            data={"history": history}
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/performance/optimization/effectiveness", response_model=OptimizedResponse)
+async def get_optimization_effectiveness():
+    """评估优化效果"""
+    try:
+        effectiveness = performance_optimizer.evaluate_optimization_effectiveness()
+        return OptimizedResponse(
+            success=True,
+            data=effectiveness
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.post("/api/performance/optimization/thresholds", response_model=OptimizedResponse)
+async def set_optimization_thresholds(thresholds: dict):
+    """设置性能优化阈值"""
+    try:
+        performance_optimizer.set_thresholds(thresholds)
+        return OptimizedResponse(
+            success=True,
+            data={"thresholds": performance_optimizer.get_thresholds()}
+        )
+    except Exception as e:
+        return OptimizedResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.get("/api/jobs", response_model=OptimizedResponse)
 async def get_jobs():
     """获取岗位列表"""
+    start_time = time.time()
     try:
         jobs = job_matcher.get_all_jobs()
-        return JobsResponse(jobs=jobs)
+        # 优化岗位数据，只返回必要字段
+        optimized_jobs = []
+        for job in jobs:
+            optimized_job = {
+                "id": job.get("id"),
+                "title": job.get("title"),
+                "company": job.get("company"),
+                "salary": job.get("salary"),
+                "location": job.get("location")
+            }
+            optimized_jobs.append(optimized_job)
+        
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data={"jobs": optimized_jobs},
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取岗位失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.get("/api/jobs/{job_id}", response_model=dict)
+@app.get("/api/jobs/{job_id}", response_model=OptimizedResponse)
 async def get_job(job_id: str):
     """获取单个岗位详情"""
+    start_time = time.time()
     try:
         job = job_matcher.get_job_by_id(job_id)
         if not job:
-            raise HTTPException(status_code=404, detail=f"岗位不存在: {job_id}")
-        return job
-    except HTTPException:
-        raise
+            end_time = time.time()
+            return OptimizedResponse(
+                success=False,
+                error=f"岗位不存在: {job_id}",
+                execution_time=end_time - start_time
+            )
+        
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=job,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取岗位失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.get("/api/users/{user_id}/profile", response_model=UserProfileResponse)
+@app.get("/api/users/{user_id}/profile", response_model=OptimizedResponse)
 async def get_user_profile(user_id: str):
     """获取用户画像"""
+    start_time = time.time()
     try:
         profile = user_profile_manager.get_user_profile(user_id)
         if not profile:
-            raise HTTPException(status_code=404, detail=f"用户画像不存在: {user_id}")
-        return profile
-    except HTTPException:
-        raise
+            end_time = time.time()
+            return OptimizedResponse(
+                success=False,
+                error=f"用户画像不存在: {user_id}",
+                execution_time=end_time - start_time
+            )
+        
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=profile,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取用户画像失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.post("/api/users/{user_id}/profile", response_model=UserProfileResponse)
+@app.post("/api/users/{user_id}/profile", response_model=OptimizedResponse)
 async def create_or_update_user_profile(user_id: str, request: UserProfileRequest):
     """创建或更新用户画像"""
+    start_time = time.time()
     try:
         profile = user_profile_manager.create_or_update_user_profile(user_id, request.dict())
-        return profile
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=profile,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"操作用户画像失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.get("/api/users/{user_id}/recommendations", response_model=RecommendationsResponse)
+@app.get("/api/users/{user_id}/recommendations", response_model=OptimizedResponse)
 async def get_personalized_recommendations(user_id: str):
     """获取个性化推荐"""
+    start_time = time.time()
     try:
         recommendations = user_profile_manager.get_personalized_recommendations(user_id)
-        return recommendations
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=recommendations,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
 
-@app.get("/api/recommendations", response_model=RecommendationsResponse)
+@app.get("/api/recommendations", response_model=OptimizedResponse)
 async def get_general_recommendations():
     """获取通用推荐"""
+    start_time = time.time()
     try:
         # 获取所有岗位
         all_jobs = job_matcher.get_all_jobs()
         # 获取所有政策
         all_policies = agent.policies
         
-        return {
-            "policies": all_policies[:3],  # 返回前3个政策
-            "jobs": all_jobs[:3]  # 返回前3个岗位
+        # 优化推荐数据，只返回必要字段
+        optimized_jobs = []
+        for job in all_jobs[:3]:
+            optimized_job = {
+                "id": job.get("id"),
+                "title": job.get("title"),
+                "company": job.get("company"),
+                "salary": job.get("salary")
+            }
+            optimized_jobs.append(optimized_job)
+        
+        optimized_policies = []
+        for policy in all_policies[:3]:
+            optimized_policy = {
+                "id": policy.get("id"),
+                "title": policy.get("title"),
+                "category": policy.get("category")
+            }
+            optimized_policies.append(optimized_policy)
+        
+        recommendations = {
+            "policies": optimized_policies,
+            "jobs": optimized_jobs
         }
+        
+        end_time = time.time()
+        return OptimizedResponse(
+            success=True,
+            data=recommendations,
+            execution_time=end_time - start_time
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
+        end_time = time.time()
+        return OptimizedResponse(
+            success=False,
+            error=str(e),
+            execution_time=end_time - start_time
+        )
+
+
+
+@app.post("/api/batch", response_model=BatchResponse)
+async def batch_process(request: BatchRequest):
+    """批量处理API请求，减少网络往返时间"""
+    start_time = time.time()
+    results = []
+    
+    try:
+        for item in request.requests:
+            item_start = time.time()
+            item_result = {}
+            
+            try:
+                if item.type == "chat":
+                    # 处理聊天请求
+                    chat_request = ChatRequest(**item.params)
+                    if chat_request.scenario != "general":
+                        result = agent.handle_scenario(chat_request.scenario, chat_request.message)
+                    else:
+                        result = agent.process_query(chat_request.message)
+                    item_result = result
+                
+                elif item.type == "policies":
+                    # 获取政策列表
+                    item_result = {"policies": agent.policies}
+                
+                elif item.type == "jobs":
+                    # 获取岗位列表
+                    item_result = {"jobs": job_matcher.get_all_jobs()}
+                
+                elif item.type == "user_profile":
+                    # 获取用户画像
+                    user_id = item.params.get("user_id")
+                    if user_id:
+                        profile = user_profile_manager.get_user_profile(user_id)
+                        item_result = profile
+                
+                elif item.type == "recommendations":
+                    # 获取推荐
+                    user_id = item.params.get("user_id")
+                    if user_id:
+                        recommendations = user_profile_manager.get_personalized_recommendations(user_id)
+                        item_result = recommendations
+                    else:
+                        # 获取通用推荐
+                        all_jobs = job_matcher.get_all_jobs()
+                        all_policies = agent.policies
+                        item_result = {
+                            "policies": all_policies[:3],
+                            "jobs": all_jobs[:3]
+                        }
+                
+                item_result["success"] = True
+            except Exception as e:
+                item_result = {
+                    "success": False,
+                    "error": str(e)
+                }
+            
+            item_result["execution_time"] = time.time() - item_start
+            results.append(item_result)
+        
+        total_time = time.time() - start_time
+        return BatchResponse(results=results, total_execution_time=total_time)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量处理失败: {str(e)}")
+
+@app.get("/api/combined-data", response_model=CombinedDataResponse)
+async def get_combined_data(user_id: str = None):
+    """获取组合数据，减少多次API调用"""
+    start_time = time.time()
+    
+    try:
+        # 并行获取数据
+        all_policies = agent.policies
+        all_jobs = job_matcher.get_all_jobs()
+        
+        recommendations = {}
+        if user_id:
+            try:
+                recommendations = user_profile_manager.get_personalized_recommendations(user_id)
+            except Exception as e:
+                logger.warning(f"获取个性化推荐失败: {str(e)}")
+                # 回退到通用推荐
+                recommendations = {
+                    "policies": all_policies[:3],
+                    "jobs": all_jobs[:3]
+                }
+        else:
+            # 通用推荐
+            recommendations = {
+                "policies": all_policies[:3],
+                "jobs": all_jobs[:3]
+            }
+        
+        return CombinedDataResponse(
+            policies=all_policies,
+            jobs=all_jobs,
+            recommendations=recommendations,
+            execution_time=time.time() - start_time
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取组合数据失败: {str(e)}")
 
 # 添加Mangum适配器，支持Vercel部署
 from mangum import Mangum

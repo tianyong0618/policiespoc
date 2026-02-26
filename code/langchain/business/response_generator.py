@@ -1,6 +1,7 @@
 import json
 import logging
 from ..infrastructure.chatbot import ChatBot
+from ..infrastructure.cache_manager import CacheManager
 
 # 配置日志
 logging.basicConfig(
@@ -10,71 +11,101 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class ResponseGenerator:
-    def __init__(self, chatbot=None):
+    def __init__(self, chatbot=None, cache_manager=None):
         """初始化响应生成器"""
         self.chatbot = chatbot if chatbot else ChatBot()
+        self.cache_manager = cache_manager if cache_manager else CacheManager()
         
-        # 从jobs.json构建岗位名称映射
-        self.job_name_mapping = self._build_job_name_mapping()
-        
-        # 从jobs.json的policy_relations构建政策与岗位的映射关系
-        self.policy_job_mapping = self._build_policy_job_mapping()
+        # 延迟加载映射数据，只在需要时构建
+        self._job_name_mapping = None
+        self._policy_job_mapping = None
     
-    def _build_job_name_mapping(self):
-        """从jobs.json构建岗位名称映射"""
+    def _load_jobs_data(self):
+        """加载jobs.json数据，只在需要时读取"""
         import json
         import os
-        job_name_mapping = {}
-        
-        # 读取jobs.json文件
         jobs_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_files', 'jobs.json')
         try:
             with open(jobs_file, 'r', encoding='utf-8') as f:
-                jobs = json.load(f)
-                for job in jobs:
-                    job_id = job.get('job_id')
-                    job_title = job.get('title')
-                    if job_id and job_title:
-                        job_name_mapping[job_id] = job_title
+                return json.load(f)
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"读取jobs.json失败: {e}")
+            return []
+    
+    def _build_job_name_mapping(self):
+        """从jobs.json构建岗位名称映射"""
+        # 尝试从缓存获取
+        cached_mapping = self.cache_manager.get_mapping_cache('job_name')
+        if cached_mapping:
+            logger.info("使用缓存的岗位名称映射")
+            return cached_mapping
         
+        job_name_mapping = {}
+        jobs = self._load_jobs_data()
+        
+        for job in jobs:
+            job_id = job.get('job_id')
+            job_title = job.get('title')
+            if job_id and job_title:
+                job_name_mapping[job_id] = job_title
+        
+        # 缓存映射数据
+        self.cache_manager.set_mapping_cache('job_name', job_name_mapping)
         return job_name_mapping
     
     def _build_policy_job_mapping(self):
         """从jobs.json的policy_relations构建政策与岗位的映射关系"""
-        import json
-        import os
+        # 尝试从缓存获取
+        cached_mapping = self.cache_manager.get_mapping_cache('policy_job')
+        if cached_mapping:
+            logger.info("使用缓存的政策与岗位映射")
+            return cached_mapping
+        
         policy_job_mapping = {}
+        jobs = self._load_jobs_data()
         
-        # 读取jobs.json文件
-        jobs_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'data_files', 'jobs.json')
-        try:
-            with open(jobs_file, 'r', encoding='utf-8') as f:
-                jobs = json.load(f)
-                for job in jobs:
-                    job_id = job.get('job_id')
-                    policy_relations = job.get('policy_relations', [])
-                    if job_id and policy_relations:
-                        for policy_id in policy_relations:
-                            if policy_id not in policy_job_mapping:
-                                policy_job_mapping[policy_id] = []
-                            if job_id not in policy_job_mapping[policy_id]:
-                                policy_job_mapping[policy_id].append(job_id)
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"读取jobs.json失败: {e}")
+        for job in jobs:
+            job_id = job.get('job_id')
+            policy_relations = job.get('policy_relations', [])
+            if job_id and policy_relations:
+                for policy_id in policy_relations:
+                    if policy_id not in policy_job_mapping:
+                        policy_job_mapping[policy_id] = []
+                    if job_id not in policy_job_mapping[policy_id]:
+                        policy_job_mapping[policy_id].append(job_id)
         
+        # 缓存映射数据
+        self.cache_manager.set_mapping_cache('policy_job', policy_job_mapping)
         return policy_job_mapping
+    
+    @property
+    def job_name_mapping(self):
+        """获取岗位名称映射"""
+        if self._job_name_mapping is None:
+            self._job_name_mapping = self._build_job_name_mapping()
+        return self._job_name_mapping
+    
+    @property
+    def policy_job_mapping(self):
+        """获取政策与岗位的映射关系"""
+        if self._policy_job_mapping is None:
+            self._policy_job_mapping = self._build_policy_job_mapping()
+        return self._policy_job_mapping
     
     def rg_generate_response(self, user_input, relevant_policies, scenario_type="通用场景", matched_user=None, recommended_jobs=None):
         """生成结构化回答"""
         # 特殊场景处理
         if "技能培训岗位个性化推荐" in scenario_type:
             return self._handle_skill_training_scenario(recommended_jobs)
+        
+        # 生成缓存键
+        cache_key = self.cache_manager.generate_cache_key('response', user_input, relevant_policies, scenario_type, matched_user, recommended_jobs)
+        
+        # 尝试从缓存获取
+        cached_response = self.cache_manager.get(cache_key)
+        if cached_response:
+            logger.info("使用缓存的响应结果")
+            return cached_response
         
         # 准备数据
         relevant_policies = relevant_policies[:3]  # 只使用前3条政策
@@ -91,17 +122,73 @@ class ResponseGenerator:
         # 构建完整prompt
         prompt = self._build_prompt(user_input, policies_str, jobs_str, user_profile_str, base_instructions)
         
-        # 调用LLM
-        response = self.chatbot.chat_with_memory(prompt)
+        # 使用批处理器处理LLM调用
+        from ..infrastructure.llm_batch_processor import LMBatchProcessor
+        batch_processor = LMBatchProcessor()
+        tasks = [{
+            "id": 1,
+            "type": "response_generation",
+            "prompt": prompt
+        }]
         
-        # 处理LLM响应
-        content = self._process_llm_response(response)
+        # 批量处理
+        results = batch_processor.batch_process(tasks)
+        
+        # 处理结果
+        if results and results[0].get("result"):
+            content = results[0]["result"]
+        else:
+            # 如果批处理失败，使用默认响应
+            logger.error("批处理LLM调用失败，使用默认响应")
+            content = {"positive": "", "negative": "", "suggestions": ""}
         
         # 生成建议
         suggestions = self._generate_suggestions(user_input, recommended_jobs, relevant_policies)
         
         # 解析并处理结果
-        return self._parse_and_process_result(content, suggestions, relevant_policies, user_input)
+        result = self._parse_and_process_result(content, suggestions, relevant_policies, user_input)
+        
+        # 缓存结果
+        self.cache_manager.set(cache_key, result, ttl=3600)  # 缓存1小时
+        
+        # 确保生成不符合条件的政策信息
+        if relevant_policies:
+            # 提取positive中的政策ID
+            import re
+            positive_policies = []
+            # 同时匹配中文括号和英文括号
+            matches = re.findall(r'[\(（](POLICY_[A-Z0-9]+)[\)）]', result.get('positive', ''))
+            positive_policies.extend(matches)
+            
+            # 为不在positive中的政策生成negative内容
+            negative_content = result.get('negative', '')
+            if not negative_content:
+                for policy in relevant_policies:
+                    policy_id = policy.get('policy_id', '')
+                    policy_title = policy.get('title', '')
+                    if policy_id not in positive_policies:
+                        # 生成不符合条件的原因
+                        if policy_id == "POLICY_A03":
+                            # 返乡创业扶持补贴政策
+                            if '带动就业' not in user_input and '就业' not in user_input:
+                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'带动3人以上就业'方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。"
+                        elif policy_id == "POLICY_A04":
+                            # 创业场地租金补贴政策
+                            if '入驻' not in user_input or '孵化基地' not in user_input:
+                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'入驻孵化基地'方可申领补贴，当前信息未提及，建议补充入驻证明后申请。"
+                        elif policy_id == "POLICY_A05":
+                            # 技能培训补贴政策
+                            if '技能培训' not in user_input and '证书' not in user_input:
+                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'参加技能培训并取得证书'方可申领补贴，当前信息未提及，建议参加培训后申请。"
+                        elif policy_id == "POLICY_A06":
+                            # 退役军人创业税收优惠政策
+                            if '退役' not in user_input and '军人' not in user_input:
+                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'退役军人'身份方可享受税收优惠，当前信息未提及，建议补充身份证明后申请。"
+                
+                if negative_content:
+                    result['negative'] = negative_content
+        
+        return result
     
     def _handle_skill_training_scenario(self, recommended_jobs):
         """处理技能培训岗位个性化推荐场景"""
@@ -181,10 +268,13 @@ class ResponseGenerator:
         else:
             prompt = self._build_no_user_info_prompt(user_input, policies_str, jobs_str, user_profile_str)
         
+        # 简洁的最终提示
         prompt += "\n"
-        prompt += "重要提示：请严格按照上述格式要求输出，不要修改任何内容，确保与格式要求完全一致。\n"
-        prompt += "\n"
-        prompt += "请确保回答准确、简洁、有条理，直接输出JSON格式，不要包含其他内容。\n"
+        prompt += "严格按上述格式输出JSON，不添加其他内容。\n"
+        
+        # 严格限制prompt长度
+        if len(prompt) > 800:
+            prompt = prompt[:800] + "...\n\n请直接输出JSON格式回答。"
         
         logger.info(f"生成的回答提示: {prompt[:100]}...")
         return prompt
@@ -238,37 +328,34 @@ class ResponseGenerator:
     
     def _build_no_user_info_prompt(self, user_input, policies_str, jobs_str, user_profile_str):
         """构建不包含用户信息的prompt"""
-        prompt = "你是一个专业的政策咨询助手，负责根据用户输入和提供的政策信息，生成详细的政策分析。\n"
-        prompt += "\n"
-        prompt += "用户输入: "
-        prompt += user_input
-        prompt += "\n"
+        # 简洁的系统指令
+        prompt = "你是专业政策咨询助手，根据用户输入和政策生成详细分析。\n\n"
+        
+        # 限制用户输入长度
+        prompt += f"用户: {user_input[:80]}...\n"
         prompt += user_profile_str
         prompt += "\n"
-        prompt += "相关政策:\n"
-        prompt += policies_str
-        prompt += "\n"
-        prompt += jobs_str
-        prompt += "\n"
-        prompt += "请根据以上信息，按照以下指令生成回答：\n"
-        prompt += "1. 由于用户没有提供个人信息，无法判断是否符合政策条件，因此只需要提供详细的政策分析。\n"
-        prompt += "2. 对于每个相关政策，都要提供详细的分析，包括政策内容、申请条件和申请路径。\n"
-        prompt += "3. 不要包含符合或不符合条件的判断，只提供客观的政策信息。\n"
-        prompt += "4. 语言简洁明了，使用中文。\n"
-        prompt += "\n"
-        prompt += "请以JSON格式输出，包含以下字段：\n"
-        prompt += "{\n"
-        prompt += "  \"positive\": \"相关政策分析\",\n"
-        prompt += "  \"negative\": \"\",\n"
-        prompt += "  \"suggestions\": \"主动建议\"\n"
-        prompt += "}\n"
-        prompt += "\n"
-        prompt += "格式要求：\n"
-        prompt += "1. 政策分析部分：必须严格按照格式输出：\"《创业担保贷款贴息政策》（POLICY_A01）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。申请路径：[人社局官网-创业服务专栏]。\"\n"
-        prompt += "2. 对于每个相关政策，都要提供类似的详细分析，包括政策内容、申请条件和申请路径。\n"
-        prompt += "3. 不要包含符合或不符合条件的判断，只提供客观的政策信息。\n"
-        prompt += "4. 主动建议：必须输出简历优化方案，基于推荐岗位生成通用的简历优化建议，包括技能突出、经验展示、格式优化等方面。\n"
-        prompt += "   例如：简历优化方案：1. 突出与推荐岗位相关的核心技能；2. 强调工作经验和成就；3. 展示学习能力和适应能力；4. 确保简历格式清晰，重点突出。\n"
+        
+        # 核心信息
+        prompt += "政策:\n" + policies_str + "\n"
+        if jobs_str:
+            prompt += "岗位:\n" + jobs_str + "\n"
+        
+        # 简洁指令
+        prompt += "指令:\n"
+        prompt += "1. 提供详细政策分析，包括内容、申请条件和路径\n"
+        prompt += "2. 不包含符合或不符合条件的判断，只提供客观信息\n"
+        prompt += "3. 语言简洁明了，使用中文\n\n"
+        
+        # 输出格式
+        prompt += "输出JSON格式: {\"positive\":\"相关政策分析\",\"negative\":\"\",\"suggestions\":\"主动建议\"}\n\n"
+        
+        # 关键提示
+        prompt += "重要提示:\n"
+        prompt += "1. 每个政策需包含：内容、申请条件、申请路径\n"
+        prompt += "2. suggestions需包含简历优化方案\n"
+        prompt += "3. 严格按提供的政策生成分析，不提及未列出的政策\n"
+        
         return prompt
     
     def _process_llm_response(self, response):
@@ -383,7 +470,7 @@ class ResponseGenerator:
                 # 如果content是字典，检查是否是错误响应
                 if 'error' in content:
                     # 处理错误响应，生成默认的响应
-                    return {
+                    result_json = {
                         "positive": "",
                         "negative": "",
                         "suggestions": suggestions
@@ -406,11 +493,14 @@ class ResponseGenerator:
         except Exception as e:
             logger.error(f"解析回答结果失败: {str(e)}")
             # 即使发生错误，也要返回基于推荐岗位的简历优化建议
-            return {
+            result_json = {
                 "positive": "",
                 "negative": "",
                 "suggestions": suggestions
             }
+            # 后处理逻辑，生成不符合条件的政策信息
+            result_json = self._post_process_result(result_json, relevant_policies, user_input)
+            return result_json
     
     def _post_process_result(self, result_json, relevant_policies, user_input):
         """后处理响应结果"""
@@ -453,28 +543,36 @@ class ResponseGenerator:
                 positive_content = ''
                 break
         
-        # 确保包含所有符合条件的政策，特别是POLICY_A01
-        missing_policies = []
+        # 提取positive_content中的政策ID
+        import re
+        positive_policies = []
+        # 同时匹配中文括号和英文括号
+        matches = re.findall(r'[\(（](POLICY_[A-Z0-9]+)[\)）]', positive_content)
+        positive_policies.extend(matches)
+        
+        # 确保包含所有真正符合条件的政策
         for policy in relevant_policies:
             policy_id = policy.get('policy_id', '')
-            if policy_id not in positive_content:
-                missing_policies.append(policy)
-        
-        # 如果有遗漏的政策，添加到positive_content中
-        if missing_policies:
-            for policy in missing_policies:
-                policy_id = policy.get('policy_id', '')
-                policy_title = policy.get('title', '')
-                policy_key_info = policy.get('key_info', '')
+            policy_title = policy.get('title', '')
+            
+            # 只添加真正符合条件的政策
+            if policy_id not in positive_policies:
                 if policy_id == "POLICY_A01":
-                    # 创业担保贷款贴息政策
-                    positive_content += f"您可申请《{policy_title}》（{policy_id}）：创业者身份为退役军人，贷款额度≤50万、期限≤3年，LPR-150BP以上部分财政贴息。"
+                    # 创业担保贷款贴息政策 - 只要是返乡农民工或退役军人就符合条件
+                    if '返乡' in user_input or '农民工' in user_input or '退役' in user_input or '军人' in user_input:
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。"
+                elif policy_id == "POLICY_A03":
+                    # 返乡创业扶持补贴政策 - 需要提到带动就业
+                    if '带动就业' in user_input or '就业' in user_input:
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：创办小微企业、正常经营1年以上且带动3人以上就业，可申领2万补贴。"
                 elif policy_id == "POLICY_A04":
-                    # 创业场地租金补贴政策
-                    positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
+                    # 创业场地租金补贴政策 - 需要提到入驻孵化基地
+                    if '入驻' in user_input and '孵化基地' in user_input:
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
                 elif policy_id == "POLICY_A06":
-                    # 退役军人创业税收优惠政策
-                    positive_content += f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
+                    # 退役军人创业税收优惠政策 - 需要是退役军人
+                    if '退役' in user_input or '军人' in user_input:
+                        positive_content += f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
         
         return positive_content
     
@@ -483,7 +581,8 @@ class ResponseGenerator:
         # 提取positive_content中的政策ID
         positive_policies = []
         import re
-        matches = re.findall(r'\((POLICY_[A-Z0-9]+)\)', positive_content)
+        # 同时匹配中文括号和英文括号
+        matches = re.findall(r'[\(（](POLICY_[A-Z0-9]+)[\)）]', positive_content)
         positive_policies.extend(matches)
         
         # 从negative_content中移除已在positive_content中出现的政策
@@ -491,8 +590,7 @@ class ResponseGenerator:
         filtered_negative_lines = []
         for line in negative_lines:
             if line.strip():
-                # 提取当前行中的政策ID
-                line_matches = re.findall(r'\((POLICY_[A-Z0-9]+)\)', line)
+                # 检查当前行是否包含已在positive_content中出现的政策ID
                 if not any(policy_id in line for policy_id in positive_policies):
                     filtered_negative_lines.append(line)
         
@@ -501,10 +599,5 @@ class ResponseGenerator:
     
     def _process_negative_content(self, negative_content):
         """处理negative部分"""
-        # 处理没有不符合条件政策的情况
-        negative_not_found_patterns = ['未找到不符合条件的政策', '无不符合条件的政策']
-        for pattern in negative_not_found_patterns:
-            if pattern in negative_content:
-                return ''
-        
+        # 保留所有negative内容，不做替换
         return negative_content

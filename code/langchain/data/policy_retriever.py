@@ -29,8 +29,14 @@ class PolicyRetriever:
     
     def pr_load_policies(self):
         """加载政策数据（带缓存）"""
-        if self._policies_loaded and self._policies_cache:
-            return self._policies_cache
+        # 尝试从缓存管理器获取
+        cached_policies = self.cache_manager.get_policies_cache()
+        if cached_policies:
+            logger.info("使用缓存的政策数据")
+            # 更新本地缓存
+            self._policies_cache = cached_policies
+            self._policies_loaded = True
+            return cached_policies
         
         # 从配置中获取政策文件路径
         policy_file = self.config_manager.get('data.policy_file')
@@ -41,10 +47,11 @@ class PolicyRetriever:
                 self._policies_cache = policies
                 self._policies_loaded = True
                 # 缓存到缓存管理器
-                self.cache_manager.set('policies', policies)
+                self.cache_manager.set_policies_cache(policies)
+                logger.info(f"加载政策数据成功，共 {len(policies)} 条政策")
                 return policies
         except Exception as e:
-            print(f"加载政策数据失败: {e}")
+            logger.error(f"加载政策数据失败: {e}")
             return []
     
     def pr_retrieve_policies(self, intent, entities, original_input=None):
