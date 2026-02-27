@@ -368,8 +368,12 @@ class PerformanceOptimizer:
         保存优化历史到文件
         """
         try:
+            # 检查文件系统是否可写
             with open("performance_optimization_history.json", "w", encoding="utf-8") as f:
                 json.dump(self.optimization_history, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            # 忽略只读文件系统错误
+            print(f"文件系统只读，跳过保存优化历史: {e}")
         except Exception as e:
             print(f"保存优化历史失败: {e}")
     

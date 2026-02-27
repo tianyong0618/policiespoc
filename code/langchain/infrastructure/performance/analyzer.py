@@ -30,10 +30,15 @@ class PerformanceAnalyzer:
         self.monitor = monitor
         self.report_history = []
         self.report_dir = "performance_reports"
+        self.is_writable = True
         
-        # 创建报告目录
-        if not os.path.exists(self.report_dir):
-            os.makedirs(self.report_dir)
+        # 尝试创建报告目录，如果失败则禁用写入功能
+        try:
+            if not os.path.exists(self.report_dir):
+                os.makedirs(self.report_dir)
+        except OSError:
+            print("Read-only file system detected, disabling report writing functionality")
+            self.is_writable = False
     
     def analyze_performance_trends(self, hours=24):
         """
@@ -491,13 +496,18 @@ class PerformanceAnalyzer:
         Returns:
             str: 报告文件名
         """
+        if not self.is_writable:
+            return "report_saving_disabled"
+            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_filename = os.path.join(self.report_dir, f"comprehensive_report_{timestamp}.json")
         
-        with open(report_filename, 'w', encoding='utf-8') as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
-        
-        return report_filename
+        try:
+            with open(report_filename, 'w', encoding='utf-8') as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+            return report_filename
+        except OSError:
+            return "report_saving_failed"
     
     def _generate_visualizations(self, report, report_filename):
         """
@@ -647,6 +657,10 @@ class PerformanceAnalyzer:
         """
         self.report_history = []
         
+        # 如果文件系统不可写，直接返回
+        if not self.is_writable:
+            return
+        
         # 检查报告目录是否存在
         if not os.path.exists(self.report_dir):
             return
@@ -655,19 +669,22 @@ class PerformanceAnalyzer:
         time_threshold = datetime.now() - timedelta(hours=hours)
         
         # 加载报告文件
-        for filename in os.listdir(self.report_dir):
-            if filename.endswith('.json'):
-                filepath = os.path.join(self.report_dir, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        report = json.load(f)
-                        
-                    # 检查报告时间
-                    report_time = datetime.fromisoformat(report.get("timestamp", ""))
-                    if report_time >= time_threshold:
-                        self.report_history.append(report)
-                except Exception as e:
-                    pass  # 忽略无法加载的报告
+        try:
+            for filename in os.listdir(self.report_dir):
+                if filename.endswith('.json'):
+                    filepath = os.path.join(self.report_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            report = json.load(f)
+                            
+                        # 检查报告时间
+                        report_time = datetime.fromisoformat(report.get("timestamp", ""))
+                        if report_time >= time_threshold:
+                            self.report_history.append(report)
+                    except Exception as e:
+                        pass  # 忽略无法加载的报告
+        except OSError:
+            pass  # 忽略文件系统错误
     
     def _get_performance_rating(self, score):
         """
