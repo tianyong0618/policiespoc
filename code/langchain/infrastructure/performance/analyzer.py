@@ -2,8 +2,14 @@ import json
 import os
 from datetime import datetime, timedelta
 from collections import defaultdict
-import matplotlib.pyplot as plt
 import numpy as np
+
+# 尝试导入 matplotlib，如果不可用则禁用可视化功能
+plt = None
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    print("matplotlib module not available, visualization will be disabled")
 
 class PerformanceAnalyzer:
     """性能分析器，用于生成详细的性能分析报告"""
@@ -481,6 +487,10 @@ class PerformanceAnalyzer:
             report: 综合报告
             report_filename: 报告文件名
         """
+        # 如果 matplotlib 不可用，直接返回
+        if not plt:
+            return
+            
         # 提取文件名（不含扩展名）
         base_filename = os.path.splitext(os.path.basename(report_filename))[0]
         chart_dir = os.path.join(self.report_dir, "charts")
