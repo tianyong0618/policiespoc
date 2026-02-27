@@ -2,7 +2,13 @@ import json
 import os
 from datetime import datetime, timedelta
 from collections import defaultdict
-import numpy as np
+
+# 尝试导入 numpy，如果不可用则禁用相关功能
+np = None
+try:
+    import numpy as np
+except ImportError:
+    print("numpy module not available, some performance analysis features will be disabled")
 
 # 尝试导入 matplotlib，如果不可用则禁用可视化功能
 plt = None
@@ -115,8 +121,22 @@ class PerformanceAnalyzer:
             return {"direction": "insufficient_data", "magnitude": 0}
         
         # 计算线性回归斜率
-        x = np.arange(len(values))
-        slope, _ = np.polyfit(x, values, 1)
+        if np:
+            x = np.arange(len(values))
+            slope, _ = np.polyfit(x, values, 1)
+        else:
+            # 使用简单的线性回归计算
+            n = len(values)
+            x = list(range(n))
+            sum_x = sum(x)
+            sum_y = sum(values)
+            sum_xy = sum(x[i] * values[i] for i in range(n))
+            sum_x2 = sum(x[i]**2 for i in range(n))
+            
+            if n * sum_x2 - sum_x**2 == 0:
+                slope = 0
+            else:
+                slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x**2)
         
         # 计算变化百分比
         if values[0] > 0:
