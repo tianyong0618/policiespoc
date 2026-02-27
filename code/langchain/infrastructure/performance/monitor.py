@@ -1,10 +1,16 @@
 import time
-import psutil
 import threading
 import json
 from datetime import datetime
 from collections import defaultdict, deque
 import os
+
+# 尝试导入 psutil，如果不可用则禁用系统监控
+psutil = None
+try:
+    import psutil
+except ImportError:
+    print("psutil module not available, system monitoring will be disabled")
 
 class PerformanceMonitor:
     """性能监控器，用于收集和管理性能指标"""
@@ -76,36 +82,44 @@ class PerformanceMonitor:
         Args:
             interval: 监控间隔（秒）
         """
+        # 如果 psutil 不可用，直接返回
+        if not psutil:
+            return
+            
         while self.running:
-            # 收集内存使用情况
-            memory = psutil.virtual_memory()
-            with self.lock:
-                self.memory_usage.append({
-                    'timestamp': datetime.now().isoformat(),
-                    'used_percent': memory.percent,
-                    'used_mb': memory.used / (1024 * 1024),
-                    'total_mb': memory.total / (1024 * 1024)
-                })
-            
-            # 收集CPU使用情况
-            cpu_percent = psutil.cpu_percent(interval=0.1)
-            with self.lock:
-                self.cpu_usage.append({
-                    'timestamp': datetime.now().isoformat(),
-                    'percent': cpu_percent
-                })
-            
-            # 收集系统负载
-            load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else (0, 0, 0)
-            with self.lock:
-                self.system_load.append({
-                    'timestamp': datetime.now().isoformat(),
-                    '1min': load_avg[0],
-                    '5min': load_avg[1],
-                    '15min': load_avg[2]
-                })
-            
-            time.sleep(interval)
+            try:
+                # 收集内存使用情况
+                memory = psutil.virtual_memory()
+                with self.lock:
+                    self.memory_usage.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'used_percent': memory.percent,
+                        'used_mb': memory.used / (1024 * 1024),
+                        'total_mb': memory.total / (1024 * 1024)
+                    })
+                
+                # 收集CPU使用情况
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                with self.lock:
+                    self.cpu_usage.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'percent': cpu_percent
+                    })
+                
+                # 收集系统负载
+                load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else (0, 0, 0)
+                with self.lock:
+                    self.system_load.append({
+                        'timestamp': datetime.now().isoformat(),
+                        '1min': load_avg[0],
+                        '5min': load_avg[1],
+                        '15min': load_avg[2]
+                    })
+                
+                time.sleep(interval)
+            except Exception as e:
+                print(f"Error in system monitoring: {e}")
+                time.sleep(interval)
     
     def record_request_start(self):
         """
