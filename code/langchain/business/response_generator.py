@@ -107,88 +107,112 @@ class ResponseGenerator:
             logger.info("使用缓存的响应结果")
             return cached_response
         
-        # 准备数据
-        relevant_policies = relevant_policies[:3]  # 只使用前3条政策
-        simplified_policies = self._simplify_policies(relevant_policies)
-        policies_str = json.dumps(simplified_policies, ensure_ascii=False, separators=(',', ':'))
-        
-        # 准备其他信息
-        jobs_str = self._prepare_jobs_info(recommended_jobs)
-        user_profile_str = self._prepare_user_profile_info(matched_user)
-        
-        # 构建基础指令
-        base_instructions = self._build_base_instructions(matched_user, recommended_jobs)
-        
-        # 构建完整prompt
-        prompt = self._build_prompt(user_input, policies_str, jobs_str, user_profile_str, base_instructions)
-        
-        # 使用批处理器处理LLM调用
-        from ..infrastructure.llm_batch_processor import LMBatchProcessor
-        batch_processor = LMBatchProcessor()
-        tasks = [{
-            "id": 1,
-            "type": "response_generation",
-            "prompt": prompt
-        }]
-        
-        # 批量处理
-        results = batch_processor.batch_process(tasks)
-        
-        # 处理结果
-        if results and results[0].get("result"):
-            content = results[0]["result"]
-        else:
-            # 如果批处理失败，使用默认响应
-            logger.error("批处理LLM调用失败，使用默认响应")
-            content = {"positive": "", "negative": "", "suggestions": ""}
-        
         # 生成建议
         suggestions = self._generate_suggestions(user_input, recommended_jobs, relevant_policies)
         
-        # 解析并处理结果
-        result = self._parse_and_process_result(content, suggestions, relevant_policies, user_input)
+        # 构建基础响应
+        result = {
+            "positive": "",
+            "negative": "",
+            "suggestions": suggestions
+        }
+        
+        # 如果有相关政策，使用规则引擎生成响应
+        if relevant_policies:
+            logger.info("使用规则引擎生成政策响应")
+            result = self._rule_based_policy_response(user_input, relevant_policies, result)
+        # 当没有相关政策时，保持positive为空，不显示该部分
         
         # 缓存结果
         self.cache_manager.set(cache_key, result, ttl=3600)  # 缓存1小时
         
-        # 确保生成不符合条件的政策信息
-        if relevant_policies:
-            # 提取positive中的政策ID
-            import re
-            positive_policies = []
-            # 同时匹配中文括号和英文括号
-            matches = re.findall(r'[\(（](POLICY_[A-Z0-9]+)[\)）]', result.get('positive', ''))
-            positive_policies.extend(matches)
+        return result
+    
+    def _rule_based_policy_response(self, user_input, relevant_policies, result):
+        """基于规则的政策响应生成"""
+        positive_content = ""
+        negative_content = ""
+        
+        # 处理每个政策
+        for policy in relevant_policies:
+            policy_id = policy.get('policy_id', '')
+            policy_title = policy.get('title', '')
             
-            # 为不在positive中的政策生成negative内容
-            negative_content = result.get('negative', '')
-            if not negative_content:
-                for policy in relevant_policies:
-                    policy_id = policy.get('policy_id', '')
-                    policy_title = policy.get('title', '')
-                    if policy_id not in positive_policies:
-                        # 生成不符合条件的原因
-                        if policy_id == "POLICY_A03":
-                            # 返乡创业扶持补贴政策
-                            if '带动就业' not in user_input and '就业' not in user_input:
-                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'带动3人以上就业'方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。"
-                        elif policy_id == "POLICY_A04":
-                            # 创业场地租金补贴政策
-                            if '入驻' not in user_input or '孵化基地' not in user_input:
-                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'入驻孵化基地'方可申领补贴，当前信息未提及，建议补充入驻证明后申请。"
-                        elif policy_id == "POLICY_A05":
-                            # 技能培训补贴政策
-                            if '技能培训' not in user_input and '证书' not in user_input:
-                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'参加技能培训并取得证书'方可申领补贴，当前信息未提及，建议参加培训后申请。"
-                        elif policy_id == "POLICY_A06":
-                            # 退役军人创业税收优惠政策
-                            if '退役' not in user_input and '军人' not in user_input:
-                                negative_content += f"根据《{policy_title}》（{policy_id}），您需满足'退役军人'身份方可享受税收优惠，当前信息未提及，建议补充身份证明后申请。"
-                
-                if negative_content:
-                    result['negative'] = negative_content
+            # 检查是否符合政策条件
+            if self._check_policy_conditions(policy_id, user_input):
+                # 生成符合条件的政策内容
+                positive_content += self._generate_policy_positive_content(policy)
+            else:
+                # 生成不符合条件的政策内容
+                negative_content += self._generate_policy_negative_content(policy, user_input)
+        
+        # 更新结果
+        if positive_content:
+            result["positive"] = positive_content
+        if negative_content:
+            result["negative"] = negative_content
         
         return result
+    
+    def _check_policy_conditions(self, policy_id, user_input):
+        """检查政策条件"""
+        if policy_id == "POLICY_A01":
+            # 创业担保贷款贴息政策 - 只要是返乡农民工或退役军人就符合条件
+            return '返乡' in user_input or '农民工' in user_input or '退役' in user_input or '军人' in user_input
+        elif policy_id == "POLICY_A02":
+            # 职业技能提升补贴政策 - 持有证书或失业
+            return '证书' in user_input or '失业' in user_input
+        elif policy_id == "POLICY_A03":
+            # 返乡创业扶持补贴政策 - 需要提到带动就业
+            return '带动就业' in user_input or '就业' in user_input
+        elif policy_id == "POLICY_A04":
+            # 创业场地租金补贴政策 - 需要提到入驻孵化基地
+            return '入驻' in user_input and '孵化基地' in user_input
+        elif policy_id == "POLICY_A05":
+            # 技能培训生活费补贴政策 - 需要提到技能培训
+            return '技能培训' in user_input
+        elif policy_id == "POLICY_A06":
+            # 退役军人创业税收优惠政策 - 需要是退役军人
+            return '退役' in user_input or '军人' in user_input
+        return False
+    
+    def _generate_policy_positive_content(self, policy):
+        """生成符合条件的政策内容"""
+        policy_id = policy.get('policy_id', '')
+        policy_title = policy.get('title', '')
+        
+        if policy_id == "POLICY_A01":
+            return f"您可申请《{policy_title}》（{policy_id}）：最高贷50万、期限3年，LPR-150BP以上部分财政贴息。"
+        elif policy_id == "POLICY_A02":
+            return f"您可申请《{policy_title}》（{policy_id}）：取得职业资格证书，可申领技能提升补贴。"
+        elif policy_id == "POLICY_A03":
+            return f"您可申请《{policy_title}》（{policy_id}）：创办小微企业、正常经营1年以上且带动3人以上就业，可申领2万补贴。"
+        elif policy_id == "POLICY_A04":
+            return f"您可申请《{policy_title}》（{policy_id}）：入驻孵化基地，补贴比例50%-80%，上限1万/年，期限≤2年。"
+        elif policy_id == "POLICY_A05":
+            return f"您可申请《{policy_title}》（{policy_id}）：参加技能培训，可申领生活费补贴。"
+        elif policy_id == "POLICY_A06":
+            return f"您可申请《{policy_title}》（{policy_id}）：作为退役军人从事个体经营，每年可扣减14400元，期限3年。"
+        return f"您可申请《{policy_title}》（{policy_id}）。"
+    
+    def _generate_policy_negative_content(self, policy, user_input):
+        """生成不符合条件的政策内容"""
+        policy_id = policy.get('policy_id', '')
+        policy_title = policy.get('title', '')
+        
+        if policy_id == "POLICY_A01":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'返乡农民工或退役军人'身份方可申请，当前信息未提及，建议补充身份证明后申请。"
+        elif policy_id == "POLICY_A02":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'持有职业资格证书或失业'方可申领补贴，当前信息未提及，建议补充相关证明后申请。"
+        elif policy_id == "POLICY_A03":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'带动3人以上就业'方可申领2万补贴，当前信息未提及，建议补充就业证明后申请。"
+        elif policy_id == "POLICY_A04":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'入驻孵化基地'方可申领补贴，当前信息未提及，建议补充入驻证明后申请。"
+        elif policy_id == "POLICY_A05":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'参加技能培训'方可申领补贴，当前信息未提及，建议参加培训后申请。"
+        elif policy_id == "POLICY_A06":
+            return f"根据《{policy_title}》（{policy_id}），您需满足'退役军人'身份方可享受税收优惠，当前信息未提及，建议补充身份证明后申请。"
+        return f"根据《{policy_title}》（{policy_id}），您暂不符合申请条件。"
     
     def _handle_skill_training_scenario(self, recommended_jobs):
         """处理技能培训岗位个性化推荐场景"""

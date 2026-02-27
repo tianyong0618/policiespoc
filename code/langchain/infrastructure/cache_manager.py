@@ -2,6 +2,8 @@ import time
 import hashlib
 import json
 import logging
+import re
+from difflib import SequenceMatcher
 
 # 配置日志
 logging.basicConfig(
@@ -31,6 +33,10 @@ class CacheManager:
             # 缓存统计
             cls._instance.hit_count = 0
             cls._instance.miss_count = 0
+            cls._instance.similarity_hit_count = 0  # 相似度匹配命中次数
+            
+            # 存储查询文本和缓存键的映射，用于相似度查找
+            cls._instance.query_cache_map = {}
             
             # 缓存预热
             cls._instance._prewarm_cache()
@@ -45,13 +51,14 @@ class CacheManager:
         # 单例模式下，__init__可能会被调用多次，所以这里不需要重复初始化
         pass
     
-    def set(self, key, value, ttl=None):
+    def set(self, key, value, ttl=None, query_text=None):
         """设置缓存
         
         Args:
             key: 缓存键
             value: 缓存值
             ttl: 缓存时间（秒），默认使用默认值
+            query_text: 查询文本，用于相似度匹配
         """
         # 清理过期缓存
         self.cleanup_expired()
@@ -67,6 +74,14 @@ class CacheManager:
             'expiry': expiry,
             'created': time.time()
         }
+        
+        # 如果提供了查询文本，存储查询文本和缓存键的映射
+        if query_text:
+            self.query_cache_map[query_text] = {
+                'key': key,
+                'expiry': expiry
+            }
+        
         logger.debug(f"设置缓存: {key}, 过期时间: {expiry}")
     
     def get(self, key):
@@ -126,8 +141,130 @@ class CacheManager:
         for key in expired_keys:
             del self.cache[key]
         
-        if expired_keys:
-            logger.info(f"清理过期缓存: {len(expired_keys)}个项")
+        # 清理过期的查询映射
+        expired_queries = [query for query, item in self.query_cache_map.items() if current_time > item['expiry']]
+        for query in expired_queries:
+            del self.query_cache_map[query]
+        
+        if expired_keys or expired_queries:
+            logger.info(f"清理过期缓存: {len(expired_keys)}个缓存项, {len(expired_queries)}个查询映射")
+    
+    def _calculate_similarity(self, str1, str2):
+        """计算两个字符串的相似度
+        
+        Args:
+            str1: 第一个字符串
+            str2: 第二个字符串
+            
+        Returns:
+            相似度分数（0-1）
+        """
+        # 预处理字符串，移除标点符号和多余空格
+        def preprocess(s):
+            # 移除标点符号
+            s = re.sub(r'[\s\p{P}\p{S}]+', ' ', s)
+            # 转换为小写
+            s = s.lower()
+            # 移除多余空格
+            s = ' '.join(s.split())
+            return s
+        
+        str1_processed = preprocess(str1)
+        str2_processed = preprocess(str2)
+        
+        # 计算相似度
+        return SequenceMatcher(None, str1_processed, str2_processed).ratio()
+    
+    def find_similar_queries(self, query_text, threshold=0.7):
+        """查找相似的查询
+        
+        Args:
+            query_text: 查询文本
+            threshold: 相似度阈值
+            
+        Returns:
+            相似查询的列表，按相似度降序排列
+        """
+        similar_queries = []
+        current_time = time.time()
+        
+        for cached_query, item in list(self.query_cache_map.items()):
+            # 检查缓存是否过期
+            if current_time > item['expiry']:
+                del self.query_cache_map[cached_query]
+                continue
+            
+            # 计算相似度
+            similarity = self._calculate_similarity(query_text, cached_query)
+            if similarity >= threshold:
+                similar_queries.append((cached_query, similarity, item['key']))
+        
+        # 按相似度降序排序
+        similar_queries.sort(key=lambda x: x[1], reverse=True)
+        return similar_queries
+    
+    def get_by_query(self, query_text, threshold=0.7):
+        """根据查询文本获取缓存，支持相似度匹配
+        
+        Args:
+            query_text: 查询文本
+            threshold: 相似度阈值
+            
+        Returns:
+            缓存值，如果不存在或已过期则返回None
+        """
+        # 首先尝试精确匹配
+        key = self.generate_cache_key('query', query_text)
+        result = self.get(key)
+        if result:
+            return result
+        
+        # 尝试相似度匹配
+        similar_queries = self.find_similar_queries(query_text, threshold)
+        if similar_queries:
+            # 使用最相似的查询
+            most_similar = similar_queries[0]
+            similar_key = most_similar[2]
+            result = self.get(similar_key)
+            if result:
+                logger.info(f"使用相似度匹配的缓存，相似度: {most_similar[1]:.2f}")
+                self.similarity_hit_count += 1
+                return result
+        
+        self.miss_count += 1
+        return None
+    
+    def set_query_cache(self, user_input, intent_info, response, ttl=None):
+        """设置查询结果缓存
+        
+        Args:
+            user_input: 用户输入
+            intent_info: 意图信息
+            response: 查询结果
+            ttl: 缓存时间（秒），默认使用查询缓存时间
+        """
+        ttl = ttl or self.query_ttl
+        key = self.generate_cache_key('query', user_input, intent_info)
+        self.set(key, response, ttl, query_text=user_input)
+    
+    def get_query_cache(self, user_input, intent_info):
+        """获取查询结果缓存
+        
+        Args:
+            user_input: 用户输入
+            intent_info: 意图信息
+            
+        Returns:
+            缓存的查询结果，如果不存在则返回None
+        """
+        # 首先尝试基于用户输入的相似度匹配
+        result = self.get_by_query(user_input)
+        if result:
+            return result
+        
+        # 如果相似度匹配失败，尝试精确匹配
+        key = self.generate_cache_key('query', user_input, intent_info)
+        return self.get(key)
     
     def _evict_oldest(self):
         """移除最旧的缓存项"""
@@ -373,13 +510,17 @@ class CacheManager:
         """
         total_requests = self.hit_count + self.miss_count
         hit_rate = (self.hit_count / total_requests * 100) if total_requests > 0 else 0
+        similarity_hit_rate = (self.similarity_hit_count / total_requests * 100) if total_requests > 0 else 0
         
         return {
             'hit_count': self.hit_count,
             'miss_count': self.miss_count,
+            'similarity_hit_count': self.similarity_hit_count,
             'total_requests': total_requests,
             'hit_rate': hit_rate,
+            'similarity_hit_rate': similarity_hit_rate,
             'cache_size': len(self.cache),
+            'query_map_size': len(self.query_cache_map),
             'max_cache_size': self.max_cache_size
         }
     
@@ -387,4 +528,5 @@ class CacheManager:
         """重置缓存统计信息"""
         self.hit_count = 0
         self.miss_count = 0
+        self.similarity_hit_count = 0
         logger.info("缓存统计信息已重置")

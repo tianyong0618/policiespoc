@@ -70,6 +70,12 @@ def test_scenario2_comprehensive():
             "input": "我不是退役军人，有8年企业管理经验，熟悉税收优惠政策，想从事创业项目评估相关工作。",
             "expected_jobs": [],
             "description": "非退役军人创业评估岗位推荐（不优先推荐）"
+        },
+        {
+            "id": "S2-008",
+            "input": "我是一名刚毕业的大学生，专业是市场营销，想创业开网店，需要了解相关补贴政策。",
+            "expected_jobs": [],
+            "description": "大学生创业开网店补贴政策咨询"
         }
     ]
     

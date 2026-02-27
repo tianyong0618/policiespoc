@@ -33,6 +33,16 @@ class PerformanceMonitor:
             'max_time': 0,
             'avg_time': 0
         })
+        # LLM调用历史记录
+        self.llm_calls = deque(maxlen=max_history)
+        # LLM调用统计
+        self.llm_stats = defaultdict(lambda: {
+            'count': 0,
+            'total_time': 0,
+            'min_time': float('inf'),
+            'max_time': 0,
+            'avg_time': 0
+        })
         # 内存使用历史记录
         self.memory_usage = deque(maxlen=max_history)
         # CPU使用历史记录
@@ -163,6 +173,32 @@ class PerformanceMonitor:
             if error:
                 self.error_counts[route] += 1
     
+    def record_llm_call(self, llm_type, duration, error=False):
+        """
+        记录LLM调用
+        
+        Args:
+            llm_type: LLM调用类型（如intent_recognition, response_generation等）
+            duration: 调用时间（秒）
+            error: 是否发生错误
+        """
+        with self.lock:
+            # 记录LLM调用
+            self.llm_calls.append({
+                'timestamp': datetime.now().isoformat(),
+                'llm_type': llm_type,
+                'duration': duration,
+                'error': error
+            })
+            
+            # 更新LLM调用统计
+            stats = self.llm_stats[llm_type]
+            stats['count'] += 1
+            stats['total_time'] += duration
+            stats['min_time'] = min(stats['min_time'], duration)
+            stats['max_time'] = max(stats['max_time'], duration)
+            stats['avg_time'] = stats['total_time'] / stats['count']
+    
     def get_metrics(self):
         """
         获取所有性能指标
@@ -192,6 +228,10 @@ class PerformanceMonitor:
             latest_cpu = self.cpu_usage[-1] if self.cpu_usage else None
             latest_load = self.system_load[-1] if self.system_load else None
             
+            # 计算LLM调用统计
+            total_llm_calls = sum(stats['count'] for stats in self.llm_stats.values())
+            avg_llm_time = sum(stats['total_time'] for stats in self.llm_stats.values()) / total_llm_calls if total_llm_calls > 0 else 0
+            
             return {
                 'timestamp': datetime.now().isoformat(),
                 'uptime': (datetime.now() - self.start_time).total_seconds(),
@@ -203,6 +243,11 @@ class PerformanceMonitor:
                     'p99_response_time': p99_response_time,
                     'max_concurrent_requests': self.max_concurrent_requests,
                     'current_concurrent_requests': self.concurrent_requests
+                },
+                'llm_metrics': {
+                    'total_calls': total_llm_calls,
+                    'avg_time': avg_llm_time,
+                    'call_stats': dict(self.llm_stats)
                 },
                 'system_metrics': {
                     'memory': latest_memory,
@@ -280,6 +325,27 @@ class PerformanceMonitor:
                 'suggestion': f'优化 {bottleneck["route"]} 路由的实现，考虑添加缓存或异步处理'
             })
         
+        # 基于LLM调用的建议
+        if metrics['llm_metrics']['total_calls'] > 0:
+            avg_llm_time = metrics['llm_metrics']['avg_time']
+            if avg_llm_time > 10.0:
+                recommendations.append({
+                    'type': 'llm_performance',
+                    'severity': 'high' if avg_llm_time > 20.0 else 'medium',
+                    'description': f'LLM调用平均时间较长: {avg_llm_time:.2f}秒',
+                    'suggestion': '考虑优化提示词，使用更轻量级的模型，或实现缓存机制减少LLM调用'
+                })
+            
+            # 分析LLM调用类型
+            for llm_type, stats in metrics['llm_metrics']['call_stats'].items():
+                if stats['avg_time'] > 15.0:
+                    recommendations.append({
+                        'type': 'llm_type_performance',
+                        'severity': 'medium',
+                        'description': f'{llm_type} 类型的LLM调用时间较长: {stats["avg_time"]:.2f}秒',
+                        'suggestion': f'优化 {llm_type} 的实现，考虑使用规则引擎或缓存'
+                    })
+        
         report = {
             'timestamp': datetime.now().isoformat(),
             'metrics': metrics,
@@ -290,6 +356,8 @@ class PerformanceMonitor:
                 'avg_response_time': metrics['request_metrics']['avg_response_time'],
                 'error_rate': metrics['request_metrics']['error_rate'],
                 'max_concurrent_requests': metrics['request_metrics']['max_concurrent_requests'],
+                'total_llm_calls': metrics['llm_metrics']['total_calls'],
+                'avg_llm_time': metrics['llm_metrics']['avg_time'],
                 'bottleneck_count': len(bottlenecks),
                 'recommendation_count': len(recommendations)
             }

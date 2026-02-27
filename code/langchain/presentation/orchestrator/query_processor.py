@@ -478,17 +478,25 @@ class QueryProcessor:
         """并行检索相关政策和推荐，提高处理效率"""
         import concurrent.futures
         
+        # 检查是否需要岗位推荐
+        needs_job_recommendation = intent_info.get("needs_job_recommendation", False)
+        
         # 创建线程池
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             # 提交政策检索任务
             policy_future = executor.submit(self.orchestrator.policy_retriever.pr_retrieve_policies, 
                                          intent_info["intent"], intent_info["entities"], user_input)
-            # 提交岗位推荐任务
-            job_future = executor.submit(self._retrieve_jobs_direct, user_input, intent_info)
             
-            # 等待任务完成
-            relevant_policies = policy_future.result()
-            recommended_jobs = job_future.result()
+            # 只有当需要岗位推荐时才提交岗位推荐任务
+            if needs_job_recommendation:
+                job_future = executor.submit(self._retrieve_jobs_direct, user_input, intent_info)
+                # 等待任务完成
+                relevant_policies = policy_future.result()
+                recommended_jobs = job_future.result()
+            else:
+                # 不需要岗位推荐，只执行政策检索
+                relevant_policies = policy_future.result()
+                recommended_jobs = []
         
         return relevant_policies, recommended_jobs
     

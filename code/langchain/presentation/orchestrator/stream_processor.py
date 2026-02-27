@@ -1,6 +1,7 @@
 import json
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Generator
 
 from ...infrastructure.chatbot import ChatBot
@@ -17,6 +18,8 @@ class StreamProcessor:
         self.orchestrator = orchestrator
         self.policy_analyzer = PolicyAnalyzer()
         self.cache_manager = CacheManager()  # 类级别缓存管理器
+        # 初始化线程池执行器，用于并行处理
+        self.executor = ThreadPoolExecutor(max_workers=4)
     
     def process_stream_query(self, user_input: str, session_id: str = None, conversation_history: List[Dict] = None) -> Generator[str, None, None]:
         """处理流式查询，支持实时响应"""
@@ -169,8 +172,31 @@ class StreamProcessor:
             # 开始分析
             yield from self._stream_chunk('analysis_start', "开始分析用户需求...", stream_results)
             
-            # 5. 检索政策和推荐（仅对需要的服务）
-            retrieve_result = self.orchestrator.policy_retriever.pr_process_query(user_input, intent_info)
+            # 5. 并行检索政策和推荐（仅对需要的服务）
+            logger.info("开始并行处理任务")
+            
+            # 定义并行任务
+            def retrieve_policy_data():
+                """检索政策数据"""
+                if needs_policy:
+                    return self.orchestrator.policy_retriever.pr_process_query(user_input, intent_info)
+                return {"relevant_policies": [], "recommended_jobs": []}
+            
+            def generate_suggestions():
+                """生成简历优化建议"""
+                return generate_resume_suggestions(user_input, [])
+            
+            # 执行并行任务
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                # 提交任务
+                policy_future = executor.submit(retrieve_policy_data)
+                suggestions_future = executor.submit(generate_suggestions)
+                
+                # 获取结果
+                retrieve_result = policy_future.result()
+                suggestions = suggestions_future.result()
+            
             relevant_policies = retrieve_result["relevant_policies"]
             recommended_jobs = retrieve_result["recommended_jobs"]
             recommended_courses = []
@@ -191,9 +217,6 @@ class StreamProcessor:
             
             # 6. 生成回答
             yield from self._stream_chunk('thinking', "生成结构化回答...", stream_results)
-            
-            # 生成基于推荐岗位的简历优化建议
-            suggestions = generate_resume_suggestions(user_input, recommended_jobs)
             
             # 生成默认的响应
             response = {
@@ -415,12 +438,15 @@ class StreamProcessor:
             logger.error(f"构建政策子步骤失败: {e}")
             return []
     
-    def _generate_job_recommendations(self, user_input: str, intent_info: Dict, recommended_jobs: List[Dict]):
-        """生成岗位推荐理由"""
+    def _generate_job_recommendations(self, user_input, intent_info, recommended_jobs):
+        """生成岗位推荐理由（使用规则引擎）"""
         try:
-            # 使用通用的generate_job_recommendations函数
-            from .utils import generate_job_recommendations
-            generate_job_recommendations(user_input, intent_info, recommended_jobs)
+            logger.info("使用规则引擎生成岗位推荐理由")
+            # 为每个岗位生成推荐理由
+            for job in recommended_jobs:
+                # 直接使用generate_job_reasons函数生成推荐理由，不使用LLM
+                job['reasons'] = generate_job_reasons(job)
+            logger.info(f"为 {len(recommended_jobs)} 个岗位生成了推荐理由")
         except Exception as e:
             logger.error(f"生成岗位推荐理由失败: {e}")
     
