@@ -46,7 +46,10 @@
 - **历史API (/api/history)**：管理会话历史
 
 #### 2.1.3 表现层 (Presentation)
-- **协调器 (Orchestrator)**：协调各模块工作，处理用户请求，整合各模块功能
+- **协调器模块 (Orchestrator)**：
+  - **基础协调器 (BaseOrchestrator)**：提供通用功能
+  - **查询处理器 (QueryProcessor)**：处理非流式查询
+  - **流式处理器 (StreamProcessor)**：处理流式查询，支持实时响应
 
 #### 2.1.4 业务逻辑层 (Business)
 - **政策匹配器 (PolicyMatcher)**：负责基于用户意图和实体匹配相关政策
@@ -65,11 +68,19 @@
 - **会话历史管理 (HistoryManager)**：管理用户会话历史
 - **缓存管理器 (CacheManager)**：负责缓存LLM响应和计算结果，提升系统性能
 - **配置管理器 (ConfigManager)**：负责加载和管理系统配置
+- **LLM批处理器 (LLMBatchProcessor)**：批量处理LLM请求，提升并发性能
+- **政策分析器 (PolicyAnalyzer)**：分析政策内容和结构，提取关键信息
+- **性能优化模块 (Performance)**：
+  - **性能分析器 (PerformanceAnalyzer)**：分析系统性能瓶颈
+  - **性能监控 (PerformanceMonitor)**：实时监控系统性能指标
+  - **性能优化器 (PerformanceOptimizer)**：自动优化系统性能
+  - **性能中间件 (PerformanceMiddleware)**：集成到API服务中
 
 #### 2.1.7 数据层
 - **政策数据 (policies.json)**：存储政策信息
 - **岗位数据 (jobs.json)**：存储岗位信息
 - **用户数据 (user_profiles.json)**：存储用户画像数据
+- **模拟响应数据 (mock_responses.json)**：存储模拟的LLM响应数据
 - **会话数据 (内存存储)**：存储会话历史
 
 ### 2.2 系统分层关系
@@ -78,17 +89,20 @@
 |------|---------|---------|------|
 | 用户界面层 | 前端界面 | 调用API服务层 | 用户交互、预设模板、结果展示 |
 | API服务层 | FastAPI服务 | 调用表现层 | 处理HTTP请求、路由管理、响应格式化 |
-| 表现层 | 协调器 (Orchestrator) | 调用业务逻辑层 | 协调各模块工作，处理用户请求，整合各模块功能 |
+| 表现层 | 协调器模块 (Orchestrator) | 调用业务逻辑层 | 协调各模块工作，处理用户请求，整合各模块功能 |
 | 业务逻辑层 | 政策匹配器、意图分析器等 | 调用数据访问层和基础设施层 | 业务逻辑处理、政策匹配、岗位推荐、意图识别、回答生成 |
 | 数据访问层 | 政策检索器、岗位检索器、用户检索器 | 无依赖 | 数据加载、数据管理、数据检索 |
-| 基础设施层 | 对话机器人、缓存管理器、配置管理器 | 无依赖 | LLM集成、缓存管理、配置管理、会话历史管理 |
-| 数据层 | 政策数据、岗位数据、用户数据 | 无依赖 | 数据存储、数据持久化 |
+| 基础设施层 | 对话机器人、缓存管理器、配置管理器、LLM批处理器、政策分析器、性能优化模块 | 无依赖 | LLM集成、缓存管理、配置管理、会话历史管理、性能监控与优化 |
+| 数据层 | 政策数据、岗位数据、用户数据、模拟响应数据 | 无依赖 | 数据存储、数据持久化 |
 
 ### 2.3 核心模块职责
 
 | 模块                     | 主要职责                             | 文件位置                               | 关键方法                                                                     |
 | ---------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| **Orchestrator**       | 协调器，处理用户请求，整合各模块功能            | code/langchain/presentation/orchestrator.py     | process\_query, process\_stream\_query                 |
+| **Orchestrator**       | 协调器，处理用户请求，整合各模块功能            | code/langchain/presentation/orchestrator/     | process\_query, process\_stream\_query                 |
+| **BaseOrchestrator**   | 基础协调器，提供通用功能                     | code/langchain/presentation/orchestrator/base.py | -                                                                        |
+| **QueryProcessor**     | 处理非流式查询                          | code/langchain/presentation/orchestrator/query_processor.py | process\_query                                                       |
+| **StreamProcessor**    | 处理流式查询，支持实时响应                    | code/langchain/presentation/orchestrator/stream_processor.py | process\_stream\_query                                              |
 | **PolicyMatcher**        | 负责基于用户意图和实体匹配相关政策       | code/langchain/business/policy_matcher.py    | match\_policies                                                        |
 | **IntentAnalyzer**        | 负责识别用户意图和提取实体信息       | code/langchain/business/intent_analyzer.py    | ir\_identify\_intent                                                        |
 | **ResponseGenerator**        | 负责基于政策和推荐生成结构化回答       | code/langchain/business/response_generator.py    | rg\_generate\_response                                                        |
@@ -101,6 +115,12 @@
 | **HistoryManager**     | 会话历史管理，记录和管理用户对话历史               | code/langchain/infrastructure/history_manager.py | create\_session, add\_message, get\_session                              |
 | **CacheManager**     | 负责缓存LLM响应和计算结果，提升系统性能               | code/langchain/infrastructure/cache_manager.py | get, set                              |
 | **ConfigManager**     | 负责加载和管理系统配置               | code/langchain/infrastructure/config_manager.py | get, load\_config                              |
+| **LLMBatchProcessor**  | 批量处理LLM请求，提升并发性能                  | code/langchain/infrastructure/llm_batch_processor.py | process\_batch\_requests                               |
+| **PolicyAnalyzer**     | 分析政策内容和结构，提取关键信息                 | code/langchain/infrastructure/policy_analyzer.py | analyze\_policy                                   |
+| **PerformanceAnalyzer** | 分析系统性能瓶颈                         | code/langchain/infrastructure/performance/analyzer.py | analyze\_performance                               |
+| **PerformanceMonitor** | 实时监控系统性能指标                        | code/langchain/infrastructure/performance/monitor.py | monitor                                          |
+| **PerformanceOptimizer** | 自动优化系统性能                          | code/langchain/infrastructure/performance/optimizer.py | optimize                                         |
+| **PerformanceMiddleware** | 集成到API服务中的性能中间件                  | code/langchain/infrastructure/performance/middleware.py | -                                            |
 
 ## 3. 核心业务流程
 
@@ -199,6 +219,11 @@ graph TD
         Q[大语言模型 LLM] -->|处理请求| P
         R[历史管理器 HistoryManager] -->|提供会话历史| D
         S[缓存管理器 CacheManager] -->|优化性能| D
+        T[LLM批处理器 LLMBatchProcessor] -->|批处理请求| P
+        U[政策分析器 PolicyAnalyzer] -->|分析政策| F
+        V[性能优化模块 Performance] -->|监控性能| D
+        V -->|分析性能| P
+        V -->|分析性能| S
     end
     
     %% 核心数据流
@@ -221,6 +246,7 @@ graph TD
 | 政策数据  | JSON文件 | code/langchain/data/data_files/policies.json       | 存储政策信息，包括政策ID、标题、条件、福利等 |
 | 岗位数据  | JSON文件 | code/langchain/data/data_files/jobs.json           | 存储岗位信息，包括岗位ID、标题、要求、特点等 |
 | 用户画像  | JSON文件 | code/langchain/data/data_files/user_profiles.json | 存储用户画像信息，包括基本信息、技能、需求等  |
+| 模拟响应数据 | JSON文件 | code/langchain/data/data_files/mock_responses.json | 存储模拟的LLM响应数据，用于测试和开发 |
 | 会话历史  | JSON文件 | code/langchain/data/data_files/chat_history.json | 存储用户会话历史，支持多会话管理        |
 | LLM缓存 | 内存存储   | 运行时内存                                   | 缓存LLM响应，提升重复查询的响应速度     |
 

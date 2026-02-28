@@ -106,6 +106,7 @@
 │   │   ├── data/                # 数据访问层
 │   │   │   ├── data_files/      # 数据文件
 │   │   │   │   ├── jobs.json           # 岗位数据
+│   │   │   │   ├── mock_responses.json # 模拟响应数据
 │   │   │   │   ├── policies.json       # 政策数据
 │   │   │   │   └── user_profiles.json  # 用户画像数据
 │   │   │   ├── models/           # 数据模型
@@ -116,32 +117,60 @@
 │   │   │   ├── policy_retriever.py      # 政策检索器
 │   │   │   └── user_retriever.py        # 用户检索器
 │   │   ├── infrastructure/      # 基础设施层
-│   │   │   ├── chatbot.py               # LLM对话集成
-│   │   │   ├── history_manager.py       # 会话历史管理
+│   │   │   ├── performance/      # 性能优化模块
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── analyzer.py          # 性能分析器
+│   │   │   │   ├── middleware.py        # 性能中间件
+│   │   │   │   ├── monitor.py           # 性能监控
+│   │   │   │   └── optimizer.py         # 性能优化器
 │   │   │   ├── cache_manager.py         # 缓存管理
-│   │   │   └── config_manager.py         # 配置管理
+│   │   │   ├── chatbot.py               # LLM对话集成
+│   │   │   ├── config_manager.py         # 配置管理
+│   │   │   ├── history_manager.py       # 会话历史管理
+│   │   │   ├── llm_batch_processor.py   # LLM批处理
+│   │   │   └── policy_analyzer.py       # 政策分析器
 │   │   └── presentation/         # 表现层
-│   │       └── orchestrator.py          # 协调器
+│   │       ├── orchestrator/           # 协调器模块
+│   │       │   ├── __init__.py
+│   │       │   ├── base.py              # 基础协调器
+│   │       │   ├── query_processor.py   # 查询处理器
+│   │       │   ├── stream_processor.py  # 流式处理器
+│   │       │   └── utils.py             # 工具函数
+│   │       └── orchestrator.py          # 协调器入口
 │   ├── serve_code/             # 后端API服务
 │   │   ├── main.py             # FastAPI主程序
+│   │   ├── performance_optimization_history.json # 性能优化历史
 │   │   ├── requirements.txt    # Python依赖
 │   ├── test/                   # 测试目录
+│   │   ├── test_cache_mechanism.py      # 缓存机制测试
+│   │   ├── test_cache_standalone.py     # 独立缓存测试
 │   │   ├── test_cases.md       # 测试用例文档
+│   │   ├── test_optimization.py         # 优化测试
 │   │   ├── test_report.md      # 测试报告
 │   │   ├── test_scenario1_comprehensive.py # 场景1综合测试
-│   │   ├── test_scenario1_results.json # 场景1测试结果
-│   │   ├── test_scenario2_comprehensive.py # 场景2综合测试
-│   │   └── test_scenario2_results.json # 场景2测试结果
+│   │   └── test_scenario2_comprehensive.py # 场景2综合测试
 │   └── web_code/               # 前端界面
-│       ├── index.html          # 主页面
 │       ├── app.js              # 前端逻辑
+│       ├── index.html          # 主页面
 │       └── style.css           # 样式文件
 ├── doc/                        # 文档目录
-├── .env                        # 环境变量配置（本地开发）
+├── performance_optimization_artifacts/ # 性能优化产物
+│   ├── PERFORMANCE_MONITORING_BEST_PRACTICES.md # 性能监控最佳实践
+│   ├── api_performance_report.md       # API性能报告
+│   ├── performance_analysis_report.md  # 性能分析报告
+│   ├── performance_dependency_evaluation.md # 性能依赖评估
+│   ├── performance_optimization_history.json # 性能优化历史
+│   ├── performance_test.py             # 性能测试
+│   ├── streaming_api_test_report.md    # 流式API测试报告
+│   └── test_report.md                  # 测试报告
 ├── .gitignore                  # Git忽略文件
+├── README.md                   # 项目文档
 ├── main.py                     # Vercel部署入口
 ├── package.json                # 项目配置
+├── performance_optimization_history.json # 性能优化历史
 ├── requirements.txt            # 根目录依赖（Vercel部署）
+├── test_optimization_effect.py         # 优化效果测试
+├── test_real_llm_optimization.py       # 真实LLM优化测试
 └── vercel.json                 # Vercel部署配置
 ```
 
@@ -176,32 +205,40 @@
 
 ### 4.1 表现层 (Presentation)
 
-#### Orchestrator模块 ([orchestrator.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/presentation/orchestrator.py))
+#### Orchestrator模块
 
 ##### 功能描述
-协调器，负责处理用户请求，整合各模块功能，生成统一的响应格式。
+协调器模块，负责处理用户请求，整合各模块功能，生成统一的响应格式。采用模块化设计，包含基础协调器、查询处理器和流式处理器。
+
+##### 核心组件
+- **BaseOrchestrator**：基础协调器，提供通用功能
+- **QueryProcessor**：处理非流式查询
+- **StreamProcessor**：处理流式查询，支持实时响应
 
 ##### 核心方法
 ```python
-def process_query(self, user_input):
-    """处理用户查询的完整流程"""
-    # 1. 识别意图和实体
-    # 2. 验证意图是否在服务范围内
-    # 3. 检索相关政策和推荐
-    # 4. 生成结构化回答
-    # 5. 评估结果
-    # 6. 构建思考过程
-    # 7. 返回结果
+# QueryProcessor
+class QueryProcessor:
+    def process_query(self, user_input, scenario="general", session_id=None):
+        """处理用户查询的完整流程"""
+        # 1. 识别意图和实体
+        # 2. 验证意图是否在服务范围内
+        # 3. 检索相关政策和推荐
+        # 4. 生成结构化回答
+        # 5. 评估结果
+        # 6. 构建思考过程
+        # 7. 返回结果
 
-
-def process_stream_query(self, user_input, session_id=None, conversation_history=None):
-    """处理流式查询，支持实时响应"""
-    # 1. 识别意图
-    # 2. 验证意图是否在服务范围内
-    # 3. 分析用户输入
-    # 4. 检索政策和推荐
-    # 5. 生成回答
-    # 6. 流式返回结果
+# StreamProcessor
+class StreamProcessor:
+    def process_stream_query(self, user_input, scenario="general", session_id=None):
+        """处理流式查询，支持实时响应"""
+        # 1. 识别意图
+        # 2. 验证意图是否在服务范围内
+        # 3. 分析用户输入
+        # 4. 检索政策和推荐
+        # 5. 生成回答
+        # 6. 流式返回结果
 ```
 
 ### 4.2 业务逻辑层 (Business)
@@ -439,6 +476,79 @@ def load_config(self):
     # 2. 加载默认配置
     # 3. 合并配置
     # 4. 返回配置
+```
+
+#### LLMBatchProcessor模块 ([llm_batch_processor.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/llm_batch_processor.py))
+
+##### 功能描述
+LLM批处理器，负责批量处理LLM请求，提升并发性能。
+
+##### 核心方法
+```python
+def process_batch_requests(self, requests):
+    """批量处理LLM请求"""
+    # 1. 验证请求格式
+    # 2. 批处理请求
+    # 3. 处理响应
+    # 4. 返回结果
+```
+
+#### PolicyAnalyzer模块 ([policy_analyzer.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/langchain/infrastructure/policy_analyzer.py))
+
+##### 功能描述
+政策分析器，负责分析政策内容和结构，提取关键信息。
+
+##### 核心方法
+```python
+def analyze_policy(self, policy):
+    """分析政策内容"""
+    # 1. 提取政策关键词
+    # 2. 分析政策结构
+    # 3. 识别政策条件
+    # 4. 提取政策福利
+    # 5. 返回分析结果
+```
+
+#### 性能优化模块 (Performance)
+
+##### 功能描述
+性能优化模块，负责系统性能监控、分析和优化。
+
+##### 核心组件
+- **PerformanceAnalyzer**：性能分析器，分析系统性能瓶颈
+- **PerformanceMonitor**：性能监控，实时监控系统性能指标
+- **PerformanceOptimizer**：性能优化器，自动优化系统性能
+- **PerformanceMiddleware**：性能中间件，集成到API服务中
+
+##### 核心方法
+```python
+# PerformanceAnalyzer
+class PerformanceAnalyzer:
+    def analyze_performance(self, metrics):
+        """分析性能数据"""
+        # 1. 收集性能指标
+        # 2. 识别性能瓶颈
+        # 3. 生成优化建议
+        # 4. 返回分析结果
+
+# PerformanceMonitor
+class PerformanceMonitor:
+    def monitor(self, operation_name, func):
+        """监控函数执行性能"""
+        # 1. 记录开始时间
+        # 2. 执行函数
+        # 3. 记录结束时间
+        # 4. 计算执行时间
+        # 5. 存储性能数据
+
+# PerformanceOptimizer
+class PerformanceOptimizer:
+    def optimize(self, component):
+        """优化组件性能"""
+        # 1. 分析组件性能
+        # 2. 应用优化策略
+        # 3. 评估优化效果
+        # 4. 返回优化结果
 ```
 
 ### 4.5 API服务模块 ([main.py](file:///Users/tianyong/Documents/works/workspace/hp/公司文档/AI调研/政策咨询POC/code/serve_code/main.py))
@@ -879,6 +989,6 @@ __all__ = ['app']
 
 ---
 
-**文档版本**：v1.3  
-**最后更新**：2026-02-12  
+**文档版本**：v1.4  
+**最后更新**：2026-02-28  
 **维护者**：政策咨询智能体POC团队
