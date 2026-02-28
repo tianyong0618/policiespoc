@@ -129,12 +129,19 @@ class PolicyAnalyzer:
         """分析 POLICY_A04 政策"""
         has_employment_base = "创业孵化基地" in user_input_str or "入驻" in user_input_str or "场地" in user_input_str
         has_business = "汽车维修店" in user_input_str or "小微企业" in user_input_str or "企业" in user_input_str or "创业" in user_input_str or "经营" in user_input_str or "网店运营" in user_input_str
+        has_car_repair = "汽车维修店" in user_input_str
         
         if has_employment_base and has_business:
-            return {
-                "step": "检索POLICY_A04",
-                "content": "判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及入驻创业孵化基地和开汽车维修店，符合条件"
-            }
+            if has_car_repair:
+                return {
+                    "step": "检索POLICY_A04",
+                    "content": "判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及入驻创业孵化基地和开汽车维修店，符合条件"
+                }
+            else:
+                return {
+                    "step": "检索POLICY_A04",
+                    "content": "判断\"入驻创业孵化基地+创办企业\"可申领场地租金补贴，用户已提及入驻创业孵化基地和创办企业，符合条件"
+                }
         else:
             missing_conditions = []
             if not has_employment_base:
@@ -157,12 +164,19 @@ class PolicyAnalyzer:
         has_veteran = "退役军人" in user_input_str
         has_individual_business = "个体经营" in user_input_str or "汽车维修店" in user_input_str or "开店" in user_input_str or "维修店" in user_input_str
         has_business = "企业" in user_input_str or "创业" in user_input_str
+        has_car_repair = "汽车维修店" in user_input_str
         
         if has_veteran and (has_individual_business or has_business):
-            return {
-                "step": "检索POLICY_A06",
-                "content": "判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和开汽车维修店，符合条件"
-            }
+            if has_car_repair:
+                return {
+                    "step": "检索POLICY_A06",
+                    "content": "判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和开汽车维修店，符合条件"
+                }
+            else:
+                return {
+                    "step": "检索POLICY_A06",
+                    "content": "判断\"退役军人+创办企业\"可享受税收优惠政策，用户已提及退役军人身份和创办企业，符合条件"
+                }
         else:
             missing_conditions = []
             if not has_veteran:
