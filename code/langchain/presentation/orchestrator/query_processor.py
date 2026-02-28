@@ -181,9 +181,8 @@ class QueryProcessor:
         entities_info = intent_info.get('entities', [])
         entity_descriptions = []
         for entity in entities_info:
-            entity_type = entity.get('type', '')
             entity_value = entity.get('value', '')
-            entity_descriptions.append(f"{entity_value}({entity_type})")
+            entity_descriptions.append(entity_value)
         
         # 构建详细的思考过程
         substeps = []

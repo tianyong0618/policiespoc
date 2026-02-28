@@ -25,9 +25,6 @@ class IntentAnalyzer:
                 '找工作', '推荐岗位', '就业', '工作机会', '推荐工作', '求职',
                 '职业推荐', '工作推荐', '岗位匹配', '推荐职位', '想找一份', '想从事'
             ],
-            'course_recommendation': [
-                '课程', '培训', '学习', '技能提升', '转行'
-            ],
             'policy_recommendation': [
                 '政策', '补贴', '贷款', '申请', '返乡', '创业', '小微企业',
                 '失业', '证书', '资格证'
@@ -40,13 +37,14 @@ class IntentAnalyzer:
             'gender': r'(男|女|男性|女性)',
             'education_level': r'(初中|高中|中专|大专|本科|研究生|博士)\s*(毕业|学历)?',
             'employment_status': [
-                '退役军人', '返乡农民工', '失业', '在职', '创业'
+                '退役军人', '返乡农民工', '失业', '在职', '创业', '脱贫户', '高校毕业生', '大学生', '刚毕业的大学生', '刚从大学毕业', '低保家庭成员', '残疾人'
             ],
             'certificate': [
-                '电工证', '中级电工证', '高级电工证', '技能证书', '资格证'
+                '电工证', '中级电工证', '高级电工证', '技能证书', '资格证', '初级职业资格证书', '中级职业资格证书', '高级职业资格证书'
             ],
             'concern': [
-                '税收优惠', '场地补贴', '固定时间', '灵活时间', '技能补贴', '补贴申领'
+                '税收优惠', '场地补贴', '固定时间', '灵活时间', '技能补贴', '补贴申领', '技能培训',
+                '创业担保贷款', '职业技能提升补贴', '返乡创业扶持补贴', '创业场地租金补贴', '技能培训生活费补贴', '退役军人创业税收优惠'
             ],
             'business_type': [
                 '个体经营', '小微企业', '小加工厂'
@@ -56,13 +54,15 @@ class IntentAnalyzer:
             ],
             'location': [
                 '入驻孵化基地', '孵化基地'
+            ],
+            'work_type': [
+                '全职', '兼职'
             ]
         }
     
     def _rule_based_intent_recognition(self, user_input):
         """基于规则的意图识别"""
         needs_job = any(keyword in user_input for keyword in self.intent_rules['job_recommendation'])
-        needs_course = any(keyword in user_input for keyword in self.intent_rules['course_recommendation'])
         needs_policy = any(keyword in user_input for keyword in self.intent_rules['policy_recommendation'])
         
         # 识别实体
@@ -85,12 +85,24 @@ class IntentAnalyzer:
         
         # 识别就业状态
         for status in self.entity_rules['employment_status']:
-            if status in user_input:
-                entities.append({'type': 'employment_status', 'value': status})
+            # 检查是否有否定前缀
+            negation_patterns = [f'不{status}', f'不是{status}', f'非{status}', f'没有{status}']
+            is_negated = any(pattern in user_input for pattern in negation_patterns)
+            if status in user_input and not is_negated:
+                # 统一高校毕业生相关实体
+                if status in ['大学生', '刚毕业的大学生', '刚从大学毕业']:
+                    # 避免重复添加
+                    if not any(entity['type'] == 'employment_status' and entity['value'] == '高校毕业生' for entity in entities):
+                        entities.append({'type': 'employment_status', 'value': '高校毕业生'})
+                else:
+                    entities.append({'type': 'employment_status', 'value': status})
         
         # 识别证书
         for cert in self.entity_rules['certificate']:
-            if cert in user_input:
+            # 检查是否有否定前缀
+            negation_patterns = [f'不{cert}', f'不是{cert}', f'非{cert}', f'没有{cert}']
+            is_negated = any(pattern in user_input for pattern in negation_patterns)
+            if cert in user_input and not is_negated:
                 entities.append({'type': 'certificate', 'value': cert})
         
         # 识别关注点
@@ -113,12 +125,15 @@ class IntentAnalyzer:
             if location in user_input:
                 entities.append({'type': 'location', 'value': location})
         
+        # 识别工作类型
+        for work_type in self.entity_rules['work_type']:
+            if work_type in user_input:
+                entities.append({'type': 'work_type', 'value': work_type})
+        
         # 生成意图描述
         intent_parts = []
         if needs_job:
             intent_parts.append('推荐工作')
-        if needs_course:
-            intent_parts.append('推荐课程')
         if needs_policy:
             intent_parts.append('咨询政策')
         
@@ -127,7 +142,6 @@ class IntentAnalyzer:
         return {
             "intent": intent,
             "needs_job_recommendation": needs_job,
-            "needs_course_recommendation": needs_course,
             "needs_policy_recommendation": needs_policy,
             "entities": entities
         }
@@ -141,7 +155,7 @@ class IntentAnalyzer:
             
             # 检查是否需要使用LLM进行更复杂的意图识别
             # 如果规则识别结果不明确或实体信息不足，使用LLM
-            if not result['needs_job_recommendation'] and not result['needs_course_recommendation'] and not result['needs_policy_recommendation']:
+            if not result['needs_job_recommendation'] and not result['needs_policy_recommendation']:
                 logger.info("规则识别结果不明确，使用LLM进行意图识别")
                 # 生成意图识别提示
                 prompt = f"""
@@ -153,7 +167,6 @@ class IntentAnalyzer:
 {{
   "intent": "意图描述",
   "needs_job_recommendation": true/false,
-  "needs_course_recommendation": true/false,
   "needs_policy_recommendation": true/false,
   "entities": [
     {{"type": "实体类型", "value": "实体值"}},
@@ -163,10 +176,9 @@ class IntentAnalyzer:
 
 识别规则：
 - 岗位推荐：提到"找工作"、"推荐岗位"、"就业"、"工作机会"等
-- 课程推荐：提到"课程"、"培训"、"学习"、"技能提升"等
 - 政策推荐：提到"政策"、"补贴"、"贷款"、"申请"、"返乡"、"创业"等
 
-实体类型：age(年龄)、gender(性别)、education_level(教育水平)、employment_status(就业状态)、certificate(证书)、concern(关注点)、business_type(经营类型)、employment_impact(就业影响)、location(场地信息)、investment(投资信息)
+实体类型：age(年龄)、gender(性别)、education_level(教育水平)、employment_status(就业状态)、certificate(证书)、concern(关注点)、business_type(经营类型)、employment_impact(就业影响)、location(场地信息)、work_type(工作类型)
 """
 
                 # 检查缓存
@@ -236,6 +248,6 @@ class IntentAnalyzer:
             logger.error(f"意图识别失败: {str(e)}")
             # 返回默认意图
             return {
-                "result": {"intent": "通用查询", "needs_job_recommendation": False, "needs_course_recommendation": False, "needs_policy_recommendation": False, "entities": []},
+                "result": {"intent": "通用查询", "needs_job_recommendation": False, "needs_policy_recommendation": False, "entities": []},
                 "time": 0
             }

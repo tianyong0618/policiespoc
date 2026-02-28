@@ -111,9 +111,8 @@ class StreamProcessor:
         """提取实体描述"""
         entity_descriptions = []
         for entity in entities_info:
-            entity_type = entity.get('type', '')
             entity_value = entity.get('value', '')
-            entity_descriptions.append(f"{entity_value}({entity_type})")
+            entity_descriptions.append(entity_value)
         return entity_descriptions
     
     def _handle_out_of_scope(self, intent_info: Dict, entity_descriptions: List[str], stream_results: List[str]) -> Generator[str, None, None]:

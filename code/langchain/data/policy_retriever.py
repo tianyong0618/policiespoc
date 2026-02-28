@@ -214,7 +214,6 @@ class PolicyRetriever:
         
         # 检查是否需要各项服务
         needs_job_recommendation = intent_info.get("needs_job_recommendation", False)
-        needs_course_recommendation = intent_info.get("needs_course_recommendation", False)
         needs_policy_recommendation = intent_info.get("needs_policy_recommendation", False)
         
         # 1. 生成岗位推荐（仅当用户需要时）

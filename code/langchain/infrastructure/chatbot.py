@@ -306,7 +306,6 @@ class ChatBot:
             return json.dumps({
                 "intent": "政策咨询",
                 "needs_job_recommendation": False,
-                "needs_course_recommendation": False,
                 "needs_policy_recommendation": True,
                 "entities": entities
             }, ensure_ascii=False)
@@ -315,16 +314,7 @@ class ChatBot:
             return json.dumps({
                 "intent": "求职咨询",
                 "needs_job_recommendation": True,
-                "needs_course_recommendation": False,
                 "needs_policy_recommendation": True,  # 同时需要政策咨询（因为关注补贴）
-                "entities": entities
-            }, ensure_ascii=False)
-        elif "课程" in user_input or "培训" in user_input or "学习" in user_input:
-            return json.dumps({
-                "intent": "培训咨询",
-                "needs_job_recommendation": False,
-                "needs_course_recommendation": True,
-                "needs_policy_recommendation": False,
                 "entities": entities
             }, ensure_ascii=False)
         else:
@@ -332,7 +322,6 @@ class ChatBot:
             return json.dumps({
                 "intent": "政策咨询",
                 "needs_job_recommendation": False,
-                "needs_course_recommendation": False,
                 "needs_policy_recommendation": False,
                 "entities": entities
             }, ensure_ascii=False)
