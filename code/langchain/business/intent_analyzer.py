@@ -27,7 +27,7 @@ class IntentAnalyzer:
             ],
             'policy_recommendation': [
                 '政策', '补贴', '贷款', '申请', '返乡', '创业', '小微企业',
-                '失业', '证书', '资格证'
+                '失业', '证书', '资格证', '创业补贴', '创业贷款', '返乡创业补贴'
             ]
         }
         
@@ -37,14 +37,15 @@ class IntentAnalyzer:
             'gender': r'(男|女|男性|女性)',
             'education_level': r'(初中|高中|中专|大专|本科|研究生|博士)\s*(毕业|学历)?',
             'employment_status': [
-                '退役军人', '返乡农民工', '失业', '在职', '创业', '脱贫户', '高校毕业生', '大学生', '刚毕业的大学生', '刚从大学毕业', '低保家庭成员', '残疾人'
+                '退役军人', '返乡农民工', '农民工', '返乡', '失业', '在职', '创业', '脱贫户', '高校毕业生', '大学生', '刚毕业的大学生', '刚从大学毕业', '低保家庭成员', '残疾人'
             ],
             'certificate': [
                 '电工证', '中级电工证', '高级电工证', '技能证书', '资格证', '初级职业资格证书', '中级职业资格证书', '高级职业资格证书'
             ],
             'concern': [
                 '税收优惠', '场地补贴', '固定时间', '灵活时间', '技能补贴', '补贴申领', '技能培训',
-                '创业担保贷款', '职业技能提升补贴', '返乡创业扶持补贴', '创业场地租金补贴', '技能培训生活费补贴', '退役军人创业税收优惠'
+                '创业担保贷款', '职业技能提升补贴', '返乡创业扶持补贴', '创业场地租金补贴', '技能培训生活费补贴', '退役军人创业税收优惠',
+                '创业补贴', '创业贷款'
             ],
             'business_type': [
                 '个体经营', '小微企业', '小加工厂'
@@ -135,7 +136,18 @@ class IntentAnalyzer:
         if needs_job:
             intent_parts.append('推荐工作')
         if needs_policy:
-            intent_parts.append('咨询政策')
+            # 更具体的政策咨询意图
+            policy_intents = []
+            if '创业补贴' in user_input or '返乡创业补贴' in user_input:
+                policy_intents.append('咨询创业补贴政策')
+            if '创业贷款' in user_input:
+                policy_intents.append('咨询创业贷款政策')
+            if '返乡' in user_input and not policy_intents:
+                policy_intents.append('咨询返乡相关政策')
+            if not policy_intents:
+                policy_intents.append('咨询政策')
+            # 添加所有识别到的政策意图
+            intent_parts.extend(policy_intents)
         
         intent = ' '.join(intent_parts) if intent_parts else '通用查询'
         
