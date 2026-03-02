@@ -948,12 +948,15 @@ function renderAnalysisResult(data, container) {
     
     // 如果没有政策相关信息，提供一般政策咨询建议
     if ((!positiveContent || positiveContent.trim() === '' || positiveContent.trim() === '无') && (!negativeContent || negativeContent.trim() === '' || negativeContent.trim() === '无')) {
-        suggestions.push('建议联系当地人力资源和社会保障部门咨询相关政策。');
-        if (jobsData.length > 0) {
-            // 优先显示相关岗位，如果没有则显示所有岗位
-            const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
-            const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
-            suggestions.push(`可咨询以下岗位获取更多信息：${jobInfo}`);
+        // 只有当不是超出服务范围的响应时，才生成建议
+        if ((!answerContent || answerContent.trim() === '') && (relevantPolicies.length > 0 || recommendedJobs.length > 0)) {
+            suggestions.push('建议联系当地人力资源和社会保障部门咨询相关政策。');
+            if (jobsData.length > 0) {
+                // 优先显示相关岗位，如果没有则显示所有岗位
+                const displayJobs = relatedJobs.length > 0 ? relatedJobs : jobsData;
+                const jobInfo = displayJobs.map(job => `${job.title}（${job.job_id}）`).join('、');
+                suggestions.push(`可咨询以下岗位获取更多信息：${jobInfo}`);
+            }
         }
     }
     
@@ -962,8 +965,17 @@ function renderAnalysisResult(data, container) {
         dynamicSuggestions = suggestions.join('\n\n');
     }
     
-    // 优先使用后端返回的简历优化建议，确保基于推荐岗位的具体方案能够显示
-    const finalSuggestionsContent = suggestionsContent || dynamicSuggestions;
+    // 当意图超出服务范围时，不显示主动建议
+    // 检查是否是超出服务范围的响应：answer不为空且relevant_policies和recommended_jobs为空
+    let isOutOfScope = answerContent && answerContent.trim() !== '' && 
+        relevantPolicies.length === 0 && 
+        recommendedJobs.length === 0;
+    
+    // 只有当不是超出服务范围的响应时，才使用建议
+    let finalSuggestionsContent = '';
+    if (!isOutOfScope) {
+        finalSuggestionsContent = suggestionsContent || dynamicSuggestions;
+    }
     
     // 构建分析结果HTML（不包含思考过程，因为我们要保留原有的思考过程）
     let analysisHtml = `
