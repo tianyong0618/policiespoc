@@ -51,7 +51,7 @@ class IntentAnalyzer:
                 '个体经营', '小微企业', '小加工厂'
             ],
             'employment_impact': [
-                '带动就业', '带动\d+人就业'
+                '带动就业', r'带动\d+人就业'
             ],
             'location': [
                 '入驻孵化基地', '孵化基地'
